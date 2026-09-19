@@ -1,0 +1,87 @@
+{
+  "name": "sahne-promax",
+  "productName": "Sahne ProMax",
+  "version": "2.0.0-pro",
+  "description": "Sahne ProMax — High-performance modular Kick / KickBot donation, sub and gift-sub alerts, goal widgets, paired media, and Stream Deck control",
+  "author": "AmirEyZed & Contributors",
+  "license": "Apache-2.0",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/server.test.js test/overlay-xss.test.js test/promax.test.js",
+    "icons": "electron scripts/render-icons.js",
+    "screenshots": "electron scripts/capture-pages.js",
+    "dist": "electron-builder --win --x64 --publish never",
+    "dist:dir": "electron-builder --win --x64 --dir --publish never",
+    "format": "prettier --write \"server/**/*.js\" \"public/**/*.js\" \"electron/**/*.js\" \"test/**/*.js\" \"scripts/**/*.js\"",
+    "format:check": "prettier --check \"server/**/*.js\" \"public/**/*.js\" \"electron/**/*.js\" \"test/**/*.js\" \"scripts/**/*.js\""
+  },
+  "devDependencies": {
+    "electron": "43.7.3",
+    "electron-builder": "^26.0.12",
+    "prettier": "3.9.8"
+  },
+  "build": {
+    "appId": "com.sahnepromax.app",
+    "productName": "Sahne ProMax",
+    "copyright": "Copyright © 2026 Sahne ProMax Team",
+    "asar": true,
+    "compression": "normal",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "server/**/*",
+      "public/**/*",
+      "build/icon.png",
+      "build/tray.png",
+      "package.json",
+      "LICENSE",
+      "NOTICE"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Sahne-ProMax-Setup-${version}.${ext}",
+      "signAndEditExecutable": true,
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "shortcutName": "Sahne ProMax",
+      "uninstallDisplayName": "Sahne ProMax",
+      "deleteAppDataOnUninstall": false,
+      "allowElevation": true,
+      "include": "build/installer.nsh"
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "loadBrowserProcessSpecificV8Snapshot": false,
+      "grantFileProtocolExtraPrivileges": false,
+      "resetAdHocDarwinSignature": false
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

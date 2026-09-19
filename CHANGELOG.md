@@ -1,0 +1,64 @@
+# Changelog — Sahne Plus
+
+All notable changes to the public builds. Versions follow semantic versioning.
+
+## 1.3.0 — 2026-09-19 (open source)
+
+- Sahne+ is now open source under the Apache License 2.0 (names and icons excluded, see BRANDING.md). Source: https://github.com/AmirEyZed/sahne-plus
+- Official installers are built by GitHub Actions from the tagged source and published with a build provenance attestation (`gh attestation verify`).
+- Unit tests (`npm test`): server validation, loopback hardening, overlay XSS.
+- About page: license and NOTICE tabs.
+- Clearer error when a Kick channel name is not found (was "kick api HTTP 404").
+- Fixed (found by an independent code audit by [B3hnamR](https://github.com/B3hnamR), thank you): imported **image** alerts (PNG/JPG/GIF/WebP) did not render in the Browser Source since 1.1.0 because the same-origin check rejected the relative `/media/…` URL. Video and audio alerts were not affected.
+- Fixed (same audit): a donation whose payment capture failed for a transient reason (network drop, KickBot 5xx, timeout) was marked as played and never retried. Capture is now retried (3 attempts, 15 s apart) and an uncaptured tip is never marked as played; only a definitive "declined" answer from KickBot ends it.
+- Fixed: the "text-only alert when no file matches" option was accepted by the API but ignored; it now works and has a switch on the Settings page.
+- Fixed: Persian/Arabic-Indic digits in file names (`۱۵۰T`) and donor messages are recognised for thresholds and keywords.
+- Fixed: HTTP suffix Range requests (`bytes=-500`) returned the first bytes instead of the last; sub alerts received before the first exchange rate showed 0 instead of the USD price; the autostart switch is saved immediately.
+- Changed: duplicate detection for Kick chat events is 2.5 s and keyed by gifter + recipients (identical back-to-back gift batches are no longer merged); the rate-interval field defaults to 2 minutes like the server.
+- Hardening: Content-Security-Policy is also sent as an HTTP header (so `frame-ancestors` applies), the app accepts `cardpos` messages only from its own origin, uploads stream to disk instead of being buffered in RAM, oversized third-party responses fail instead of being silently truncated, `POST /api/config` can no longer drop file entries (use `DELETE /api/file`), "clear application data" also removes the log and config backups, and Meld self-heal is opt-in (only the installed app enables it).
+- Fixed: launching the app while it is already running now only brings the existing window to the front; it could briefly start a second server and show a "port in use" error.
+- Electron updated to 43.7.3 (Chromium security fixes).
+- The uninstaller now removes the "run at Windows login" registry entry; test instances started with `SAHNE_PLUS_DATA_DIR` never register themselves for login.
+- Code formatted with Prettier (120 columns); `npm run format:check` runs in CI. `engines` declares Node 22+.
+- Tests: regression tests for the image-alert and capture-retry fixes, upload / Range / config handling and digit normalisation.
+
+## 1.2.0 — 2026-09-18
+
+- Exchange rate now comes from the baha24.com public JSON API (live sell rate, refreshed every 2 minutes by default, minimum 1). bonbast.com is only used as a fallback, at most every 5 minutes. The rate source is shown next to the rate in the app.
+- Fixed: the first-run setup card stayed visible after the KickBot link was configured.
+
+## 1.1.1 — 2026-09-18
+
+- Removed an unnecessary mention of an unrelated third-party product from the About page and documents. No functional change.
+
+## 1.1.0 — 2026-09-18 (release-readiness hardening)
+
+Security
+- KickBot widget key is now stored encrypted with Windows DPAPI (`secret_id_enc`); existing plaintext keys are migrated on first start and the plaintext field is removed. The key is no longer returned by any API, masked in the UI and redacted from logs.
+- Local server: `Host` validation (DNS rebinding) and `Origin` validation for state-changing requests (CSRF); `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` headers.
+- Browser Source: strict Content-Security-Policy, scripts and styles moved to files, single-pass safe template rendering for donor names/messages (all values escaped), only `https:` GIF/TTS URLs and same-origin media URLs are loaded, `postMessage` restricted to the app origin.
+- Imported media: content sniffing (a `.webm` must really be a WebM, etc.), 512 MB limit, Windows reserved names and Unicode control characters stripped from file names, symlinks resolved, sources never modified.
+- Every field accepted by the API is validated (numeric bounds, enums, colour format, font allow-list, text length limits). Third-party text (names, messages, usernames) is stripped of control and bidi-override characters and length-limited.
+- Electron: `sandbox: true`, DevTools disabled in packaged builds, permission requests denied, IPC calls accepted only from the app window, external links limited to an allow-list, Electron fuses (RunAsNode / NODE_OPTIONS / inspect off, ASAR integrity on).
+
+Privacy
+- Google Fonts removed from the Browser Source; all fonts are bundled locally.
+- New in-app About page with privacy policy, terms, third-party notices, data location and security contact.
+
+Reliability
+- Played-alert ids are persisted (`played.json`) so a donation is not replayed after a restart.
+- Corrupted `config.json` is preserved as `config.json.corrupt-<timestamp>` instead of being overwritten; config writes are atomic.
+- Bonbast: malformed or out-of-range responses are rejected and the previous rate is kept; the failure is shown in the UI; minimum refresh interval 5 minutes; requests have timeouts.
+- Kick chat reconnect uses exponential back-off (5 s → 60 s).
+- Queue advance is guarded against re-entrancy; in-memory queues are capped.
+
+Data controls
+- Disconnect KickBot, Reset settings, Clear application data (with confirmation dialogs).
+
+## 1.0.1 — 2026-09-18
+
+- First hardening pass: loopback Host/Origin checks, sandboxed renderer, Electron fuses.
+
+## 1.0.0 — 2026-09-18
+
+- Initial desktop release: Electron shell around the KickAlerts engine, SAHNE-style UI, NSIS installer.

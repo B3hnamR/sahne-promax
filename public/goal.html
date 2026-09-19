@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sahne ProMax — Goal Widget</title>
+  <link rel="stylesheet" href="/goal.css">
+</head>
+<body>
+  <div id="goal-widget" class="goal-container">
+    <div class="goal-header">
+      <span class="goal-icon">🎯</span>
+      <h2 id="goal-title" class="goal-title">هدف دونیت</h2>
+      <span id="goal-percent" class="goal-badge">0%</span>
+    </div>
+    
+    <div class="goal-track">
+      <div id="goal-bar" class="goal-fill" style="width: 0%;">
+        <div class="goal-shine"></div>
+      </div>
+    </div>
+    
+    <div class="goal-footer">
+      <div class="goal-stat current">
+        <span class="label">جمع‌آوری شده:</span>
+        <span id="goal-current" class="val">۰ تومان</span>
+      </div>
+      <div class="goal-stat target">
+        <span class="label">هدف:</span>
+        <span id="goal-target" class="val">۰ تومان</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="celebration" class="celebration-overlay" hidden>
+    <div class="confetti-holder" id="confetti"></div>
+  </div>
+
+  <script src="/goal.js"></script>
+</body>
+</html>
