@@ -1,7 +1,7 @@
 // Sahne ProMax — File Inspector with Paired Media & Milestone Alerts
 'use strict';
 
-import { $, $$, esc, fmtToman, fmtSize, patch, toast } from './api.js';
+import { $, $$, esc, fmtToman, fmtSize, patch, toast, spConfirm } from './api.js';
 import { state, setSelectedId } from './state.js';
 
 let insT = null;
@@ -142,7 +142,15 @@ export function initInspector({ onUpdate, onDelete, onPreview }) {
   $('#iDelete').onclick = async () => {
     const f = (state.cfg.files || []).find(x => x.id === state.selectedId);
     if (!f) return;
-    if (!confirm('حذف «' + f.name + '»؟ فایل از پوشه هم پاک می‌شه.')) return;
+    const ok = await spConfirm({
+      title: 'حذف فایل مدیا',
+      body: 'حذف «' + f.name + '»؟ این فایل از روی دیسک هم پاک می‌شود.',
+      confirmText: 'حذف فایل',
+      cancelText: 'انصراف',
+      icon: '#i-trash',
+      danger: true
+    });
+    if (!ok) return;
     await fetch('/api/file?id=' + f.id, { method: 'DELETE' });
     closeInspector();
     toast('حذف شد', 'ok');

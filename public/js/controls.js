@@ -1,7 +1,7 @@
 // Sahne ProMax — Hardware & Stream Deck REST Control Bindings
 'use strict';
 
-import { $, post, toast } from './api.js';
+import { $, post, toast, spConfirm } from './api.js';
 
 export function initControls({ onStateChange }) {
   if ($('#btnSkip')) {
@@ -42,7 +42,15 @@ export function initControls({ onStateChange }) {
 
   if ($('#btnClear')) {
     $('#btnClear').onclick = async () => {
-      if (!confirm('آیا از پاک کردن کامل صف اطمینان دارید؟')) return;
+      const ok = await spConfirm({
+        title: 'خالی کردن صف',
+        body: 'آیا از پاک کردن کامل صف آلرت‌ها اطمینان دارید؟',
+        confirmText: 'خالی کردن صف',
+        cancelText: 'انصراف',
+        icon: '#i-queue',
+        danger: true
+      });
+      if (!ok) return;
       await post('/api/control/clear');
       toast('صف پخش خالی شد', 'ok');
     };

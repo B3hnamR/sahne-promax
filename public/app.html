@@ -429,6 +429,21 @@
     <div class="foot"><button class="btn" id="iPreview"><svg><use href="#i-play"/></svg>پیش‌نمایش</button><button class="btn danger" id="iDelete"><svg><use href="#i-trash"/></svg>حذف</button></div>
   </aside>
 </div>
+
+<div class="modal-backdrop" id="confirmModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-icon" id="confirmIcon"><svg><use href="#i-power"/></svg></div>
+      <h3 class="modal-title" id="confirmTitle">خروج از صحنه پلاس</h3>
+    </div>
+    <p class="modal-body" id="confirmBody">برنامه کاملاً بسته می‌شه و تا باز شدن دوباره، هیچ آلرتی روی استریم نمایش داده نمی‌شه. مطمئنی؟</p>
+    <div class="modal-actions">
+      <button class="btn" id="confirmCancel">انصراف</button>
+      <button class="btn danger" id="confirmOk">خروج</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <script type="module" src="/js/app.js"></script>
 </body>

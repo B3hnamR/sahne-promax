@@ -1,7 +1,7 @@
 // Sahne ProMax — Live Donation & Sub Goal Management
 'use strict';
 
-import { $, post, toast, copyText, fmtToman } from './api.js';
+import { $, post, toast, copyText, fmtToman, spConfirm } from './api.js';
 
 export function fillGoal(goal) {
   if (!goal) return;
@@ -44,7 +44,15 @@ export function initGoal() {
 
   if ($('#btnResetGoal')) {
     $('#btnResetGoal').onclick = async () => {
-      if (!confirm('آیا از صفر کردن مبلغ جمع‌آوری‌شده مطمئنید؟')) return;
+      const ok = await spConfirm({
+        title: 'صفر کردن پیشرفت هدف',
+        body: 'آیا از صفر کردن مبلغ جمع‌آوری‌شده هدف مطمئنید؟',
+        confirmText: 'صفر کردن',
+        cancelText: 'انصراف',
+        icon: '#i-chart',
+        danger: true
+      });
+      if (!ok) return;
       const r = await post('/api/goal/reset', { targetToman: Number($('#gTarget').value) || undefined });
       if (r.ok) {
         toast('هدف دونیت صفر شد', 'ok');

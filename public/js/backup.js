@@ -1,7 +1,7 @@
 // Sahne ProMax — 1-Click Backup & Restore Management
 'use strict';
 
-import { $, toast } from './api.js';
+import { $, toast, spConfirm } from './api.js';
 
 export function initBackup({ onRestoreComplete }) {
   const btnBackup = $('#btnDownloadBackup');
@@ -30,11 +30,15 @@ export function initBackup({ onRestoreComplete }) {
         return;
       }
 
-      if (
-        !confirm(
-          `آیا از بازیابی نسخه پشتیبان «${file.name}» مطمئنید؟ تنظیمات فعلی و فایل‌های مدیا با محتوای این نسخه جایگزین خواهند شد.`
-        )
-      ) {
+      const ok = await spConfirm({
+        title: 'بازیابی نسخه پشتیبان',
+        body: `آیا از بازیابی نسخه پشتیبان «${file.name}» مطمئنید؟ تنظیمات فعلی و فایل‌های مدیا با محتوای این نسخه جایگزین خواهند شد.`,
+        confirmText: 'بازیابی',
+        cancelText: 'انصراف',
+        icon: '#i-refresh',
+        danger: true
+      });
+      if (!ok) {
         restoreInput.value = '';
         return;
       }

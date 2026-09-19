@@ -1,7 +1,7 @@
 // Sahne ProMax — Main Frontend Coordinator (ES Module)
 'use strict';
 
-import { $, $$, DESK, api, post, toast, esc, fmtToman, faNum, copyText } from './api.js';
+import { $, $$, DESK, api, post, toast, esc, fmtToman, faNum, copyText, spConfirm } from './api.js';
 import { state, setConfig, setRuntimeState, setInfo } from './state.js';
 import { initNav } from './nav.js';
 import { initInspector, closeInspector } from './inspector.js';
@@ -449,7 +449,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ($('#btnDisconnect')) {
     $('#btnDisconnect').onclick = async () => {
-      if (!confirm('اتصال کیک‌بات قطع و کلید ویجت از این کامپیوتر حذف شود؟')) return;
+      const ok = await spConfirm({
+        title: 'قطع اتصال کیک‌بات',
+        body: 'اتصال کیک‌بات قطع و کلید ویجت از این کامپیوتر حذف شود؟',
+        confirmText: 'قطع اتصال',
+        cancelText: 'انصراف',
+        icon: '#i-trash',
+        danger: true
+      });
+      if (!ok) return;
       await post('/api/disconnect-kickbot');
       toast('اتصال کیک‌بات حذف شد', 'ok');
       load();
@@ -458,7 +466,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ($('#btnResetSettings')) {
     $('#btnResetSettings').onclick = async () => {
-      if (!confirm('ظاهر، نرخ، حالت کار و تنظیمات ساب به پیش‌فرض برگردند؟')) return;
+      const ok = await spConfirm({
+        title: 'بازنشانی تنظیمات',
+        body: 'ظاهر، نرخ، حالت کار و تنظیمات ساب به پیش‌فرض برگردند؟',
+        confirmText: 'بازنشانی',
+        cancelText: 'انصراف',
+        icon: '#i-refresh',
+        danger: true
+      });
+      if (!ok) return;
       await post('/api/reset-settings');
       toast('تنظیمات بازگردانی شد', 'ok');
       load();

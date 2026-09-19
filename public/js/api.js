@@ -21,6 +21,59 @@ export function toast(m, kind) {
   toastT = setTimeout(() => t.classList.remove('show'), 2000);
 }
 
+export function spConfirm({
+  title = 'تایید عملیات',
+  body = 'آیا مطمئن هستید؟',
+  confirmText = 'تایید',
+  cancelText = 'انصراف',
+  icon = '#i-power',
+  danger = true
+} = {}) {
+  return new Promise(resolve => {
+    const m = $('#confirmModal');
+    if (!m) return resolve(window.confirm(body));
+    const titleEl = $('#confirmTitle');
+    const bodyEl = $('#confirmBody');
+    const okBtn = $('#confirmOk');
+    const cancelBtn = $('#confirmCancel');
+    const iconBox = $('#confirmIcon');
+    const iconUse = $('#confirmIcon use');
+
+    if (titleEl) titleEl.textContent = title;
+    if (bodyEl) bodyEl.textContent = body;
+    if (iconUse) iconUse.setAttribute('href', icon);
+    if (iconBox) iconBox.className = 'modal-icon ' + (danger ? 'danger' : 'primary');
+    if (okBtn) {
+      okBtn.textContent = confirmText;
+      okBtn.className = 'btn ' + (danger ? 'danger' : 'primary');
+    }
+    if (cancelBtn) cancelBtn.textContent = cancelText;
+
+    m.classList.add('show');
+
+    function cleanup(res) {
+      m.classList.remove('show');
+      if (okBtn) okBtn.onclick = null;
+      if (cancelBtn) cancelBtn.onclick = null;
+      m.onclick = null;
+      window.removeEventListener('keydown', onKey);
+      resolve(res);
+    }
+
+    function onKey(e) {
+      if (e.key === 'Escape') cleanup(false);
+      else if (e.key === 'Enter') cleanup(true);
+    }
+
+    if (okBtn) okBtn.onclick = () => cleanup(true);
+    if (cancelBtn) cancelBtn.onclick = () => cleanup(false);
+    m.onclick = e => {
+      if (e.target === m) cleanup(false);
+    };
+    window.addEventListener('keydown', onKey);
+  });
+}
+
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 }

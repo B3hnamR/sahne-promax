@@ -1,7 +1,7 @@
 // Sahne ProMax — Navigation and Window Controls
 'use strict';
 
-import { $, $$, DESK, toast } from './api.js';
+import { $, $$, DESK, toast, spConfirm } from './api.js';
 
 export function initNav({ onPageChange }) {
   if (DESK) {
@@ -19,7 +19,15 @@ export function initNav({ onPageChange }) {
       toast('در نسخه‌ی مرورگر خروج معنی نداره');
       return;
     }
-    if (confirm('برنامه کاملاً بسته می‌شه و تا باز شدن دوباره، هیچ آلرتی روی استریم نمایش داده نمی‌شه. مطمئنی؟')) {
+    const ok = await spConfirm({
+      title: 'خروج از صحنه پلاس',
+      body: 'برنامه کاملاً بسته می‌شه و تا باز شدن دوباره، هیچ آلرتی روی استریم نمایش داده نمی‌شه. مطمئنی؟',
+      confirmText: 'خروج کامل',
+      cancelText: 'انصراف',
+      icon: '#i-power',
+      danger: true
+    });
+    if (ok) {
       window.sahne.app.quit();
     }
   };
