@@ -94,7 +94,14 @@ function sanitizeAppearance(a, current = {}) {
     k => bool(k, true)
   );
   ['template', 'giftTemplate', 'subTemplate'].forEach(k => str(k, 200, ''));
-  ['mediaMode', 'mediaFit', 'amountStyle', 'animation', 'currency'].forEach(k => en(k, 'pop'));
+  const ENUM_DEFAULTS = {
+    mediaMode: 'full',
+    mediaFit: 'cover',
+    amountStyle: 'pill',
+    animation: 'pop',
+    currency: 'toman'
+  };
+  ['mediaMode', 'mediaFit', 'amountStyle', 'animation', 'currency'].forEach(k => en(k, ENUM_DEFAULTS[k]));
 
   if (out.maxDuration < out.minDuration) out.maxDuration = out.minDuration;
   return out;

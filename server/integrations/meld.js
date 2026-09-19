@@ -8,7 +8,7 @@ class MeldManager {
     this.sse = sse;
     this.enabled = !!enabled;
     this.meldLastReload = 0;
-    this.overlayMissingSince = Date.now();
+    this.overlayMissingSince = null; // only count after the first overlay disconnect, not from startup
     this.checkTimer = null;
   }
 
@@ -19,7 +19,11 @@ class MeldManager {
         this.overlayMissingSince = Date.now();
         return;
       }
-      if (Date.now() - this.overlayMissingSince > 20000 && Date.now() - this.meldLastReload > 120000) {
+      if (
+        this.overlayMissingSince != null &&
+        Date.now() - this.overlayMissingSince > 20000 &&
+        Date.now() - this.meldLastReload > 120000
+      ) {
         this.meldLastReload = Date.now();
         this.reloadLayers('no overlay connected');
       }

@@ -37,7 +37,10 @@ class ConfigStore {
       ...DEFAULT_CONFIG,
       ...c,
       appearance: sanitizeAppearance(c.appearance || {}, DEFAULT_CONFIG.appearance),
-      profiles: typeof c.profiles === 'object' && c.profiles !== null ? { ...DEFAULT_CONFIG.profiles, ...c.profiles } : { ...DEFAULT_CONFIG.profiles },
+      profiles:
+        typeof c.profiles === 'object' && c.profiles !== null
+          ? { ...DEFAULT_CONFIG.profiles, ...c.profiles }
+          : { ...DEFAULT_CONFIG.profiles },
       goal: sanitizeGoal(c.goal || {}, DEFAULT_CONFIG.goal),
       rate: { ...DEFAULT_CONFIG.rate, ...(c.rate || {}) },
       kick: { ...DEFAULT_CONFIG.kick, ...(c.kick || {}) },
@@ -96,9 +99,10 @@ class ConfigStore {
     return out;
   }
 
+  // Sync and async saves must not share a tmp filename, or a concurrent save can clobber the other's temp file
   saveConfig() {
     try {
-      const tmp = this.cfgPath + '.tmp';
+      const tmp = this.cfgPath + '.sync.tmp';
       fs.writeFileSync(tmp, JSON.stringify(this.serializedConfig(), null, 2));
       fs.renameSync(tmp, this.cfgPath);
     } catch (e) {

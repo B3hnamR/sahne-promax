@@ -32,7 +32,7 @@ server/
 │   └── meld.js               # Meld Studio loopback WebSocket monitor
 ├── media/
 │   ├── manager.js            # Async file scanner, safe file imports, disk removals
-│   └── upload-stream.js      # Streaming temp write stream with magic byte sniffing
+│   └── upload.js               # Streaming temp write stream with magic byte sniffing
 ├── playback/
 │   ├── queue.js              # Priority queue scheduling, queue pause/resume, skip, replay
 │   ├── picker.js             # Amount, keyword, and sub milestone media matching
@@ -42,8 +42,7 @@ server/
 │   └── backup.js             # Zero-dependency .zip creation & restore via Node zlib
 └── http/
     ├── router.js             # HTTP request dispatching, Host/Origin loopback security
-    ├── static.js             # Static asset server with ETag / 304 Not Modified caching
-    └── streaming.js          # Byte-range (HTTP 206) media streaming for video seeking
+    └── streaming.js          # Static asset server (ETag / 304) + byte-range (HTTP 206) media streaming
 ```
 
 ### 1.2 Frontend Native ES Modules (`public/js/`)

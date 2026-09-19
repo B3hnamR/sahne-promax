@@ -8,7 +8,9 @@
   const profile = qs.get('profile') || '';
   if (isEdit) document.body.classList.add('edit');
   let A = null;
-  let current = null; // {el, tip, timers[], media[]}
+  let current = null; // {el, tip, timers[], media[], volFactor}
+  let muted = false;
+  let masterVol = null; // last value from /api/control/volume, null = follow appearance volume
   let sample = null; // static sample card in edit mode
 
   function applyConfig(a) {
@@ -154,11 +156,11 @@
     el.appendChild(mediaBox);
     el.appendChild(card);
     stage.appendChild(el);
-    current = { el, tip, timers: [], media: [] };
+    current = { el, tip, timers: [], media: [], volFactor: new Map() };
     animate(card, 'in');
     animate(mediaBox, 'in', true);
 
-    const vol = clamp((A.volume ?? 80) / 100);
+    const vol = clamp((masterVol != null ? masterVol : (A.volume ?? 80)) / 100);
     let visualDur = null,
       waits = [];
     const m = tip.media;
@@ -179,6 +181,7 @@
       mediaBox.appendChild(v);
       mediaBox.style.display = 'block';
       current.media.push(v);
+      current.volFactor.set(v, (m.volume ?? 100) / 100);
       waits.push(
         new Promise(res => {
           let d = false;
@@ -207,6 +210,7 @@
         const a = new Audio(localUrl(m.audio_url) || '');
         a.volume = clamp(vol * ((m.volume ?? 100) / 100));
         current.media.push(a);
+        current.volFactor.set(a, (m.volume ?? 100) / 100);
         waits.push(
           new Promise(res => {
             let d = false;
@@ -233,6 +237,7 @@
       const a = new Audio(localUrl(m.url) || '');
       a.volume = clamp(vol * ((m.volume ?? 100) / 100));
       current.media.push(a);
+      current.volFactor.set(a, (m.volume ?? 100) / 100);
       waits.push(
         new Promise(res => {
           let d = false;
@@ -420,6 +425,16 @@
     return Math.max(0, Math.min(1, isNaN(v) ? 1 : v));
   }
 
+  // Live master-volume / mute applied to the currently playing media (server broadcasts these events)
+  function applyLiveVolume() {
+    if (!current) return;
+    const mv = clamp((masterVol != null ? masterVol : A ? (A.volume ?? 80) : 80) / 100);
+    current.media.forEach(x => {
+      const f = current.volFactor.get(x);
+      if (f != null) x.volume = muted ? 0 : clamp(mv * f);
+    });
+  }
+
   // ---- edit mode: static sample card, draggable ----
   function showSample() {
     if (current) return;
@@ -493,6 +508,13 @@
       if (d.type === 'config') applyConfig(d.appearance);
       else if (d.type === 'play') play(d.tip);
       else if (d.type === 'stop') stop();
+      else if (d.type === 'mute') {
+        muted = !!d.muted;
+        applyLiveVolume();
+      } else if (d.type === 'volume') {
+        masterVol = Number(d.volume);
+        applyLiveVolume();
+      }
     };
     es.onerror = () => {
       es.close();

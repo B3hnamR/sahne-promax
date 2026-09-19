@@ -14,6 +14,7 @@ class KickChatClient {
 
     this.kws = null;
     this.kickPing = null;
+    this.kickCloseTimer = null;
     this.kickRetry = 5000;
     this.checkTimer = null;
     this.stopped = false;
@@ -89,13 +90,18 @@ class KickChatClient {
     }
 
     this.kickState.error = (last && last.message) || 'unknown';
-    this.logger.warn('شناسایی کانال کیک ناموفق بود (اسم کانال یا دسترسی به kick.com را بررسی کن)', this.kickState.error);
+    this.logger.warn(
+      'شناسایی کانال کیک ناموفق بود (اسم کانال یا دسترسی به kick.com را بررسی کن)',
+      this.kickState.error
+    );
     this.sse.sendState();
     return false;
   }
 
   connect() {
     const config = this.configStore.config;
+    clearTimeout(this.kickCloseTimer);
+    this.kickCloseTimer = null;
     if (!config.kick.enabled || !config.kick.chatroomId || this.stopped) return;
     if (this.kws && (this.kws.readyState === 0 || this.kws.readyState === 1)) return;
 
@@ -161,7 +167,13 @@ class KickChatClient {
       if (this.kickState.connected) this.logger.warn('اتصال چت کیک قطع شد؛ تلاش مجدد');
       this.kickState.connected = false;
       this.sse.sendState();
-      if (!this.stopped) setTimeout(() => this.connect(), this.kickRetry);
+      if (!this.stopped) {
+        clearTimeout(this.kickCloseTimer);
+        this.kickCloseTimer = setTimeout(() => {
+          this.kickCloseTimer = null;
+          this.connect();
+        }, this.kickRetry);
+      }
       this.kickRetry = Math.min(60000, this.kickRetry * 2);
     };
   }
@@ -251,6 +263,8 @@ class KickChatClient {
     this.stopped = true;
     clearInterval(this.kickPing);
     clearInterval(this.checkTimer);
+    clearTimeout(this.kickCloseTimer);
+    this.kickCloseTimer = null;
     if (this.kws) {
       try {
         this.kws.close();

@@ -10,3 +10,5 @@ played.json
 .env.*
 scripts/xss-payload.json
 public-repo/
+Thumbs.db
+.DS_Store

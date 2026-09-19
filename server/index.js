@@ -2,6 +2,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { DEFAULT_CONFIG } = require('./constants');
 const { ConfigStore } = require('./config/store');
 const { PlayedStore } = require('./config/played');
 const { Logger } = require('./logger');
@@ -261,7 +262,24 @@ function createServer(opts = {}) {
     testHooks,
     configStore,
     playbackQueue,
-    goalManager
+    goalManager,
+    // Legacy compat surface used by electron/main.js (see docs/FIX_PLAN_2.0.1.md item 1)
+    appUrl: () => `http://localhost:${configStore.config.port}/`,
+    overlayUrl: () => `http://localhost:${configStore.config.port}/overlay`,
+    goalUrl: () => `http://localhost:${configStore.config.port}/goal`,
+    get port() {
+      return configStore.config.port;
+    },
+    get mediaDir() {
+      return mediaDir;
+    },
+    get config() {
+      return configStore.config;
+    },
+    importFiles: paths => mediaManager.importFilesAsync(paths),
+    log: (level, msg, extra) => logger.log(level, msg, extra),
+    logger,
+    mediaManager
   };
 }
 

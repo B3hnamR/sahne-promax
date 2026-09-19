@@ -7,6 +7,7 @@ const { sanitizeFile, sanitizeAppearance, sanitizeGoal } = require('../utils/san
 const { serveFile, servePublic } = require('./streaming');
 const { handleStreamUpload } = require('../media/upload');
 const { exportBackup, importBackup } = require('../features/backup');
+const { buildPayload, pickMedia } = require('../playback/picker');
 
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -77,7 +78,8 @@ function createHttpRouter(context) {
   };
 
   const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-  const STATIC_PATTERN = /^\/(app\.css|app\.js|overlay\.css|overlay\.js|goal\.html|goal\.js|goal\.css|licenses\.html|licenses\.js)$/;
+  const STATIC_PATTERN =
+    /^\/(app\.css|app\.js|overlay\.css|overlay\.js|goal\.html|goal\.js|goal\.css|licenses\.html|licenses\.js)$/;
 
   return async function handleHttpRequest(req, res) {
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -109,7 +111,14 @@ function createHttpRouter(context) {
       if (p === '/overlay') return serveFile(req, res, path.join(publicDir, 'overlay.html'), { csp: CSP_OVERLAY });
       if (p === '/goal') return serveFile(req, res, path.join(publicDir, 'goal.html'), { csp: CSP_GOAL });
 
-      if (STATIC_PATTERN.test(p) || p.startsWith('/js/') || p.startsWith('/css/') || p.startsWith('/fonts/') || p.startsWith('/brand/') || p.startsWith('/legal/')) {
+      if (
+        STATIC_PATTERN.test(p) ||
+        p.startsWith('/js/') ||
+        p.startsWith('/css/') ||
+        p.startsWith('/fonts/') ||
+        p.startsWith('/brand/') ||
+        p.startsWith('/legal/')
+      ) {
         const isFont = p.startsWith('/fonts/');
         return servePublic(req, res, publicDir, decodeURIComponent(url.pathname.slice(1)), { isImmutable: isFont });
       }
@@ -408,17 +417,21 @@ function createHttpRouter(context) {
           );
           t.is_test = true;
         } else if (body.kind === 'sub') {
-          t = kickChatClient.localEvent('sub', cleanText(body.name, LIMITS.name) || 'Tester', kickChatClient.subValueToman('sub'), '', 1, [
+          t = kickChatClient.localEvent(
             'sub',
-            'newsub'
-          ], body.months || 1);
+            cleanText(body.name, LIMITS.name) || 'Tester',
+            kickChatClient.subValueToman('sub'),
+            '',
+            1,
+            ['sub', 'newsub'],
+            body.months || 1
+          );
           t.is_test = true;
         } else {
           t = playbackQueue.makeTestTip(body);
         }
 
         const media = body.fileId ? configStore.config.files.find(f => f.id === body.fileId) : null;
-        const { buildPayload } = require('../playback/picker');
         const payload = buildPayload(t, media, {
           mediaDir,
           currentRate: () => rateManager.currentRate(),
@@ -446,13 +459,15 @@ function createHttpRouter(context) {
       if (p === '/api/simulate' && req.method === 'GET') {
         const per = kickChatClient.subValueToman('sub');
         const perGift = kickChatClient.subValueToman('gift');
-        const { pickMedia } = require('../playback/picker');
         const sim = (toman, tags) => {
-          const m = pickMedia({ amount_total: 0, tip_message: '', tags, toman_override: toman }, {
-            config: configStore.config,
-            mediaDir,
-            currentRate: () => rateManager.currentRate()
-          });
+          const m = pickMedia(
+            { amount_total: 0, tip_message: '', tags, toman_override: toman },
+            {
+              config: configStore.config,
+              mediaDir,
+              currentRate: () => rateManager.currentRate()
+            }
+          );
           return m ? { id: m.id, name: m.name, file: m.file } : null;
         };
         const rows = [{ label: 'sub', toman: per, media: sim(per, ['sub', 'newsub']) }];
@@ -470,7 +485,9 @@ function createHttpRouter(context) {
       // KickBot Setup & Disconnect
       if (p === '/api/setup' && req.method === 'POST') {
         const body = await readJson(req);
-        const raw = String(body.url || '').trim().slice(0, 500);
+        const raw = String(body.url || '')
+          .trim()
+          .slice(0, 500);
         const m =
           /tipping\/([0-9a-f]{32})(?::|%3A|%3a)([0-9a-f]{32})/i.exec(raw) ||
           /^([0-9a-f]{32}):([0-9a-f]{32})$/i.exec(raw);
@@ -507,7 +524,10 @@ function createHttpRouter(context) {
         configStore.setSecret(sec);
         configStore.config.streamer_id = Number(streamer);
         configStore.saveConfig();
-        logger.info('لینک ویجت کیک‌بات تنظیم شد', { streamer_id: configStore.config.streamer_id, secretStorage: configStore.secretStorage });
+        logger.info('لینک ویجت کیک‌بات تنظیم شد', {
+          streamer_id: configStore.config.streamer_id,
+          secretStorage: configStore.secretStorage
+        });
         if (kickBotClient.ws) {
           try {
             kickBotClient.ws.close();
@@ -516,7 +536,11 @@ function createHttpRouter(context) {
           kickBotClient.connect();
         }
         sse.sendState();
-        return json(res, 200, { ok: true, streamer_id: configStore.config.streamer_id, secretStorage: configStore.secretStorage });
+        return json(res, 200, {
+          ok: true,
+          streamer_id: configStore.config.streamer_id,
+          secretStorage: configStore.secretStorage
+        });
       }
 
       if (p === '/api/disconnect-kickbot' && req.method === 'POST') {

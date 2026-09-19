@@ -1,11 +1,21 @@
 'use strict';
 const crypto = require('crypto');
 const { LIMITS } = require('../constants');
-const { cleanText, finite } = require('../utils/validation');
+const { cleanText, finite, intOrNull } = require('../utils/validation');
 const { pickMedia, buildPayload } = require('./picker');
 
 class PlaybackQueue {
-  constructor({ configStore, playedStore, mediaDir, logger, sse, rateManager, captureFn, publishFn, captureRetryMs = 15000 }) {
+  constructor({
+    configStore,
+    playedStore,
+    mediaDir,
+    logger,
+    sse,
+    rateManager,
+    captureFn,
+    publishFn,
+    captureRetryMs = 15000
+  }) {
     this.configStore = configStore;
     this.playedStore = playedStore;
     this.mediaDir = mediaDir;
@@ -104,7 +114,10 @@ class PlaybackQueue {
           }
           this.captureFailures.set(t.stripe_pi_id, attempts);
           this.approved.push(t);
-          this.logger.warn('پرداخت کپچر نشد؛ تلاش مجدد (' + attempts + '/' + this.CAPTURE_MAX_ATTEMPTS + ')', this.tipSummary(t));
+          this.logger.warn(
+            'پرداخت کپچر نشد؛ تلاش مجدد (' + attempts + '/' + this.CAPTURE_MAX_ATTEMPTS + ')',
+            this.tipSummary(t)
+          );
           this.sse.sendState();
           clearTimeout(this.nextTimer);
           this.nextTimer = setTimeout(() => this.tryNext(), this.captureRetryMs);
@@ -204,7 +217,16 @@ class PlaybackQueue {
     if (!this.playing) return false;
     this.logger.info('آلرت جاری رد شد (Skip)');
     this.sse.broadcast('overlay', { type: 'stop' });
-    this.finishPlaying(this.playing.stripe_pi_id, false, false);
+    clearTimeout(this.playTimeout);
+    const t = this.playing;
+    this.playing = null;
+    this.lastEnd = Date.now();
+    // In companion mode KickBot owns tip lifecycle, so only clear local state; never publish tip_end
+    if (this.configStore.config.mode !== 'companion' && !t.is_test && !t.is_local) {
+      this.publish('tip_end', { stripe_pi_id: t.stripe_pi_id });
+    }
+    this.sse.sendState();
+    this.tryNext();
     return true;
   }
 
@@ -266,8 +288,8 @@ class PlaybackQueue {
       approval_status: 'approved',
       is_test: true,
       kind,
-      count,
-      months,
+      count: intOrNull(count, 1, 100),
+      months: intOrNull(months, 1, 240),
       created_at: new Date().toISOString()
     };
   }
