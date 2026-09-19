@@ -146,7 +146,171 @@ input:focus, select:focus, textarea:focus { border-color: var(--focus); box-shad
 input.ltr { direction: ltr; text-align: left; font-family: var(--latin); }
 input[type=color] { width: 44px; height: 40px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-control); padding: 4px; }
 input[type=range] { width: 100%; accent-color: var(--apricot); }
-select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(14px) 17px, calc(14px + 5px) 17px; background-size: 5px 5px; background-repeat: no-repeat; padding-inline-start: 28px; }
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--surface-control);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='rgba(247,245,242,0.45)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: left 12px center;
+  background-size: 14px 14px;
+  background-repeat: no-repeat;
+  padding-left: 36px;
+  padding-right: 14px;
+  cursor: pointer;
+}
+select:hover {
+  background-color: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+select option {
+  background: #17181c;
+  color: var(--text);
+  padding: 8px 12px;
+  font-family: inherit;
+}
+
+/* ---------- custom dropdown (Bento Dark Glassmorphism) ---------- */
+.sp-select {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  vertical-align: middle;
+}
+.sp-select.open {
+  z-index: 1250;
+}
+.field:has(.sp-select.open),
+.row:has(.sp-select.open) {
+  z-index: 1250;
+  position: relative;
+}
+.sp-select.disabled {
+  opacity: .5;
+  pointer-events: none;
+}
+.sp-select-trigger {
+  width: 100%;
+  height: 40px;
+  background: var(--surface-control);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r-ctl);
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: right;
+  outline: none;
+  transition: background .15s, border-color .15s, box-shadow .15s;
+  user-select: none;
+}
+.sp-select-trigger:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+.sp-select.open .sp-select-trigger,
+.sp-select-trigger:focus-visible {
+  border-color: var(--focus);
+  box-shadow: var(--shadow-focus);
+}
+.sp-select-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-select-chevron {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  transition: transform .2s var(--ease), color .15s;
+}
+.sp-select.open .sp-select-chevron {
+  transform: rotate(180deg);
+  color: var(--apricot);
+}
+.sp-select-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline: 0;
+  z-index: 1200;
+  background: rgba(22, 23, 27, 0.96);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  max-height: 230px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(247, 245, 242, .16) transparent;
+  display: none;
+  animation: spSelectIn .15s ease-out;
+}
+.sp-select.open .sp-select-menu {
+  display: block;
+}
+.sp-select.drop-up .sp-select-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+@keyframes spSelectIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.sp-select-option {
+  padding: 8px 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  transition: background .12s, color .12s;
+  user-select: none;
+}
+.sp-select-option:hover {
+  background: rgba(247, 245, 242, .07);
+  color: var(--text);
+}
+.sp-select-option.selected {
+  background: var(--surface-selected);
+  color: var(--apricot);
+  font-weight: 600;
+}
+.sp-select-check {
+  display: grid;
+  place-items: center;
+  color: var(--apricot);
+  opacity: 0;
+  transform: scale(.85);
+  transition: opacity .15s, transform .15s;
+}
+.sp-select-option.selected .sp-select-check {
+  opacity: 1;
+  transform: scale(1);
+}
+select.has-sp-select {
+  position: absolute !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  border: 0 !important;
+}
 .btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-control); color: var(--text-2); font-weight: 600; cursor: default; transition: background .15s, border-color .15s, transform .1s; white-space: nowrap; }
 .btn svg { width: 16px; height: 16px; }
 .btn:hover { background: var(--surface-hover); border-color: var(--border-strong); }

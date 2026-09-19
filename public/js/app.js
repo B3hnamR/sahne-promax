@@ -10,6 +10,7 @@ import { initLook, fillLook, fitPreview } from './look.js';
 import { initGoal, fillGoal } from './goal.js';
 import { initControls } from './controls.js';
 import { initBackup } from './backup.js';
+import { initCustomSelects } from './dropdown.js';
 
 const KB_TEXT = {
   connected: ['متصل', 'chip on'],
@@ -550,7 +551,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
+  initCustomSelects();
   await load();
+  initCustomSelects();
   connectEvents();
   fitPreview();
 
