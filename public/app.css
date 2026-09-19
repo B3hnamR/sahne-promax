@@ -33,9 +33,12 @@ body::before {
 input, textarea, select, button { font-family: inherit; font-size: inherit; color: inherit; }
 input, textarea { user-select: text; }
 a { color: var(--accent); }
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: rgba(247, 245, 242, .14); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background: rgba(247, 245, 242, .26); background-clip: padding-box; border: 3px solid transparent; }
+* { scrollbar-width: thin; scrollbar-color: rgba(247, 245, 242, .16) transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(247, 245, 242, .16); border-radius: 999px; transition: background .2s; }
+::-webkit-scrollbar-thumb:hover { background: rgba(247, 245, 242, .32); }
+::-webkit-scrollbar-corner { background: transparent; }
 .latin { font-family: var(--latin); direction: ltr; unicode-bidi: isolate; }
 .num { font-family: var(--latin); font-variant-numeric: tabular-nums; }
 [hidden] { display: none !important; }
