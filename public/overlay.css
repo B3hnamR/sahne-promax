@@ -69,3 +69,8 @@
   body.edit .guide.h{display:block;top:50%;left:0;height:2px;width:100%}
   .hint{position:absolute;left:50%;top:24px;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#cfe;padding:8px 18px;border-radius:12px;font-size:22px;display:none;pointer-events:none}
   body.edit .hint{display:block}
+
+  /* ---- milestone confetti (server 'celebrate' events) ---- */
+  .fx-confetti{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:50}
+  .fx-particle{position:absolute;top:-14px;display:block;border-radius:2px;animation:fx-fall linear forwards}
+  @keyframes fx-fall{to{transform:translateY(108vh) rotate(680deg);opacity:.85}}

@@ -100,7 +100,7 @@ function sanitizeAppearance(a, current = {}) {
   ['showLine', 'showGlow', 'showBorder', 'showGloss', 'shadow', 'showMessage', 'showAmount', 'persianDigits'].forEach(
     k => bool(k, true)
   );
-  ['template', 'giftTemplate', 'subTemplate'].forEach(k => str(k, 200, ''));
+  ['template', 'giftTemplate', 'subTemplate', 'commandTemplate'].forEach(k => str(k, 200, ''));
   const ENUM_DEFAULTS = {
     mediaMode: 'full',
     mediaFit: 'cover',
@@ -126,11 +126,64 @@ function sanitizeGoal(g, current = {}) {
   if ('unit' in g && ['toman', 'usd'].includes(g.unit)) out.unit = g.unit;
   if ('color' in g && isHex(g.color)) out.color = String(g.color).toLowerCase();
   if ('bgColor' in g && isHex(g.bgColor)) out.bgColor = String(g.bgColor).toLowerCase();
+
+  // Timed goal: deadline is epoch ms; '' or null clears it
+  if ('mode' in g && ENUMS.goalMode.includes(g.mode)) out.mode = g.mode;
+  if ('deadline' in g) {
+    out.deadline =
+      g.deadline === null || g.deadline === undefined || g.deadline === '' ? null : intOrNull(g.deadline, 1, 4e12);
+  }
+
+  // Milestone confetti settings and internal celebration/day state
+  if ('milestoneToman' in g) out.milestoneToman = finite(g.milestoneToman, 0, 1e12, cur.milestoneToman || 0);
+  if ('confettiOnComplete' in g) out.confettiOnComplete = !!g.confettiOnComplete;
+  if ('confettiOnFirstSub' in g) out.confettiOnFirstSub = !!g.confettiOnFirstSub;
+  if ('completedCelebrated' in g) out.completedCelebrated = !!g.completedCelebrated;
+  if ('subsDay' in g) out.subsDay = /^\d{4}-\d{2}-\d{2}$/.test(String(g.subsDay || '')) ? g.subsDay : null;
+  return out;
+}
+
+// Chat commands: entries map a chat token to a registered alert file (fileId). Stale references are dropped.
+function sanitizeChatCommands(c, current = {}, files = []) {
+  const cur = current || {};
+  const out = { ...cur };
+  if (!c || typeof c !== 'object') return out;
+  if ('enabled' in c) out.enabled = !!c.enabled;
+  if ('prefix' in c) {
+    const p = String(c.prefix == null ? '' : c.prefix)
+      .trim()
+      .slice(0, 3);
+    out.prefix = /^[!$#%./?@+~-]{1,3}$/.test(p) ? p : cur.prefix || '!';
+  }
+  if ('globalCooldownSec' in c) out.globalCooldownSec = finite(c.globalCooldownSec, 0, 600, cur.globalCooldownSec ?? 5);
+  if ('userCooldownSec' in c) out.userCooldownSec = finite(c.userCooldownSec, 0, 3600, cur.userCooldownSec ?? 30);
+  if ('maxPerMinute' in c) out.maxPerMinute = Math.round(finite(c.maxPerMinute, 1, 120, cur.maxPerMinute ?? 10));
+  if (Array.isArray(c.entries)) {
+    const ids = new Set((Array.isArray(files) ? files : []).map(f => f.id));
+    const seen = new Set();
+    out.entries = c.entries
+      .map(e => {
+        if (!e || typeof e !== 'object') return null;
+        const command = String(e.command == null ? '' : e.command)
+          .trim()
+          .toLowerCase()
+          .slice(0, LIMITS.command);
+        if (!/^[a-z0-9_-]{1,31}$/.test(command)) return null;
+        if (seen.has(command)) return null;
+        seen.add(command);
+        const fileId = String(e.fileId == null ? '' : e.fileId);
+        if (!ids.has(fileId)) return null; // orphaned reference (file deleted)
+        return { command, fileId, enabled: e.enabled !== false };
+      })
+      .filter(Boolean)
+      .slice(0, LIMITS.commands);
+  }
   return out;
 }
 
 module.exports = {
   sanitizeFile,
   sanitizeAppearance,
-  sanitizeGoal
+  sanitizeGoal,
+  sanitizeChatCommands
 };

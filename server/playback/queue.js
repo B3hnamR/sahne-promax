@@ -65,6 +65,22 @@ class PlaybackQueue {
     };
   }
 
+  // Subs and gift-subs jump ahead of regular tips (FIFO inside each class): they are live moments the streamer
+  // should react to now, while a tip keeps just as well a minute later. Replays never double-jump: replayLast()
+  // still unshifts to the very front, and every non-priority entry appends at the back, so the capture retry
+  // path (approved.push + delayed tryNext) keeps its backoff untouched.
+  enqueueApproved(t) {
+    if (!t) return;
+    const isPriority = !t.is_replay && (t.kind === 'sub' || t.kind === 'gift');
+    if (!isPriority) {
+      this.approved.push(t);
+      return;
+    }
+    let i = 0;
+    while (i < this.approved.length && (this.approved[i].kind === 'sub' || this.approved[i].kind === 'gift')) i++;
+    this.approved.splice(i, 0, t);
+  }
+
   async tryNext() {
     const config = this.configStore.config;
     if (config.mode === 'companion' || this.advancing) return;
@@ -183,9 +199,16 @@ class PlaybackQueue {
     });
     if (this.recent.length > 30) this.recent.pop();
 
-    // Auto-increment goal if active
-    if (this.goalManager && payload.toman > 0) {
-      this.goalManager.addAmount(payload.toman);
+    // Auto-increment goal + milestone celebrations (confetti). Meta carries the alert class so the
+    // goal manager can tell subs/gifts apart from tips and test/replay traffic.
+    if (this.goalManager) {
+      this.goalManager.addAmount(payload.toman, {
+        kind: payload.kind,
+        count: payload.count,
+        name: payload.name,
+        test: !!t.is_test,
+        replay: !!t.is_replay
+      });
     }
 
     this.logger.info('نمایش دونیت', { ...this.tipSummary(t), media: media ? media.file : '-' });

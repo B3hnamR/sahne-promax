@@ -2,6 +2,17 @@
 
 All notable changes to the public builds. Versions follow semantic versioning.
 
+## 2.2.0 — 2026-09-21 (chat commands, queue priority, milestone confetti, timed goal)
+
+Four streamer tools unique to ProMax:
+
+- **⌨️ Kick chat commands:** viewers type `!dance` (any configured token) in Kick chat and the mapped alert file plays on stream. Counterpart to the existing sub/gift pipeline: no money, no capture. Each command maps to any uploaded file; three rate-limit layers (per viewer, global, per minute) plus a queue-length cap stop spam waves; duplicate commands and references to deleted files are rejected by the config validator. Command alerts use a dedicated card template (`commandTemplate`) and never show an amount.
+- **🥇 Sub-first queue priority:** subscription and gift-sub alerts jump ahead of regular tips while keeping FIFO inside each class. Capture retries (which re-queue at the back) and manual replays (which stay at the very front) keep their original ordering; companion mode is unaffected.
+- **🎊 Milestone confetti:** the overlay throws a confetti burst when the goal completes (exactly once per goal — resetting or raising the target arms it again), when a single donation reaches a configurable toman threshold (`milestoneToman`), or on the first sub of the day. Test/replay traffic never triggers or consumes milestones; goals that are already complete when upgrading do not fire retroactively. All three effects are toggleable on the Goal page.
+- **⏳ Timed goal countdown:** optional deadline (`mode: 'timed'`) on the goal widget with a live `DD روز HH:MM:SS` countdown, an expired "زمان تمام شد" state, and `serverNow` clock-skew correction. The controller validates that the deadline is in the future before saving.
+- **Fixed:** the goal page's auto-increment switch carried a wrong label ("صفر شدن خودکار…" instead of "افزودن خودکار دونیت‌ها…").
+- New tests (25 total): queue-priority unit test, chat-command sanitizer + end-to-end flow (mapped file plays, cooldown, flood cap, disabled state), confetti milestones (complete-once, threshold, first-sub, test-traffic silence), timed-goal REST fields and expiry, and overlay-side confetti/template DOM checks.
+
 ## 2.1.1 — 2026-09-21 (Sahne+ 1.3.2 security fixes ported to ProMax)
 
 Security fixes and UI polish from upstream [Sahne+ 1.3.2](https://github.com/AmirEyZed/sahne-plus/releases/tag/v1.3.2):

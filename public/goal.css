@@ -186,3 +186,39 @@ body {
     opacity: 0;
   }
 }
+
+/* ---- timed goal countdown ---- */
+.goal-timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 15px;
+}
+
+.goal-timer[hidden] {
+  display: none;
+}
+
+.goal-timer .label {
+  color: var(--text-dim);
+}
+
+.goal-timer .val {
+  font-weight: 700;
+  color: #34d399;
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-container.expired .goal-timer {
+  border-color: rgba(239, 68, 68, 0.55);
+}
+
+.goal-container.expired .goal-timer .val {
+  color: #ef4444;
+}

@@ -7,9 +7,9 @@
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.0.0-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/Electron-43.7.3-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Zero Dependencies](https://img.shields.io/badge/Runtime%20Dependencies-0-brightgreen?style=flat-square)](#architecture)
-[![Tests](https://img.shields.io/badge/Tests-19%2F19%20Passing-success?style=flat-square)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-25%2F25%20Passing-success?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.1.1-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
+[![Version](https://img.shields.io/badge/Version-2.2.0-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
 
 <p align="center">
   <a href="#key-features">Features</a> •
@@ -28,7 +28,7 @@
 
 **Sahne ProMax** is a modernized, modular fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus) designed specifically for Kick streamers. It plays transparent WebM animations, GIFs, images, and audio alerts on stream for **KickBot donations**, **Kick subscriptions**, and **Kick gifted subscriptions** — completely local on your machine with **zero cloud dependencies** and **zero runtime npm packages**.
 
-ProMax elevates the foundation with **asynchronous non-blocking file I/O**, **GPU decoder throttling via lazy loading**, **Nobitex USDT/IRT live currency conversions**, a **standalone OBS Goal Widget**, **Stream Deck / hardware REST endpoints**, **Paired Media audio synchronization**, and **1-Click native `.zip` Backup & Restore** — and tracks upstream Sahne+ releases (currently through **1.3.2**), adding its **in-app updater**, **Windows system-proxy support for kick.com**, **readable Kick errors**, and **per-alert card delay** on top of the ProMax feature set.
+ProMax elevates the foundation with **asynchronous non-blocking file I/O**, **GPU decoder throttling via lazy loading**, **Nobitex USDT/IRT live currency conversions**, a **standalone OBS Goal Widget**, **Stream Deck / hardware REST endpoints**, **Paired Media audio synchronization**, and **1-Click native `.zip` Backup & Restore** — and tracks upstream Sahne+ releases (currently through **1.3.2**), adding its **in-app updater**, **Windows system-proxy support for kick.com**, **readable Kick errors**, and **per-alert card delay** on top of the ProMax feature set. Version **2.2.0** adds four streamer tools: **Kick chat commands**, **sub-first queue priority**, **milestone confetti**, and a **timed goal countdown**.
 
 > **Note:** Sahne ProMax is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Kick, KickBot, Nobitex, or Baha24.
 
@@ -40,6 +40,10 @@ Everything below exists **only** in Sahne ProMax. Upstream Sahne+ (through v1.3.
 
 | Feature | What it does |
 |---|---|
+| **⌨️ Kick Chat Commands** | Viewers type `!command` in Kick chat and the mapped file plays — free, rate-limited (per viewer / global / per minute), with a dedicated card template. |
+| **🥇 Sub-First Queue Priority** | Sub and gift-sub alerts jump ahead of regular tips (FIFO inside each class); retries and replays keep their original ordering. |
+| **🎊 Milestone Confetti** | Overlay confetti on goal completion (once per goal), on donations above a configurable toman threshold, and on the first sub of the day. |
+| **⏳ Timed Goal Countdown** | Optional deadline on the goal widget with a live Persian countdown, expiry state, and server-clock skew correction. |
 | **🎯 Live Goal Widget** | A standalone OBS Browser Source (`/goal`) with an animated progress bar, Persian Toman figures, and confetti at 100%. Auto-increments on every donation/sub. |
 | **🎨 Multi-Profile Overlays** | Independent appearance profiles per OBS scene via URL (`/overlay?profile=gameplay`, `?profile=chatting`) — no duplicate server, no re-editing. |
 | **🎵 Paired Media** | Attach an audio track (`.mp3`/`.wav`/`.ogg`) to a static image alert; the overlay shows the image for exactly the audio's length. |
@@ -67,6 +71,10 @@ Everything below exists **only** in Sahne ProMax. Upstream Sahne+ (through v1.3.
 - **Proxy & Manual Pinning:** Configurable HTTP/HTTPS proxy support and manual rate locking — plus automatic use of the **Windows system proxy** (e.g. v2rayN in "system proxy" mode) for kick.com and rate sources when the manual field is empty.
 
 ### 🎬 Advanced Streamer Tools
+- **⌨️ Kick Chat Commands:** Viewers type a command in Kick chat (`!dance`, `!hype`, …) and the mapped alert file plays on stream — free of charge. Three rate-limit layers (per viewer, global, per minute) plus a queue cap stop spam waves; each command maps to any uploaded file and has its own card template.
+- **🥇 Queue Priority for Subs:** Subscriptions and gift-sub alerts jump ahead of regular tips in the queue (FIFO inside each class), so live moments play while they are fresh; capture retries and replays keep their original ordering.
+- **🎊 Milestone Confetti:** Bursts of confetti on the overlay when the goal completes (once per goal), when a single donation passes a configurable threshold, or on the first sub of the day — all toggleable on the Goal page.
+- **⏳ Timed Goal (Countdown):** Optional deadline for the goal widget with a live `DD روز HH:MM:SS` countdown, "زمان تمام شد" state, and server-clock correction against client clock skew.
 - **🎵 Paired Media (Sound for Images):** Attach custom audio files (`.mp3`, `.wav`, `.ogg`) to static PNG/GIF/WebP images. The overlay displays the graphic and locks alert duration to the audio track.
 - **🎨 Multi-Profile Scene Overlays:** Tailor appearance, positioning, and card scale for different OBS scenes via URL query parameters (e.g. `/overlay?profile=gameplay`, `/overlay?profile=chatting`) without running duplicate server instances.
 - **🎯 Live Donation & Sub Goal Widget:** Dedicated OBS Browser Source (`/goal` & `/goal.html`) rendering real-time animated progress bars and Persian Toman figures, complete with celebratory confetti at 100%.
@@ -116,7 +124,7 @@ cd sahne-promax
 # Install dev dependencies (Electron & Prettier)
 npm install
 
-# Run the test suite (19 automated tests)
+# Run the test suite (25 automated tests)
 npm test
 
 # Launch the desktop application
@@ -166,7 +174,8 @@ sahne-promax/
 └── test/                     # Automated test suites
     ├── server.test.js        # Hardening, loopback security, SSE caps, media gating
     ├── update.test.js        # Update version/redirect/checksum helpers
-    ├── overlay-xss.test.js   # XSS & CSS injection prevention, card delay
+    ├── features.test.js      # Queue priority, chat commands, confetti, timed goal
+    ├── overlay-xss.test.js   # XSS & CSS injection prevention, card delay, confetti DOM
     └── promax.test.js        # ProMax features & Nobitex rate tests
 ```
 
@@ -195,7 +204,7 @@ Run the automated test suite with Node's native test runner:
 npm test
 ```
 
-All 19 integration and unit tests run in offline test-harness mode:
+All 25 integration and unit tests run in offline test-harness mode:
 - ✅ Paired Media & Milestone Sub Alerts matching logic
 - ✅ Stream Deck & Hardware REST Controls
 - ✅ Donation & Sub Goal Engine (auto-increment, target reset, SSE)
@@ -211,6 +220,10 @@ All 19 integration and unit tests run in offline test-harness mode:
 - ✅ Update version parsing, release-redirect pinning & checksum lookup
 - ✅ Event-stream origin refusal & per-role connection caps
 - ✅ Media route serves registered alerts only
+- ✅ Queue priority (subs/gift-subs first, FIFO inside a class, replay/retry safe)
+- ✅ Chat commands (file mapping, cooldowns, flood cap, orphan-file rejection)
+- ✅ Milestone confetti (goal complete once, big-donation threshold, first sub of the day)
+- ✅ Timed goal countdown (fields, expiry, clearing)
 
 ---
 

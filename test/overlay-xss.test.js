@@ -295,7 +295,51 @@ console.log('OK: local image alerts render; foreign image hosts refused');
     })
   });
   assert.strictEqual(lastCard().style.visibility, 'hidden', 'no per-file value: the appearance delay applies');
-  console.log('OK: card delay (per file over appearance), TTS waits for the card');
+
+  // Chat command alerts (2.2): dedicated template, never an amount
+  es.onmessage({
+    data: JSON.stringify({
+      type: 'play',
+      tip: {
+        ...base,
+        id: 'cmd1',
+        kind: 'command',
+        amount: 0,
+        toman: 0,
+        tts_url: null,
+        media: { url: '/media/a.png', type: 'image' }
+      }
+    })
+  });
+  const cmdCard = lastCard();
+  assert.ok(cmdCard.innerHTML.includes('دستور چت داد'), 'command template is used');
+  assert.ok(!cmdCard.innerHTML.includes('تومان'), 'command cards carry no amount text');
+
+  // Milestone confetti (2.2): a 'celebrate' event drops a self-cleaning particle layer onto the stage
+  es.onmessage({ data: JSON.stringify({ type: 'celebrate', reason: 'goal_complete', name: 'Ali', toman: 100 }) });
+  const layer = stage.children.find(c => c._cls && c._cls.has('fx-confetti'));
+  assert.ok(layer, 'confetti layer appended to the stage');
+  assert.strictEqual(layer.children.length, 70, 'goal completion gets the big burst');
+  assert.ok(
+    layer.children.every(p => p._cls.has('fx-particle') && typeof p.style.left === 'string'),
+    'every particle is styled via CSSOM (CSP-safe)'
+  );
+  // a burst within the throttle window is ignored (no stacked layers)
+  es.onmessage({ data: JSON.stringify({ type: 'celebrate', reason: 'big_donation' }) });
+  assert.strictEqual(
+    stage.children.filter(c => c._cls && c._cls.has('fx-confetti')).length,
+    1,
+    'bursts inside the throttle window are dropped'
+  );
+  await sleep(4800);
+  assert.strictEqual(
+    stage.children.filter(c => c._cls && c._cls.has('fx-confetti')).length,
+    0,
+    'the confetti layer cleans itself up'
+  );
+  console.log(
+    'OK: card delay (per file over appearance), TTS waits for the card, milestone confetti bursts and cleans up'
+  );
   process.exit(0);
 })().catch(e => {
   console.error(e);

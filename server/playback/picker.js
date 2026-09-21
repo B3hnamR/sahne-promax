@@ -17,6 +17,9 @@ function pickMedia(t, { config, mediaDir, currentRate }) {
   const tags = (t.tags || []).map(x => normFa(x));
   const files = config.files.filter(f => f.enabled !== false && fs.existsSync(path.join(mediaDir, f.file)));
 
+  // Chat commands play the exact mapped file, bypassing amount/keyword selection entirely
+  if (t.commandFileId) return files.find(f => f.id === t.commandFileId) || null;
+
   // Sub months filtering for renewals
   const months = t.months != null ? Number(t.months) : null;
   const count = t.count != null ? Number(t.count) : null;

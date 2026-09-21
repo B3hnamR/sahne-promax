@@ -161,7 +161,7 @@ class KickBotClient {
         if (!p.stripe_pi_id) break;
         if (p.approval_status === 'pending') this.queue.pending.push(p);
         else if (p.approval_status === 'approved') {
-          this.queue.approved.push(p);
+          this.queue.enqueueApproved(p);
           this.queue.tryNext();
         }
         break;
@@ -169,7 +169,7 @@ class KickBotClient {
         const t = this.queue.pending.find(x => x.stripe_pi_id === p.stripe_pi_id);
         if (t) {
           this.queue.pending = this.queue.pending.filter(x => x.stripe_pi_id !== p.stripe_pi_id);
-          this.queue.approved.push(t);
+          this.queue.enqueueApproved(t);
           this.queue.tryNext();
         }
         break;
@@ -219,9 +219,9 @@ class KickBotClient {
         if (t.approval_status === 'approved') {
           if (pendIds.has(id)) {
             this.queue.pending = this.queue.pending.filter(x => x.stripe_pi_id !== id);
-            this.queue.approved.push(t);
+            this.queue.enqueueApproved(t);
           } else if (!apprIds.has(id)) {
-            this.queue.approved.push(t);
+            this.queue.enqueueApproved(t);
           }
         } else if (t.approval_status === 'pending' && !pendIds.has(id) && !apprIds.has(id)) {
           this.queue.pending.push(t);

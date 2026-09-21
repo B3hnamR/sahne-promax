@@ -21,6 +21,7 @@ const lbl = {
 const LOOK_DEFAULTS = {
   giftTemplate: '{name} {count} تا ساب گیفت داد 🎁 {amount}',
   subTemplate: '{name} ساب شد ⭐ {amount}',
+  commandTemplate: '{name} دستور چت داد 🎮',
   mediaMode: 'full',
   mediaFit: 'cover',
   cardX: 50,

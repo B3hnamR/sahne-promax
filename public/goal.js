@@ -9,8 +9,14 @@
   const container = document.getElementById('goal-widget');
   const celebration = document.getElementById('celebration');
   const confettiHolder = document.getElementById('confetti');
+  const timerEl = document.getElementById('goal-timer');
+  const timerValEl = document.getElementById('goal-timer-val');
 
   let wasReached = false;
+  let timerDeadline = null,
+    timerOffset = 0,
+    timerInterval = null,
+    timerExpired = false;
 
   const faDigits = s => String(s).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
 
@@ -25,6 +31,20 @@
 
     if (goal.title) {
       titleEl.textContent = goal.title;
+    }
+
+    // Timed goal: live countdown under the bar (serverNow corrects for a skewed client clock)
+    if (timerEl && goal.mode === 'timed' && Number(goal.deadline) > 0) {
+      timerDeadline = Number(goal.deadline);
+      timerOffset = Number(goal.serverNow || Date.now()) - Date.now();
+      timerExpired = false;
+      container.classList.remove('expired');
+      timerEl.hidden = false;
+      startTimer();
+    } else if (timerEl) {
+      timerDeadline = null;
+      timerEl.hidden = true;
+      stopTimer();
     }
 
     const current = Math.max(0, Number(goal.currentToman || 0));
@@ -72,6 +92,43 @@
       celebration.hidden = true;
       confettiHolder.innerHTML = '';
     }, 4500);
+  }
+
+  // ---- timed goal countdown ----
+  function fmtRemaining(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const d = Math.floor(total / 86400);
+    const h = Math.floor((total % 86400) / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    const p = n => String(n).padStart(2, '0');
+    const clock = p(h) + ':' + p(m) + ':' + p(s);
+    return d > 0 ? faDigits(String(d)) + ' روز ' + faDigits(clock) : faDigits(clock);
+  }
+
+  function tickTimer() {
+    if (!timerDeadline || !timerValEl) return;
+    const remaining = timerDeadline - (Date.now() + timerOffset);
+    if (remaining <= 0) {
+      timerExpired = true;
+      timerValEl.textContent = 'زمان تمام شد';
+      container.classList.add('expired');
+      stopTimer();
+      return;
+    }
+    timerValEl.textContent = fmtRemaining(remaining);
+  }
+
+  function startTimer() {
+    if (timerExpired) return;
+    tickTimer();
+    if (timerInterval || timerExpired) return;
+    timerInterval = setInterval(tickTimer, 1000);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
   }
 
   // Fetch initial goal via REST

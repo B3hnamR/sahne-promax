@@ -24,7 +24,10 @@ const LIMITS = {
   minRateInterval: 1,
   profiles: 10,
   profileName: 40,
-  goalTitle: 100
+  goalTitle: 100,
+  commands: 50,
+  command: 32,
+  cmdQueue: 20
 };
 
 const DEFAULT_APPEARANCE = {
@@ -58,6 +61,7 @@ const DEFAULT_APPEARANCE = {
   template: '{name} با {amount} حمایت کرد',
   giftTemplate: '{name} {count} تا ساب گیفت داد 🎁 {amount}',
   subTemplate: '{name} ساب شد ⭐ {amount}',
+  commandTemplate: '{name} دستور چت داد 🎮',
   imageDuration: 8,
   minDuration: 6,
   maxDuration: 90,
@@ -100,7 +104,24 @@ const DEFAULT_CONFIG = {
     autoIncrement: true,
     unit: 'toman',
     color: '#53fc18',
-    bgColor: '#0b0f0c'
+    bgColor: '#0b0f0c',
+    // timed goal (mode 'timed' + deadline epoch ms); countdown rendered by the /goal widget
+    mode: 'amount',
+    deadline: null,
+    // milestone confetti: big-donation threshold (0 = off) + one burst per goal completion / per first sub of the day
+    milestoneToman: 0,
+    confettiOnComplete: true,
+    confettiOnFirstSub: true,
+    completedCelebrated: false,
+    subsDay: null
+  },
+  chatCommands: {
+    enabled: false,
+    prefix: '!',
+    globalCooldownSec: 5,
+    userCooldownSec: 30,
+    maxPerMinute: 10,
+    entries: []
   },
   files: [],
   showAlertWithoutMedia: true,
@@ -126,7 +147,8 @@ const ENUMS = {
   amountStyle: ['pill', 'plain', 'inherit', 'soft'],
   animation: ['pop', 'slide', 'fade', 'none'],
   currency: ['eq-en', 'eq-fa', 'toman', 'toman-full', 'toman-both', 'dollar-fa', 'usd', 'usd-code'],
-  mode: ['standalone', 'companion']
+  mode: ['standalone', 'companion'],
+  goalMode: ['amount', 'timed']
 };
 
 const MIME = {

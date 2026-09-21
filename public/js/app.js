@@ -8,6 +8,7 @@ import { initInspector, closeInspector } from './inspector.js';
 import { initFiles, renderFiles } from './files.js';
 import { initLook, fillLook, fitPreview } from './look.js';
 import { initGoal, fillGoal } from './goal.js';
+import { initCommands, fillCommands } from './commands.js';
 import { initControls } from './controls.js';
 import { initBackup } from './backup.js';
 import { initCustomSelects } from './dropdown.js';
@@ -30,7 +31,7 @@ async function load() {
     } catch {}
   }
 
-  const ver = r.version || (state.info && state.info.version) || '2.1.1';
+  const ver = r.version || (state.info && state.info.version) || '2.2.0';
   const brandVer = $('#brandVer');
   if (brandVer) brandVer.textContent = 'Sahne ProMax v' + ver;
 
@@ -43,6 +44,7 @@ async function load() {
   fillKick();
   fillApp();
   fillGoal(r.config.goal);
+  fillCommands();
 
   const logBox = $('#log');
   if (logBox) {
@@ -165,7 +167,7 @@ function fillApp() {
   const info = state.info;
   const cfg = state.cfg;
   if ($('#appVer'))
-    $('#appVer').value = info ? info.version + ' · Electron ' + info.electron : (cfg && cfg.version) || '2.1.1';
+    $('#appVer').value = info ? info.version + ' · Electron ' + info.electron : (cfg && cfg.version) || '2.2.0';
   if ($('#dataDir')) $('#dataDir').value = info ? info.dataDir : '';
   if ($('#autostart')) {
     $('#autostart').checked = !!(info && info.autostart);
@@ -182,7 +184,7 @@ function fillApp() {
   if ($('#abVer')) {
     $('#abVer').textContent = info
       ? `${info.version} · Electron ${info.electron} · Chromium ${info.chrome}`
-      : (cfg && cfg.version) || '2.1.1';
+      : (cfg && cfg.version) || '2.2.0';
   }
   if ($('#abData')) $('#abData').textContent = info ? info.dataDir : '—';
   if ($('#abServer')) $('#abServer').textContent = 'http://localhost:' + ((cfg && cfg.port) || 7788);
@@ -257,12 +259,14 @@ function renderState() {
     s.recent.forEach(t => {
       const d = document.createElement('div');
       d.className = 'it';
-      d.innerHTML = `<span class="a">${t.toman ? fmtToman(t.toman) : '$' + t.amount}</span><b>${esc(t.name || '')}</b>${
+      d.innerHTML = `<span class="a">${t.toman ? fmtToman(t.toman) : t.kind === 'command' ? 'دستور چت' : '$' + t.amount}</span><b>${esc(t.name || '')}</b>${
         t.kind === 'gift'
           ? '<span class="chip">🎁 ' + faNum(t.count) + ' ساب‌گیفت</span>'
           : t.kind === 'sub'
             ? '<span class="chip">⭐ ساب</span>'
-            : ''
+            : t.kind === 'command'
+              ? '<span class="chip acc">⌨️ دستور</span>'
+              : ''
       }<span class="m">${esc(t.message || '')}</span><span class="chip">${
         t.media ? esc(t.media) : 'بدون فایل'
       }</span>${t.test ? '<span class="chip warn">تست</span>' : ''}`;
@@ -406,6 +410,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initFiles({ onLoadNeeded: load });
   initLook();
   initGoal();
+  initCommands();
   initControls({ onStateChange: renderState });
   initBackup({ onRestoreComplete: load });
 

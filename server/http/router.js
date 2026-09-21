@@ -3,7 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { LIMITS, ENUMS, FONTS, CSP_APP, CSP_OVERLAY, CSP_GOAL, DEFAULT_CONFIG } = require('../constants');
 const { cleanText, finite, intOrNull } = require('../utils/validation');
-const { sanitizeFile, sanitizeAppearance, sanitizeGoal } = require('../utils/sanitizers');
+const { sanitizeFile, sanitizeAppearance, sanitizeGoal, sanitizeChatCommands } = require('../utils/sanitizers');
 const { serveFile, servePublic } = require('./streaming');
 const { handleStreamUpload } = require('../media/upload');
 const { exportBackup, importBackup } = require('../features/backup');
@@ -359,6 +359,10 @@ function createHttpRouter(context) {
           }
         }
 
+        if (body.chatCommands && typeof body.chatCommands === 'object') {
+          config.chatCommands = sanitizeChatCommands(body.chatCommands, config.chatCommands, config.files);
+        }
+
         if (body.rate && typeof body.rate === 'object') {
           const r = body.rate;
           config.rate = {
@@ -415,7 +419,7 @@ function createHttpRouter(context) {
         if (configStore.config.mode === 'companion') {
           playbackQueue.showTip(t);
         } else {
-          playbackQueue.approved.push(t);
+          playbackQueue.enqueueApproved(t);
           playbackQueue.tryNext();
         }
         if (sse.clientCount('overlay') === 0) {

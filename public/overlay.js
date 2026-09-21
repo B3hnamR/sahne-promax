@@ -118,15 +118,17 @@
     let tpl = A.template || '{name} با {amount} حمایت کرد';
     if (tip.kind === 'gift') tpl = A.giftTemplate || '{name} {count} تا ساب گیفت داد 🎁 {amount}';
     else if (tip.kind === 'sub') tpl = A.subTemplate || '{name} ساب شد ⭐ {amount}';
+    else if (tip.kind === 'command') tpl = A.commandTemplate || '{name} دستور چت داد 🎮';
+    const isCmd = tip.kind === 'command'; // chat commands never carry money: no amount/usd placeholders
     const pill = txt =>
       `<span class="amt${['plain', 'inherit', 'soft'].includes(A.amountStyle) ? ' ' + A.amountStyle : ''}" dir="auto">${esc(txt)}</span>`;
     // every placeholder is resolved in ONE pass over the (escaped) template, so a donor name that itself
     // contains "{amount}" or "$&" can never be re-interpreted; values are always escaped text.
     const parts = {
       name: `<b dir="auto">${esc(tip.name)}</b>`,
-      amount: A.showAmount ? pill(fmtAmount(tip)) : '',
-      toman: tip.toman != null ? pill(fmtToman(tip.toman)) : '',
-      usd: pill(fmtUsd(tip.amount)),
+      amount: A.showAmount && !isCmd ? pill(fmtAmount(tip)) : '',
+      toman: !isCmd && tip.toman != null ? pill(fmtToman(tip.toman)) : '',
+      usd: isCmd ? '' : pill(fmtUsd(tip.amount)),
       count: pill(A.persianDigits ? faDigits(String(tip.count || 1)) : String(tip.count || 1))
     };
     return esc(tpl).replace(/\{(name|amount|toman|usd|count)\}/g, (m, k) => parts[k]);
@@ -139,8 +141,16 @@
       (A.showGlow === false ? ' noglow' : '') +
       (A.showBorder === false ? ' noborder' : '') +
       (A.showGloss ? ' gloss' : '');
+    const tpl =
+      tip.kind === 'gift'
+        ? A.giftTemplate
+        : tip.kind === 'sub'
+          ? A.subTemplate
+          : tip.kind === 'command'
+            ? A.commandTemplate
+            : A.template;
     card.innerHTML =
-      `<span class="badge">TEST</span><div class="shine"></div><div class="headline" dir="${dirOf(tip.kind === 'gift' ? A.giftTemplate : tip.kind === 'sub' ? A.subTemplate : A.template)}">${headline(tip)}</div>` +
+      `<span class="badge">TEST</span><div class="shine"></div><div class="headline" dir="${dirOf(tpl)}">${headline(tip)}</div>` +
       (A.showMessage && tip.message ? `<div class="msg" dir="auto">${esc(tip.message)}</div>` : '');
     return card;
   }
@@ -510,6 +520,31 @@
     }
   }
 
+  // ---- milestone confetti (server 'celebrate' events: goal complete / big donation / first sub of the day) ----
+  let lastCelebrate = 0;
+  function celebrate(d) {
+    const now = Date.now();
+    if (now - lastCelebrate < 3500) return; // never stack bursts
+    lastCelebrate = now;
+    const layer = document.createElement('div');
+    layer.className = 'fx-confetti';
+    const colors = ['#53fc18', '#22d3ee', '#f59e0b', '#ec4899', '#8b5cf6', '#ffffff'];
+    const n = d && d.reason === 'goal_complete' ? 70 : 45;
+    for (let i = 0; i < n; i++) {
+      const p = document.createElement('i');
+      p.className = 'fx-particle';
+      p.style.left = Math.random() * 100 + 'vw';
+      p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      p.style.animationDuration = 2 + Math.random() * 2 + 's';
+      p.style.animationDelay = Math.random() * 0.6 + 's';
+      p.style.width = 6 + Math.random() * 6 + 'px';
+      p.style.height = 6 + Math.random() * 6 + 'px';
+      layer.appendChild(p);
+    }
+    stage.appendChild(layer);
+    setTimeout(() => layer.remove(), 4600);
+  }
+
   // ---- connection ----
   function connect() {
     let url = '/events?role=' + (isPreview ? 'preview' : 'overlay');
@@ -525,6 +560,7 @@
       if (d.type === 'config') applyConfig(d.appearance);
       else if (d.type === 'play') play(d.tip);
       else if (d.type === 'stop') stop();
+      else if (d.type === 'celebrate') celebrate(d);
       else if (d.type === 'mute') {
         muted = !!d.muted;
         applyLiveVolume();

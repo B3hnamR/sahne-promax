@@ -173,6 +173,7 @@
               <div class="field full"><label>قالب متن دونیت ( {name} اسم، {amount} مبلغ، {toman} تومان، {usd} دلار )</label><input type="text" data-a="template"></div>
               <div class="field full"><label>قالب متن ساب‌گیفت ( {name} گیفت‌دهنده، {count} تعداد، {amount} معادل )</label><input type="text" data-a="giftTemplate"></div>
               <div class="field full"><label>قالب متن ساب جدید ( {name} اسم، {count} ماه، {amount} معادل )</label><input type="text" data-a="subTemplate"></div>
+              <div class="field full"><label>قالب متن دستور چت ( {name} اسم بیننده )</label><input type="text" data-a="commandTemplate"></div>
               <div class="field"><label>فرمت مبلغ</label><select data-a="currency"><option value="eq-en">5$ = 1,151,800 Toman</option><option value="eq-fa">۵$ = ۱٬۱۵۱٬۸۰۰ تومان</option><option value="toman">۱٫۱ میلیون تومان (خلاصه)</option><option value="toman-full">۱٬۱۵۶٬۰۰۰ تومان (کامل)</option><option value="toman-both">تومان + دلار</option><option value="dollar-fa">۵ دلار</option><option value="usd">$5</option><option value="usd-code">5 USD</option></select></div>
               <div class="field"><div class="switch-row"><label class="lbl" style="margin:0">نمایش مبلغ</label><label class="switch"><input type="checkbox" data-a="showAmount"><span></span></label></div><div class="switch-row"><label class="lbl" style="margin:0">نمایش پیام</label><label class="switch"><input type="checkbox" data-a="showMessage"><span></span></label></div><div class="switch-row"><label class="lbl" style="margin:0">اعداد فارسی</label><label class="switch"><input type="checkbox" data-a="persianDigits"><span></span></label></div></div>
             </div>
@@ -269,9 +270,28 @@
             </div>
             <div class="field full">
               <div class="switch-row">
-                <label class="lbl" style="margin:0">صفر شدن خودکار پس از رسیدن به ۱۰۰٪</label>
+                <label class="lbl" style="margin:0">افزودن خودکار دونیت‌ها و ساب‌ها به پیشرفت هدف</label>
                 <label class="switch"><input type="checkbox" id="gAutoReset"><span></span></label>
               </div>
+            </div>
+            <div class="field full">
+              <div class="switch-row">
+                <label class="lbl" style="margin:0">هدف زمان‌دار (شمارش معکوس روی ویجت)</label>
+                <label class="switch"><input type="checkbox" id="gTimed"><span></span></label>
+              </div>
+            </div>
+            <div class="field full" id="gDeadlineRow" hidden>
+              <label>پایان هدف (تاریخ و ساعت محلی)</label>
+              <input type="datetime-local" id="gDeadline" class="ltr">
+            </div>
+            <div class="field full">
+              <label>کانفتی جشن (روی اورلی استریم)</label>
+              <div class="switch-row"><label class="lbl" style="margin:0">هنگام کامل شدن هدف (یک‌بار برای هر هدف)</label><label class="switch"><input type="checkbox" id="gConfettiDone"><span></span></label></div>
+              <div class="switch-row" style="margin-top:8px"><label class="lbl" style="margin:0">اولین ساب هر روز</label><label class="switch"><input type="checkbox" id="gConfettiSub"><span></span></label></div>
+            </div>
+            <div class="field full">
+              <label>کانفتی دونیت بزرگ (تومان) — ۰ = خاموش</label>
+              <input type="number" id="gMilestone" min="0" step="100000" class="ltr" placeholder="0">
             </div>
           </div>
           <div class="row" style="margin-top:14px;gap:8px">
@@ -287,7 +307,7 @@
         <div class="card span-6">
           <h3><svg><use href="#i-pulse"/></svg>پیش‌نمایش زنده ویجت هدف</h3>
           <div style="background:radial-gradient(circle, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.9) 100%);padding:30px 20px;border-radius:16px;border:1px solid rgba(255,255,255,0.08);display:flex;justify-content:center;align-items:center;min-height:220px">
-            <iframe id="goalPv" src="/goal" style="width:100%;max-width:540px;height:180px;border:none;background:transparent;overflow:hidden" scrolling="no"></iframe>
+            <iframe id="goalPv" src="/goal" style="width:100%;max-width:540px;height:232px;border:none;background:transparent;overflow:hidden" scrolling="no"></iframe>
           </div>
         </div>
       </div>
@@ -342,6 +362,23 @@
           <p class="hint kick-hint" id="kHint" hidden></p>
           <p class="hint">برای فایل مخصوص ساب، کلمه‌ی کلیدی <code>sub</code> یا <code>giftsub</code> رو در ویرایش فایل بذار.</p>
           <div class="row" style="margin-top:8px"><button class="btn primary" id="btnSaveKick">ذخیره</button></div>
+        </div>
+        <div class="card span-6">
+          <h3><svg><use href="#i-send"/></svg>دستورات چت کیک (Chat Commands)<span class="chip" id="cmdCount" style="margin-inline-start:auto">—</span></h3>
+          <p class="hint" style="margin:0 0 12px">بیننده با نوشتن یک دستور در چت کیک (مثلاً <code>!dance</code>) فایل انتخاب‌شده را روی استریم پخش می‌کند. رایگان است و به دونیت ربطی ندارد.</p>
+          <div class="grid">
+            <div class="field"><div class="switch-row"><label class="lbl" style="margin:0">فعال</label><label class="switch"><input type="checkbox" id="cmdEnabled"><span></span></label></div></div>
+            <div class="field"><label>پیشوند دستور</label><input type="text" id="cmdPrefix" class="ltr" maxlength="3"></div>
+            <div class="field"><label>فاصله بین دستورها (ثانیه)</label><input type="number" id="cmdGlobalCd" min="0" max="600" class="ltr"></div>
+            <div class="field"><label>فاصله هر بیننده (ثانیه)</label><input type="number" id="cmdUserCd" min="0" max="3600" class="ltr"></div>
+            <div class="field"><label>حداکثر دستور در دقیقه</label><input type="number" id="cmdMax" min="1" max="120" class="ltr"></div>
+          </div>
+          <div id="cmdList" style="margin-top:14px"></div>
+          <div class="row" style="margin-top:6px;gap:8px">
+            <button class="btn" id="btnAddCmd"><svg><use href="#i-plus"/></svg>افزودن دستور</button>
+            <button class="btn primary" id="btnSaveCmds">ذخیره</button>
+          </div>
+          <p class="hint">برای دستور ساب هم می‌تونی از همون کلمه‌های کلیدی <code>sub</code> یا <code>giftsub</code> در ویرایش فایل استفاده کنی.</p>
         </div>
         <div class="card span-6">
           <h3><svg><use href="#i-chart"/></svg>نرخ دلار (نوبیتکس، پشتیبان: baha24)<span class="tail"><span class="pill-num" id="rateVal">—</span></span></h3>

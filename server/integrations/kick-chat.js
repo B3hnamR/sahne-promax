@@ -21,6 +21,10 @@ class KickChatClient {
     this.stopped = false;
     this.kickState = { connected: false, error: null, hint: null };
     this.recentKeys = new Map();
+    // Chat-command rate limiting state
+    this.cmdUsers = new Map(); // username -> last trigger ts
+    this.cmdWindow = []; // trigger timestamps in the last minute
+    this.cmdLastGlobal = 0;
   }
 
   status() {
@@ -182,6 +186,12 @@ class KickChatClient {
           d = typeof m.data === 'string' ? JSON.parse(m.data) : m.data;
         } catch {}
         this.handleSub(cleanText(d.username, LIMITS.name) || 'ناشناس', finite(d.months, 1, 240, 1));
+      } else if (/ChatMessageEvent$/.test(m.event || '')) {
+        let d = {};
+        try {
+          d = typeof m.data === 'string' ? JSON.parse(m.data) : m.data;
+        } catch {}
+        this.handleChatMessage(d);
       }
     };
 
@@ -239,7 +249,7 @@ class KickChatClient {
   }
 
   enqueueLocal(t) {
-    this.logger.info(t.kind === 'gift' ? 'ساب‌گیفت' : 'ساب جدید', {
+    this.logger.info(t.kind === 'gift' ? 'ساب‌گیفت' : t.kind === 'command' ? 'دستور چت' : 'ساب جدید', {
       name: t.tipper_name,
       count: t.count,
       months: t.months,
@@ -248,10 +258,67 @@ class KickChatClient {
     if (this.configStore.config.mode === 'companion') {
       this.queue.showTip(t);
     } else {
-      this.queue.approved.push(t);
+      this.queue.enqueueApproved(t);
       this.queue.tryNext();
     }
     this.sse.sendState();
+  }
+
+  // Viewer chat command (!dance, ...): plays the mapped alert file, free of charge. Rate limited in three
+  // layers (per user, global, per minute) plus a queue-length cap so a spam wave can never flood the overlay.
+  handleChatMessage(d) {
+    const cfg = this.configStore.config.chatCommands;
+    if (!cfg || !cfg.enabled) return;
+    const content = cleanText(d && d.content, LIMITS.message).trim();
+    if (!content) return;
+    const prefix = cfg.prefix || '!';
+    if (!content.startsWith(prefix)) return;
+    const token = content.slice(prefix.length).split(/\s+/)[0].toLowerCase();
+    if (!/^[a-z0-9_-]{1,31}$/.test(token)) return;
+
+    const entry = (cfg.entries || []).find(e => e && e.command === token && e.enabled !== false);
+    if (!entry) return;
+    const file = this.configStore.config.files.find(f => f.id === entry.fileId && f.enabled !== false);
+    if (!file) return;
+
+    const msgId = String((d && d.id) || '');
+    if (msgId && this.seenRecently('cmd:' + msgId, 5000)) return;
+
+    const now = Date.now();
+    const user = cleanText((d && d.sender && d.sender.username) || 'ناشناس', LIMITS.name) || 'ناشناس';
+
+    const userCd = Math.max(0, Number(cfg.userCooldownSec) || 0) * 1000;
+    if (userCd > 0 && now - (this.cmdUsers.get(user) || 0) < userCd) return;
+    const globalCd = Math.max(0, Number(cfg.globalCooldownSec) || 0) * 1000;
+    if (globalCd > 0 && now - this.cmdLastGlobal < globalCd) return;
+    const maxPerMinute = Math.max(1, Number(cfg.maxPerMinute) || 10);
+    this.cmdWindow = this.cmdWindow.filter(t => now - t < 60000);
+    if (this.cmdWindow.length >= maxPerMinute) return;
+    if (this.queue.approved.length + (this.queue.playing ? 1 : 0) >= LIMITS.cmdQueue) return;
+
+    this.cmdUsers.set(user, now);
+    if (this.cmdUsers.size > 500) {
+      for (const [k, ts] of this.cmdUsers) if (now - ts > 3600000) this.cmdUsers.delete(k);
+    }
+    this.cmdLastGlobal = now;
+    this.cmdWindow.push(now);
+
+    this.logger.info('دستور چت در صف قرار گرفت', { command: token, user, file: file.file });
+    this.enqueueLocal({
+      stripe_pi_id: 'cmd_' + crypto.randomBytes(6).toString('hex'),
+      tipper_name: user,
+      amount_total: 0,
+      tip_message: prefix + token,
+      approval_status: 'approved',
+      is_local: true,
+      kind: 'command',
+      count: null,
+      months: null,
+      tags: [token, 'command'],
+      toman_override: 0,
+      commandFileId: entry.fileId,
+      created_at: new Date().toISOString()
+    });
   }
 
   handleGift(gifter, names, isTest = false) {

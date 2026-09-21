@@ -31,7 +31,7 @@ function createServer(opts = {}) {
   const dataDir = opts.dataDir;
   const publicDir = opts.publicDir || path.join(__dirname, '..', 'public');
   const mediaDir = path.join(dataDir, 'media');
-  const appVersion = opts.appVersion || '2.1.1';
+  const appVersion = opts.appVersion || '2.2.0';
   const nodeOk = typeof fetch === 'function' && typeof WebSocket === 'function';
 
   fs.mkdirSync(mediaDir, { recursive: true });
@@ -247,9 +247,10 @@ function createServer(opts = {}) {
   // Exposed for tests
   const testHooks = {
     injectTip: t => {
-      playbackQueue.approved.push(t);
+      playbackQueue.enqueueApproved(t);
       playbackQueue.tryNext();
     },
+    chatMessage: d => kickChatClient.handleChatMessage(d),
     isPlayed: id => playedStore.isPlayed(id),
     queueLength: () => playbackQueue.approved.length,
     playingTip: () => playbackQueue.playing,

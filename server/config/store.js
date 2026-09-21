@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { DEFAULT_CONFIG, DEFAULT_APPEARANCE, LIMITS, ENUMS } = require('../constants');
-const { sanitizeFile, sanitizeAppearance, sanitizeGoal } = require('../utils/sanitizers');
+const { sanitizeFile, sanitizeAppearance, sanitizeGoal, sanitizeChatCommands } = require('../utils/sanitizers');
 const { finite } = require('../utils/validation');
 
 class ConfigStore {
@@ -44,6 +44,7 @@ class ConfigStore {
       goal: sanitizeGoal(c.goal || {}, DEFAULT_CONFIG.goal),
       rate: { ...DEFAULT_CONFIG.rate, ...(c.rate || {}) },
       kick: { ...DEFAULT_CONFIG.kick, ...(c.kick || {}) },
+      chatCommands: { ...DEFAULT_CONFIG.chatCommands, ...(c.chatCommands || {}) },
       app: { ...DEFAULT_CONFIG.app, ...(c.app || {}) }
     };
 
@@ -72,6 +73,13 @@ class ConfigStore {
 
     if (!Array.isArray(merged.files)) merged.files = [];
     merged.files = merged.files.map(sanitizeFile).filter(Boolean).slice(0, LIMITS.files);
+    merged.chatCommands = sanitizeChatCommands(merged.chatCommands, DEFAULT_CONFIG.chatCommands, merged.files);
+
+    // Goals that are already complete when the milestone feature appears must not throw a retro confetti on the
+    // next donation: mark them celebrated once, unless the config already carries the flag.
+    if (!(c.goal && typeof c.goal === 'object' && 'completedCelebrated' in c.goal)) {
+      merged.goal.completedCelebrated = (merged.goal.currentToman || 0) >= (merged.goal.targetToman || 1);
+    }
 
     if (merged.rate.proxy == null) {
       merged.rate.proxy =
