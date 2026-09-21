@@ -34,6 +34,25 @@ ProMax elevates the foundation with **asynchronous non-blocking file I/O**, **GP
 
 ---
 
+## 🚀 ProMax Exclusives — what upstream Sahne+ doesn't have
+
+Everything below exists **only** in Sahne ProMax. Upstream Sahne+ (through v1.3.2) has none of these:
+
+| Feature | What it does |
+|---|---|
+| **🎯 Live Goal Widget** | A standalone OBS Browser Source (`/goal`) with an animated progress bar, Persian Toman figures, and confetti at 100%. Auto-increments on every donation/sub. |
+| **🎨 Multi-Profile Overlays** | Independent appearance profiles per OBS scene via URL (`/overlay?profile=gameplay`, `?profile=chatting`) — no duplicate server, no re-editing. |
+| **🎵 Paired Media** | Attach an audio track (`.mp3`/`.wav`/`.ogg`) to a static image alert; the overlay shows the image for exactly the audio's length. |
+| **🎖️ Milestone & Tier Alerts** | Per-file thresholds for sub-renewal months (`minMonths`/`maxMonths`) and gift-sub counts (`minCount`/`maxCount`). |
+| **🎛️ Stream Deck REST API** | Sub-5ms loopback endpoints (`/api/control/skip`, `/replay`, `/pause`, `/resume`, `/mute`, `/volume`, `/clear`) for hardware keypads and macros. |
+| **💾 1-Click Backup & Restore** | Export/import the whole setup (`config.json` + all media) as a standard `.zip` using Node's native `zlib` — no external tools. |
+| **🪙 Nobitex Live Rate** | Real-time USD→Toman from Nobitex's USDT/IRT orderbook (upstream uses baha24/bonbast), with Baha24 as automatic fallback. |
+| **⚡ Performance Engineering** | Async `fs.promises` I/O for uploads/scans/restores, lazy on-hover video decoding in the file grid, targeted SSE (no polling), and HTTP 304 ETag caching. |
+| **🧩 Modular Server** | The backend is split into focused modules (`config`, `http`, `integrations`, `media`, `playback`, `rates`, `utils`) instead of one monolithic file — easier to audit, test, and extend. |
+| **🪟 Modern Glassmorphic UI** | Dark glass design system with custom dropdowns, modal dialogs, slim scrollbars, and a bento-grid layout. |
+
+---
+
 ## ✨ Key Features
 
 ### ⚡ Performance & Resource Efficiency
@@ -55,7 +74,7 @@ ProMax elevates the foundation with **asynchronous non-blocking file I/O**, **GP
 - **⏱️ Card Delay:** Show the name/amount card (and KickBot TTS) a few seconds after the alert media starts — globally on the Look page, or per file in the file editor.
 - **💾 Zero-Dependency 1-Click Backup & Restore:** Export and import complete backups (`config.json` + all media files) as standard `.zip` archives via Node's native `zlib`.
 
-### 🔄 Updates & Connectivity (from Sahne+ 1.3.1)
+### 🔄 Updates & Connectivity (parity with Sahne+ 1.3.1–1.3.2)
 - **In-App Updater:** The app checks this repository's GitHub Releases 30 s after start and every 6 hours (can be turned off in Settings). One click downloads the official installer, verifies it against the release's `SHA256SUMS.txt`, and installs it — never silently, never automatically.
 - **Kick Behind a Filter:** If kick.com is filtered on your network, Sahne ProMax automatically uses your VPN app's Windows system proxy (manual proxy still wins; SOCKS-only setups need TUN mode or a manual HTTP proxy).
 - **Readable Kick Errors:** The Kick card explains problems in Persian — kick.com filtered, channel not found, request refused — instead of raw codes like `read ECONNRESET`.
