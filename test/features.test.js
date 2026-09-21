@@ -56,6 +56,39 @@ test('queue priority: subs/gift-subs jump ahead of tips, FIFO inside each class'
   assert.equal(q.approved[q.approved.length - 1].stripe_pi_id, 'r1');
 });
 
+test('queue flood cap: oldest tips are dropped first, subs survive a tips flood', () => {
+  const q = bareQueue();
+  // 3 priority alerts arrive between 600 tips (pushed straight like KickBot sync does)
+  for (let i = 0; i < 200; i++) q.enqueueApproved({ stripe_pi_id: 't' + i, kind: 'tip' });
+  q.enqueueApproved({ stripe_pi_id: 's1', kind: 'sub' });
+  for (let i = 200; i < 400; i++) q.enqueueApproved({ stripe_pi_id: 't' + i, kind: 'tip' });
+  q.enqueueApproved({ stripe_pi_id: 'g1', kind: 'gift' });
+  for (let i = 400; i < 600; i++) q.enqueueApproved({ stripe_pi_id: 't' + i, kind: 'tip' });
+  q.enqueueApproved({ stripe_pi_id: 's2', kind: 'sub' });
+  assert.equal(q.approved.length, 603);
+
+  q.trimApproved(500);
+  assert.equal(q.approved.length, 500, 'capped to max');
+  const ids = q.approved.map(t => t.stripe_pi_id);
+  assert.ok(ids.includes('s1') && ids.includes('g1') && ids.includes('s2'), 'every sub/gift survived the tips flood');
+  assert.ok(!ids.includes('t0') && !ids.includes('t102'), 'the oldest tips were dropped first');
+  assert.ok(ids.includes('t599'), 'the newest tip stays');
+
+  // a pure tips overflow behaves like the old slice(-max)
+  const q2 = bareQueue();
+  for (let i = 0; i < 600; i++) q2.enqueueApproved({ stripe_pi_id: 'x' + i, kind: 'tip' });
+  q2.trimApproved(500);
+  assert.equal(q2.approved[0].stripe_pi_id, 'x100', 'oldest 100 tips dropped');
+  assert.equal(q2.approved.length, 500);
+
+  // more priority entries than the cap: the oldest priority entries are dropped only then
+  const q3 = bareQueue();
+  for (let i = 0; i < 600; i++) q3.enqueueApproved({ stripe_pi_id: 'p' + i, kind: 'sub' });
+  q3.trimApproved(500);
+  assert.equal(q3.approved.length, 500);
+  assert.equal(q3.approved[0].stripe_pi_id, 'p100', 'oldest subs dropped only as a last resort');
+});
+
 // ---------------------------------------------------------------------------
 // sanitizeChatCommands (unit)
 // ---------------------------------------------------------------------------

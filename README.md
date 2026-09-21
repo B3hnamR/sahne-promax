@@ -7,7 +7,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.0.0-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/Electron-43.7.3-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Zero Dependencies](https://img.shields.io/badge/Runtime%20Dependencies-0-brightgreen?style=flat-square)](#architecture)
-[![Tests](https://img.shields.io/badge/Tests-25%2F25%20Passing-success?style=flat-square)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-26%2F26%20Passing-success?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-2.2.0-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
 
@@ -124,7 +124,7 @@ cd sahne-promax
 # Install dev dependencies (Electron & Prettier)
 npm install
 
-# Run the test suite (25 automated tests)
+# Run the test suite (26 automated tests)
 npm test
 
 # Launch the desktop application
@@ -204,7 +204,7 @@ Run the automated test suite with Node's native test runner:
 npm test
 ```
 
-All 25 integration and unit tests run in offline test-harness mode:
+All 26 integration and unit tests run in offline test-harness mode:
 - ✅ Paired Media & Milestone Sub Alerts matching logic
 - ✅ Stream Deck & Hardware REST Controls
 - ✅ Donation & Sub Goal Engine (auto-increment, target reset, SSE)
@@ -220,7 +220,7 @@ All 25 integration and unit tests run in offline test-harness mode:
 - ✅ Update version parsing, release-redirect pinning & checksum lookup
 - ✅ Event-stream origin refusal & per-role connection caps
 - ✅ Media route serves registered alerts only
-- ✅ Queue priority (subs/gift-subs first, FIFO inside a class, replay/retry safe)
+- ✅ Queue priority (subs/gift-subs first, FIFO inside a class, replay/retry safe, flood cap keeps subs)
 - ✅ Chat commands (file mapping, cooldowns, flood cap, orphan-file rejection)
 - ✅ Milestone confetti (goal complete once, big-donation threshold, first sub of the day)
 - ✅ Timed goal countdown (fields, expiry, clearing)

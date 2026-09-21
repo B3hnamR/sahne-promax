@@ -81,6 +81,25 @@ class PlaybackQueue {
     this.approved.splice(i, 0, t);
   }
 
+  // Bound the approved queue without sacrificing sub/gift alerts to a tips flood: the oldest TIPS are dropped
+  // first, and only if that is not enough the oldest priority entries go. KickBot's sync can push hundreds of
+  // approvals at once; a blind slice(-max) would otherwise evict the subs sitting at the front of the queue.
+  trimApproved(max = 500) {
+    let over = this.approved.length - max;
+    if (over <= 0) return false;
+    const kept = [];
+    for (const t of this.approved) {
+      const isPriority = t.kind === 'sub' || t.kind === 'gift';
+      if (over > 0 && !isPriority) {
+        over--;
+        continue;
+      }
+      kept.push(t);
+    }
+    this.approved = over > 0 ? kept.slice(over) : kept;
+    return true;
+  }
+
   async tryNext() {
     const config = this.configStore.config;
     if (config.mode === 'companion' || this.advancing) return;

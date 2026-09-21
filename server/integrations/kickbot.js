@@ -194,7 +194,7 @@ class KickBotClient {
     }
 
     if (this.queue.pending.length > 500) this.queue.pending = this.queue.pending.slice(-500);
-    if (this.queue.approved.length > 500) this.queue.approved = this.queue.approved.slice(-500);
+    this.queue.trimApproved(500);
     this.sse.sendState();
   }
 

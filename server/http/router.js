@@ -3,7 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { LIMITS, ENUMS, FONTS, CSP_APP, CSP_OVERLAY, CSP_GOAL, DEFAULT_CONFIG } = require('../constants');
 const { cleanText, finite, intOrNull } = require('../utils/validation');
-const { sanitizeFile, sanitizeAppearance, sanitizeGoal, sanitizeChatCommands } = require('../utils/sanitizers');
+const { sanitizeFile, sanitizeAppearance, sanitizeChatCommands } = require('../utils/sanitizers');
 const { serveFile, servePublic } = require('./streaming');
 const { handleStreamUpload } = require('../media/upload');
 const { exportBackup, importBackup } = require('../features/backup');
@@ -297,7 +297,7 @@ function createHttpRouter(context) {
           config.profiles = { ...config.profiles, ...body.profiles };
         }
         if (body.goal && typeof body.goal === 'object') {
-          config.goal = sanitizeGoal(body.goal, config.goal);
+          goalManager.setGoal(body.goal);
         }
 
         if (Array.isArray(body.files)) {
