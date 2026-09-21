@@ -266,7 +266,7 @@ function createServer(opts = {}) {
     configStore,
     playbackQueue,
     goalManager,
-    // Legacy compat surface used by electron/main.js (see docs/FIX_PLAN_2.0.1.md item 1)
+    // Legacy compat surface used by electron/main.js (added in the 2.0.1 review fixes)
     appUrl: () => `http://localhost:${configStore.config.port}/`,
     overlayUrl: () => `http://localhost:${configStore.config.port}/overlay`,
     goalUrl: () => `http://localhost:${configStore.config.port}/goal`,

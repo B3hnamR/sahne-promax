@@ -12,3 +12,6 @@ scripts/xss-payload.json
 public-repo/
 Thumbs.db
 .DS_Store
+
+# local planning / audit notes — kept on disk, never published
+/docs/planning/
