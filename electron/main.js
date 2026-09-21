@@ -1,4 +1,4 @@
-// Sahne Plus — Electron main process: hosts the alert server, the controller window, tray and autostart.
+// Sahne ProMax — Electron main process: hosts the alert server, the controller window, tray and autostart.
 'use strict';
 const {
   app,
@@ -10,13 +10,16 @@ const {
   dialog,
   nativeImage,
   clipboard,
-  safeStorage
+  safeStorage,
+  session,
+  Notification
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { createServer, typeOf } = require('../server/server');
+const { createServer, typeOf, parsePacProxy } = require('../server/server');
+const { createUpdater } = require('./updater');
 
-const APP_NAME = 'Sahne Plus';
+const APP_NAME = 'Sahne ProMax';
 const VERSION = app.getVersion();
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const ICON_PNG = path.join(__dirname, '..', 'build', 'icon.png');
@@ -75,6 +78,25 @@ const secretStore = {
   encrypt: s => safeStorage.encryptString(String(s)).toString('base64'),
   decrypt: b64 => safeStorage.decryptString(Buffer.from(String(b64), 'base64'))
 };
+
+// ---------- no remote debugging in the packaged app ----------
+// The EnableNodeCliInspectArguments fuse does not cover Chromium's own switches: `--remote-debugging-port` would let a
+// local process script the controller window (and the preload bridge) over the DevTools protocol. The DevTools server
+// starts after the main script ran, so removing the switches here is enough; if that ever fails, refuse to start.
+// Unpackaged runs (`electron .`) keep the switches for test tooling.
+const REMOTE_DEBUG_SWITCHES = ['remote-debugging-port', 'remote-debugging-pipe', 'remote-debugging-address'];
+if (app.isPackaged) {
+  const found = REMOTE_DEBUG_SWITCHES.filter(s => app.commandLine.hasSwitch(s));
+  for (const s of found) app.commandLine.removeSwitch(s);
+  if (found.length) {
+    const left = REMOTE_DEBUG_SWITCHES.filter(s => app.commandLine.hasSwitch(s));
+    fileLog(
+      `[${new Date().toISOString()}] WARN ignored command-line switch ${found.map(s => '--' + s).join(', ')}` +
+        (left.length ? ' — could not remove it, quitting' : '')
+    );
+    if (left.length) app.exit(1);
+  }
+}
 
 // ---------- first run: import the legacy KickAlerts folder (copy, never move) ----------
 function migrateLegacy() {
@@ -169,7 +191,7 @@ function createTray() {
   tray.setToolTip(APP_NAME);
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'باز کردن Sahne Plus', click: () => showWindow() },
+      { label: 'باز کردن Sahne ProMax', click: () => showWindow() },
       { label: 'کپی لینک Browser Source', click: () => clipboard.writeText(server.overlayUrl()) },
       { type: 'separator' },
       { label: 'خروج کامل', click: () => quitApp() }
@@ -306,7 +328,7 @@ ipcMain.handle('data:clear', async e => {
     defaultId: 1,
     cancelId: 1,
     title: APP_NAME,
-    message: 'همه‌ی داده‌های Sahne Plus پاک شود؟',
+    message: 'همه‌ی داده‌های Sahne ProMax پاک شود؟',
     detail: `تنظیمات، اتصال کیک‌بات و همه‌ی فایل‌های الرت داخل\n${DATA_DIR}\nحذف می‌شوند. فایل‌های اصلی شما در جاهای دیگر دست نمی‌خورند. این کار قابل بازگشت نیست.`
   });
   if (r.response !== 0) return false;
@@ -339,6 +361,52 @@ app.on('web-contents-created', (e, wc) => {
   wc.on('will-attach-webview', ev => ev.preventDefault());
 });
 
+// ---------- updates: check GitHub Releases; install only after the user clicks (never silent, never automatic) ----------
+// Only an installed Windows build replaces itself. A test instance can download + verify in dry-run mode
+// (SAHNE_PLUS_UPDATE_DRYRUN=1) and pretend to be an older version (SAHNE_PLUS_UPDATE_TEST_VERSION) - it never installs.
+const UPDATE_DRY_RUN = TEST_INSTANCE && process.env.SAHNE_PLUS_UPDATE_DRYRUN === '1';
+const CAN_SELF_UPDATE = (app.isPackaged && process.platform === 'win32' && !TEST_INSTANCE) || UPDATE_DRY_RUN;
+const UPDATE_VERSION = (TEST_INSTANCE && process.env.SAHNE_PLUS_UPDATE_TEST_VERSION) || VERSION;
+const UPDATE_EVERY_MS = 6 * 60 * 60 * 1000;
+let updater = null;
+function sendUpdate(s) {
+  if (win && !win.isDestroyed()) win.webContents.send('update:status', s);
+}
+function updateChecksEnabled() {
+  return !(server && server.config.app && server.config.app.updateCheck === false);
+}
+function notifyUpdate(s) {
+  // one Windows notification per new version; the banner inside the app stays until the update is installed
+  try {
+    const cfg = server.config.app;
+    if (TEST_INSTANCE || cfg.updateNotifiedFor === s.latest || !Notification.isSupported()) return;
+    cfg.updateNotifiedFor = s.latest;
+    server.saveConfig();
+    const n = new Notification({
+      title: 'نسخه‌ی جدید Sahne ProMax',
+      body: 'نسخه‌ی ' + s.latest + ' آماده است. برای آپدیت کلیک کنید.',
+      icon: fs.existsSync(ICON_PNG) ? ICON_PNG : undefined
+    });
+    n.on('click', () => {
+      showWindow();
+      if (updater) sendUpdate(updater.get());
+    });
+    n.show();
+  } catch (e) {
+    fileLog(`[${new Date().toISOString()}] WARN update notification ${e.message}`);
+  }
+}
+async function runUpdateCheck(manual) {
+  if (!updater) return null;
+  if (!manual && !updateChecksEnabled()) return updater.get();
+  const s = await updater.check();
+  if (s.status === 'available' && !manual) notifyUpdate(s);
+  return s;
+}
+ipcMain.handle('update:get', e => (fromMain(e) && updater ? updater.get() : null));
+ipcMain.handle('update:check', e => (fromMain(e) ? runUpdateCheck(true) : null));
+ipcMain.handle('update:install', e => (fromMain(e) && updater ? updater.install(quitApp) : null));
+
 // ---------- lifecycle ----------
 app.whenReady().then(async () => {
   if (!gotLock) return;
@@ -356,7 +424,9 @@ app.whenReady().then(async () => {
     onLog: fileLog,
     openPath: p => shell.openPath(p),
     secretStore,
-    meldSelfHeal: !process.env.SAHNE_PLUS_DATA_DIR
+    meldSelfHeal: !process.env.SAHNE_PLUS_DATA_DIR,
+    // Node ignores the Windows system proxy (VPN apps in "system proxy" mode); Chromium resolves it, PAC included
+    systemProxy: async url => parsePacProxy(await session.defaultSession.resolveProxy(url))
   });
   if (server.config.app && server.config.app.autostart !== false && !autostartGet()) autostartSet(true);
   try {
@@ -370,7 +440,7 @@ app.whenReady().then(async () => {
         defaultId: 0,
         message: `پورت ${server.port} در حال استفاده است`,
         detail:
-          'برنامه‌ی دیگری (مثلاً KickAlerts قدیمی یا یک نسخه‌ی دیگر Sahne Plus) این پورت را گرفته. آن را ببندید و دوباره تلاش کنید. Sahne Plus هرگز روی پورت یا آدرس دیگری باز نمی‌شود.'
+          'برنامه‌ی دیگری (مثلاً KickAlerts قدیمی یا یک نسخه‌ی دیگر Sahne ProMax) این پورت را گرفته. آن را ببندید و دوباره تلاش کنید. Sahne ProMax هرگز روی پورت یا آدرس دیگری باز نمی‌شود.'
       });
       if (r === 0) app.relaunch();
       return quitApp();
@@ -381,6 +451,15 @@ app.whenReady().then(async () => {
   if (imported) server.log('info', 'تنظیمات و فایل‌های KickAlerts قدیمی وارد شد');
   createWindow();
   createTray();
+  updater = createUpdater({
+    version: UPDATE_VERSION,
+    canInstall: CAN_SELF_UPDATE,
+    dryRun: UPDATE_DRY_RUN,
+    log: (level, msg, extra) => server.log(level, msg, extra),
+    onChange: sendUpdate
+  });
+  setTimeout(() => runUpdateCheck(false), 30 * 1000);
+  setInterval(() => runUpdateCheck(false), UPDATE_EVERY_MS);
 });
 app.on('window-all-closed', () => {
   /* keep running in the tray */

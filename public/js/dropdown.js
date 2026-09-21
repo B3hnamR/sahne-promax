@@ -141,7 +141,7 @@ export function setupCustomSelect(select) {
       label.textContent = selectedText;
     } else {
       const selOpt = select.selectedOptions && select.selectedOptions[0];
-      label.textContent = selOpt ? selOpt.textContent : (opts[0] ? opts[0].textContent : '');
+      label.textContent = selOpt ? selOpt.textContent : opts[0] ? opts[0].textContent : '';
     }
   }
 

@@ -25,12 +25,13 @@ const {
   cleanText,
   normFa
 } = require('./utils/validation');
+const { isNetError, parsePacProxy, routeOrder, describeKickFailure } = require('./utils/net');
 
 function createServer(opts = {}) {
   const dataDir = opts.dataDir;
   const publicDir = opts.publicDir || path.join(__dirname, '..', 'public');
   const mediaDir = path.join(dataDir, 'media');
-  const appVersion = opts.appVersion || '2.0.0-pro';
+  const appVersion = opts.appVersion || '2.1.1';
   const nodeOk = typeof fetch === 'function' && typeof WebSocket === 'function';
 
   fs.mkdirSync(mediaDir, { recursive: true });
@@ -49,7 +50,7 @@ function createServer(opts = {}) {
 
   const playedStore = new PlayedStore(dataDir);
   const goalManager = new GoalManager({ configStore, logger, sse });
-  const rateManager = new RateManager({ configStore, logger, sse });
+  const rateManager = new RateManager({ configStore, logger, sse, systemProxy: opts.systemProxy });
   const mediaManager = new MediaManager({ mediaDir, configStore, logger, sse });
 
   let kickBotClient = null;
@@ -122,13 +123,15 @@ function createServer(opts = {}) {
         status: kickChatClient.status(),
         channel: config.kick.channel,
         chatroomId: config.kick.chatroomId,
-        error: kickChatClient.kickState.error
+        error: kickChatClient.kickState.error,
+        hint: kickChatClient.kickState.hint
       },
       rate: rateManager.currentRate(),
       rateUpdatedAt: config.rate.updatedAt,
       rateManual: Number(config.rate.manual) > 0,
       rateError: rateManager.rateError,
       rateSource: config.rate.source,
+      systemProxy: rateManager.systemProxyLabel,
       recent: playbackQueue.recent,
       goal: goalManager.getPublicGoal(),
       port: config.port,
@@ -291,5 +294,9 @@ module.exports = {
   toAsciiDigits,
   parseThreshold,
   cleanText,
-  normFa
+  normFa,
+  isNetError,
+  parsePacProxy,
+  routeOrder,
+  describeKickFailure
 };

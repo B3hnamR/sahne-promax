@@ -7,8 +7,9 @@
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.0.0-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/Electron-43.7.3-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Zero Dependencies](https://img.shields.io/badge/Runtime%20Dependencies-0-brightgreen?style=flat-square)](#architecture)
-[![Tests](https://img.shields.io/badge/Tests-14%2F14%20Passing-success?style=flat-square)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-19%2F19%20Passing-success?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/Version-2.1.1-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
 
 <p align="center">
   <a href="#key-features">Features</a> •
@@ -27,7 +28,7 @@
 
 **Sahne ProMax** is a modernized, modular fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus) designed specifically for Kick streamers. It plays transparent WebM animations, GIFs, images, and audio alerts on stream for **KickBot donations**, **Kick subscriptions**, and **Kick gifted subscriptions** — completely local on your machine with **zero cloud dependencies** and **zero runtime npm packages**.
 
-ProMax elevates the foundation with **asynchronous non-blocking file I/O**, **GPU decoder throttling via lazy loading**, **Nobitex USDT/IRT live currency conversions**, a **standalone OBS Goal Widget**, **Stream Deck / hardware REST endpoints**, **Paired Media audio synchronization**, and **1-Click native `.zip` Backup & Restore**.
+ProMax elevates the foundation with **asynchronous non-blocking file I/O**, **GPU decoder throttling via lazy loading**, **Nobitex USDT/IRT live currency conversions**, a **standalone OBS Goal Widget**, **Stream Deck / hardware REST endpoints**, **Paired Media audio synchronization**, and **1-Click native `.zip` Backup & Restore** — and tracks upstream Sahne+ releases (currently through **1.3.2**), adding its **in-app updater**, **Windows system-proxy support for kick.com**, **readable Kick errors**, and **per-alert card delay** on top of the ProMax feature set.
 
 > **Note:** Sahne ProMax is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Kick, KickBot, Nobitex, or Baha24.
 
@@ -44,14 +45,20 @@ ProMax elevates the foundation with **asynchronous non-blocking file I/O**, **GP
 ### 🪙 Real-Time Currency Conversion
 - **Nobitex USDT/IRT Orderbook (Primary):** Live dollar-to-toman conversion powered by Nobitex's real-time orderbook API (`/v3/orderbook/USDTIRT`), converting Iranian Rials to Toman with zero external dependencies.
 - **Baha24 API (Fallback):** Seamless automatic failover to Baha24 if local or foreign network interruptions occur.
-- **Proxy & Manual Pinning:** Configurable HTTP/HTTPS proxy support and manual rate locking.
+- **Proxy & Manual Pinning:** Configurable HTTP/HTTPS proxy support and manual rate locking — plus automatic use of the **Windows system proxy** (e.g. v2rayN in "system proxy" mode) for kick.com and rate sources when the manual field is empty.
 
 ### 🎬 Advanced Streamer Tools
 - **🎵 Paired Media (Sound for Images):** Attach custom audio files (`.mp3`, `.wav`, `.ogg`) to static PNG/GIF/WebP images. The overlay displays the graphic and locks alert duration to the audio track.
 - **🎨 Multi-Profile Scene Overlays:** Tailor appearance, positioning, and card scale for different OBS scenes via URL query parameters (e.g. `/overlay?profile=gameplay`, `/overlay?profile=chatting`) without running duplicate server instances.
 - **🎯 Live Donation & Sub Goal Widget:** Dedicated OBS Browser Source (`/goal` & `/goal.html`) rendering real-time animated progress bars and Persian Toman figures, complete with celebratory confetti at 100%.
 - **🎖️ Milestone & Tier Alerts:** Configure tier thresholds for subscription renewals (`minMonths` / `maxMonths`) and bulk gifted subscriptions (`minCount` / `maxCount`).
+- **⏱️ Card Delay:** Show the name/amount card (and KickBot TTS) a few seconds after the alert media starts — globally on the Look page, or per file in the file editor.
 - **💾 Zero-Dependency 1-Click Backup & Restore:** Export and import complete backups (`config.json` + all media files) as standard `.zip` archives via Node's native `zlib`.
+
+### 🔄 Updates & Connectivity (from Sahne+ 1.3.1)
+- **In-App Updater:** The app checks this repository's GitHub Releases 30 s after start and every 6 hours (can be turned off in Settings). One click downloads the official installer, verifies it against the release's `SHA256SUMS.txt`, and installs it — never silently, never automatically.
+- **Kick Behind a Filter:** If kick.com is filtered on your network, Sahne ProMax automatically uses your VPN app's Windows system proxy (manual proxy still wins; SOCKS-only setups need TUN mode or a manual HTTP proxy).
+- **Readable Kick Errors:** The Kick card explains problems in Persian — kick.com filtered, channel not found, request refused — instead of raw codes like `read ECONNRESET`.
 
 ---
 
@@ -80,6 +87,8 @@ Sahne ProMax provides sub-5ms loopback endpoints for Elgato Stream Deck, Loupede
 
 ### Installation & Running
 
+**Download the installer** from the [Releases page](https://github.com/B3hnamR/sahne-promax/releases/latest) — or build from source:
+
 ```bash
 # Clone the repository
 git clone https://github.com/B3hnamR/sahne-promax.git
@@ -88,7 +97,7 @@ cd sahne-promax
 # Install dev dependencies (Electron & Prettier)
 npm install
 
-# Run the test suite (14 automated tests)
+# Run the test suite (19 automated tests)
 npm test
 
 # Launch the desktop application
@@ -110,12 +119,12 @@ Sahne ProMax follows a strict **zero-runtime-dependency** philosophy. All core s
 
 ```
 sahne-promax/
-├── electron/                 # Electron main process, tray menu, DPAPI bridge
+├── electron/                 # Electron main process, tray menu, DPAPI bridge, in-app updater
 ├── server/                   # Decoupled backend domain modules
 │   ├── index.js              # Server orchestrator & lifecycle management
 │   ├── constants.js          # System limits, MIME types, default configuration
 │   ├── logger.js             # Redacted in-memory ring buffer & file logging
-│   ├── sse.js                # SSE subscriber hub (overlay, admin, goal)
+│   ├── sse.js                # SSE subscriber hub (overlay, admin, goal, preview)
 │   ├── config/               # Atomic config persistence & played tip ledger
 │   ├── features/             # Goal widget engine & 1-click zip backup/restore
 │   ├── http/                 # Hardened loopback router, static server, range streaming
@@ -123,7 +132,7 @@ sahne-promax/
 │   ├── media/                # Async media manager & streaming upload sniffer
 │   ├── playback/             # Priority queue scheduler & payment capture engine
 │   ├── rates/                # Nobitex USDT/IRT (primary) & Baha24 (fallback)
-│   └── utils/                # Magic byte sniffing, input sanitizers, HTTP client
+│   └── utils/                # Magic byte sniffing, sanitizers, HTTP client, proxy routing
 ├── public/                   # Frontend assets
 │   ├── app.html              # Main controller dashboard
 │   ├── goal.html             # Standalone OBS goal widget
@@ -136,8 +145,9 @@ sahne-promax/
 │   ├── legal/                # Privacy, terms, and third-party notices
 │   └── releases/             # Historical release notes
 └── test/                     # Automated test suites
-    ├── server.test.js        # Hardening, loopback security, traversal tests
-    ├── overlay-xss.test.js   # XSS & CSS injection prevention tests
+    ├── server.test.js        # Hardening, loopback security, SSE caps, media gating
+    ├── update.test.js        # Update version/redirect/checksum helpers
+    ├── overlay-xss.test.js   # XSS & CSS injection prevention, card delay
     └── promax.test.js        # ProMax features & Nobitex rate tests
 ```
 
@@ -145,10 +155,14 @@ sahne-promax/
 
 ## 🛡️ Security & Privacy
 
-- **No Cloud Backend:** Your media, settings, and logs remain strictly local on your machine (`%APPDATA%\Sahne ProMax` or `Documents\Sahne Plus`).
+- **No Cloud Backend:** Your media, settings, and logs remain strictly local on your machine (`Documents\Sahne Plus`).
 - **Encrypted Secrets:** KickBot API keys are encrypted at rest using Windows DPAPI (`CryptProtectData`) and never exposed over HTTP or written to logs.
 - **Strict Loopback Protection:** The local server binds exclusively to `127.0.0.1` and enforces strict `Host` and `Origin` validation to block DNS rebinding and cross-site request forgery (CSRF).
+- **Event-Stream Gating:** `/events` refuses cross-site pages (`Origin` / `Sec-Fetch-Site`) and caps concurrent streams per role, so a random open browser tab can't consume alerts while OBS is closed.
+- **Registered-Media Only:** `/media/…` serves only files registered as alerts (or their paired audio) — never notes or partial uploads left in the folder.
+- **No Remote Debugging:** The packaged app strips Chromium's `--remote-debugging-*` switches so the controller window can't be scripted over the DevTools protocol.
 - **Hardened CSP:** Content Security Policies isolate overlay rendering, block remote script executions, and prevent XSS or CSS iframe escapes.
+- **Verified Updates Only:** The updater downloads solely from this repository's Releases and runs the installer only if its SHA-256 matches the release's `SHA256SUMS.txt` — and only after you click.
 
 For detailed privacy information and network flow mapping, see [`docs/DATA_FLOW.md`](docs/DATA_FLOW.md) and [`docs/legal/PRIVACY.md`](docs/legal/PRIVACY.md).
 
@@ -162,7 +176,7 @@ Run the automated test suite with Node's native test runner:
 npm test
 ```
 
-All 14 integration and unit tests run in offline test-harness mode:
+All 19 integration and unit tests run in offline test-harness mode:
 - ✅ Paired Media & Milestone Sub Alerts matching logic
 - ✅ Stream Deck & Hardware REST Controls
 - ✅ Donation & Sub Goal Engine (auto-increment, target reset, SSE)
@@ -173,10 +187,15 @@ All 14 integration and unit tests run in offline test-harness mode:
 - ✅ Persian & Arabic-Indic digit normalization
 - ✅ Loopback hardening (Host / Origin / Traversal guards)
 - ✅ Overlay XSS & CSS escape sanitization
+- ✅ System-proxy parsing, route order & readable Kick errors
+- ✅ Card delay (per-file over appearance; TTS waits for the card)
+- ✅ Update version parsing, release-redirect pinning & checksum lookup
+- ✅ Event-stream origin refusal & per-role connection caps
+- ✅ Media route serves registered alerts only
 
 ---
 
 ## 📜 License
 
 Open source under the [Apache License 2.0](LICENSE).  
-Copyright © 2026 Behnam & Contributors. Based on upstream work by AmirEyZed.
+Copyright © 2026 Behnam & Contributors. Based on upstream work by [AmirEyZed](https://github.com/AmirEyZed/sahne-plus).

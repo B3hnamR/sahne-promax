@@ -26,6 +26,7 @@ const LOOK_DEFAULTS = {
   cardX: 50,
   cardY: 82,
   cardScale: 1,
+  cardDelay: 0,
   radius: 26,
   amountStyle: 'pill',
   showLine: true,
@@ -82,11 +83,7 @@ export function initLook() {
     el.addEventListener('input', () => {
       const k = el.dataset.a;
       const v =
-        el.type === 'checkbox'
-          ? el.checked
-          : el.type === 'number' || el.type === 'range'
-            ? Number(el.value)
-            : el.value;
+        el.type === 'checkbox' ? el.checked : el.type === 'number' || el.type === 'range' ? Number(el.value) : el.value;
       state.cfg.appearance[k] = v;
       if (lbl[k] && $('#' + lbl[k])) $('#' + lbl[k]).textContent = v;
       saveLook();

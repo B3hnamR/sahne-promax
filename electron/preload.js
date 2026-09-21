@@ -1,4 +1,4 @@
-// Sahne Plus — preload: the only bridge between the controller page and the desktop shell (sandboxed, context-isolated).
+// Sahne ProMax — preload: the only bridge between the controller page and the desktop shell (sandboxed, context-isolated).
 // Nothing here exposes Node, the filesystem, shell commands or raw IPC to the page.
 'use strict';
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
@@ -28,6 +28,14 @@ contextBridge.exposeInMainWorld('sahne', {
     autostart: on => ipcRenderer.invoke('app:autostart', typeof on === 'boolean' ? on : undefined),
     copy: text => ipcRenderer.invoke('app:copy', String(text)),
     clearData: () => ipcRenderer.invoke('data:clear')
+  },
+  update: {
+    get: () => ipcRenderer.invoke('update:get'),
+    check: () => ipcRenderer.invoke('update:check'),
+    install: () => ipcRenderer.invoke('update:install'),
+    onStatus: cb => {
+      ipcRenderer.on('update:status', (e, s) => cb(s && typeof s === 'object' ? { ...s } : null));
+    }
   },
   files: {
     pick: () => ipcRenderer.invoke('files:pick'),

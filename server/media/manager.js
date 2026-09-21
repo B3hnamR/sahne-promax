@@ -34,6 +34,7 @@ class MediaManager {
       keywords: [],
       volume: 100,
       duration: null,
+      cardDelay: null,
       size
     };
   }

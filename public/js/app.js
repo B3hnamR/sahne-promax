@@ -30,7 +30,7 @@ async function load() {
     } catch {}
   }
 
-  const ver = r.version || (state.info && state.info.version) || '2.0.0-pro';
+  const ver = r.version || (state.info && state.info.version) || '2.1.1';
   const brandVer = $('#brandVer');
   if (brandVer) brandVer.textContent = 'Sahne ProMax v' + ver;
 
@@ -115,6 +115,20 @@ function renderKickStatus() {
     h.className = cls;
   }
   if (pill) pill.className = pcls;
+
+  // what to do about the error (filtered kick.com, VPN, wrong channel name)
+  const hint = $('#kHint');
+  if (hint) {
+    const showHint = !!(
+      st.hint &&
+      state.cfg.kick &&
+      state.cfg.kick.enabled !== false &&
+      state.cfg.kick.channel &&
+      !st.connected
+    );
+    hint.hidden = !showHint;
+    hint.textContent = showHint ? st.hint : '';
+  }
 }
 
 function renderKb() {
@@ -150,11 +164,16 @@ function fillSettings() {
 function fillApp() {
   const info = state.info;
   const cfg = state.cfg;
-  if ($('#appVer')) $('#appVer').value = info ? info.version + ' · Electron ' + info.electron : (cfg && cfg.version) || '2.0.0-pro';
+  if ($('#appVer'))
+    $('#appVer').value = info ? info.version + ' · Electron ' + info.electron : (cfg && cfg.version) || '2.1.1';
   if ($('#dataDir')) $('#dataDir').value = info ? info.dataDir : '';
   if ($('#autostart')) {
     $('#autostart').checked = !!(info && info.autostart);
     $('#autostart').disabled = !DESK;
+  }
+  if ($('#updCheck')) {
+    $('#updCheck').checked = !(cfg && cfg.app && cfg.app.updateCheck === false);
+    $('#updCheck').disabled = !DESK;
   }
   if ($('#btnOpenData')) $('#btnOpenData').disabled = !DESK;
   if ($('#btnOpenLog')) $('#btnOpenLog').disabled = !DESK;
@@ -163,7 +182,7 @@ function fillApp() {
   if ($('#abVer')) {
     $('#abVer').textContent = info
       ? `${info.version} · Electron ${info.electron} · Chromium ${info.chrome}`
-      : (cfg && cfg.version) || '2.0.0-pro';
+      : (cfg && cfg.version) || '2.1.1';
   }
   if ($('#abData')) $('#abData').textContent = info ? info.dataDir : '—';
   if ($('#abServer')) $('#abServer').textContent = 'http://localhost:' + ((cfg && cfg.port) || 7788);
@@ -217,12 +236,13 @@ function renderState() {
 
   if ($('#sDelay')) $('#sDelay').textContent = faNum(s.queueDelay) + ' ثانیه';
   if ($('#hRate')) $('#hRate').textContent = s.rate ? Number(s.rate).toLocaleString('en-US') : '—';
+  renderProxy();
 
   if ($('#hRateMeta')) {
     $('#hRateMeta').textContent = s.rateManual
       ? 'دستی'
       : s.rateUpdatedAt
-        ? (s.rateSource === 'nobitex' ? 'نوبیتکس' : s.rateSource === 'baha24' ? 'بهاء۲۴' : (s.rateSource || 'نوبیتکس')) +
+        ? (s.rateSource === 'nobitex' ? 'نوبیتکس' : s.rateSource === 'baha24' ? 'بهاء۲۴' : s.rateSource || 'نوبیتکس') +
           ' · ' +
           new Date(s.rateUpdatedAt).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) +
           (s.rateError ? ' · آخرین تلاش ناموفق' : '')
@@ -237,9 +257,7 @@ function renderState() {
     s.recent.forEach(t => {
       const d = document.createElement('div');
       d.className = 'it';
-      d.innerHTML = `<span class="a">${t.toman ? fmtToman(t.toman) : '$' + t.amount}</span><b>${esc(
-        t.name || ''
-      )}</b>${
+      d.innerHTML = `<span class="a">${t.toman ? fmtToman(t.toman) : '$' + t.amount}</span><b>${esc(t.name || '')}</b>${
         t.kind === 'gift'
           ? '<span class="chip">🎁 ' + faNum(t.count) + ' ساب‌گیفت</span>'
           : t.kind === 'sub'
@@ -262,13 +280,28 @@ function renderRate() {
       Number(r.manual) > 0
         ? '(دستی)'
         : r.updatedAt
-          ? (r.source === 'nobitex' ? 'نوبیتکس' : r.source === 'baha24' ? 'بهاء۲۴' : (r.source || 'نوبیتکس')) + ' · ' + new Date(r.updatedAt).toLocaleTimeString('fa-IR')
+          ? (r.source === 'nobitex' ? 'نوبیتکس' : r.source === 'baha24' ? 'بهاء۲۴' : r.source || 'نوبیتکس') +
+            ' · ' +
+            new Date(r.updatedAt).toLocaleTimeString('fa-IR')
           : 'هنوز دریافت نشده';
   }
   if ($('#rateAuto')) $('#rateAuto').checked = r.auto !== false;
   if ($('#rateInt')) $('#rateInt').value = r.intervalMin || 2;
   if ($('#rateManual')) $('#rateManual').value = r.manual || '';
   if ($('#rateProxy')) $('#rateProxy').value = r.proxy || '';
+  renderProxy();
+}
+
+// the detected Windows system proxy under the manual-proxy field (updated on every state push, so toggling the VPN refreshes it live)
+function renderProxy() {
+  const s = state.runtimeState;
+  if ($('#sysProxy'))
+    $('#sysProxy').textContent =
+      s && s.systemProxy
+        ? 'پراکسی سیستم ویندوز: ' +
+          s.systemProxy +
+          ' — اگر کادر بالا خالی باشد، برای kick.com و منابع نرخ خودکار از همین استفاده می‌شود.'
+        : 'پراکسی سیستم ویندوز پیدا نشد. اگر VPN در حالت TUN است یا kick.com بدون VPN باز می‌شود، نیازی به پراکسی نیست.';
 }
 
 function addLog(e) {
@@ -492,7 +525,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('#btnOpenLog')) $('#btnOpenLog').onclick = () => DESK && window.sahne.app.openPath('log');
   if ($('#abOpenData')) $('#abOpenData').onclick = () => DESK && window.sahne.app.openPath('data');
   if ($('#abOpenLog')) $('#abOpenLog').onclick = () => DESK && window.sahne.app.openPath('log');
-  if ($('#btnClearLog')) $('#btnClearLog').onclick = () => { if ($('#log')) $('#log').innerHTML = ''; };
+  if ($('#btnClearLog'))
+    $('#btnClearLog').onclick = () => {
+      if ($('#log')) $('#log').innerHTML = '';
+    };
 
   $$('[data-doc]').forEach(b => {
     b.onclick = () => {
@@ -510,6 +546,109 @@ document.addEventListener('DOMContentLoaded', async () => {
       await post('/api/config', { app: { autostart: !!r } });
       toast(r ? 'اجرای خودکار فعال شد' : 'اجرای خودکار غیرفعال شد', 'ok');
     };
+  }
+
+  if ($('#updCheck')) {
+    $('#updCheck').onchange = async e => {
+      await post('/api/config', { app: { updateCheck: e.target.checked } });
+      toast(e.target.checked ? 'بررسی خودکار آپدیت روشن شد' : 'بررسی خودکار آپدیت خاموش شد', 'ok');
+    };
+  }
+
+  // ---------- updates (desktop app only; checking, downloading and verifying happen in the main process) ----------
+  let UPD = null,
+    updLater = false;
+  function renderUpdate(s) {
+    if (s) UPD = s;
+    const bar = $('#updBar'),
+      ab = $('#abUpd');
+    if (!bar) return;
+    if (!DESK || !UPD) {
+      bar.hidden = true;
+      if (ab) ab.textContent = DESK ? '—' : 'فقط در برنامه‌ی دسکتاپ';
+      return;
+    }
+    const v = UPD.latest || '';
+    let txt = '',
+      show = false,
+      busy = false;
+    if (UPD.status === 'available') {
+      txt = 'نسخه‌ی جدید صحنه پرومکس (' + v + ') آماده است.' + (UPD.error ? ' ' + UPD.error : '');
+      show = !updLater;
+    } else if (UPD.status === 'downloading') {
+      txt = 'در حال دانلود نسخه‌ی ' + v + '… ' + (UPD.progress || 0) + '٪';
+      show = busy = true;
+    } else if (UPD.status === 'ready') {
+      txt = 'نسخه‌ی ' + v + ' دانلود و با چک‌سام رسمی بررسی شد (حالت تست؛ نصب نمی‌شود).';
+      show = busy = true;
+    } else if (UPD.status === 'installing') {
+      txt = 'در حال نصب نسخه‌ی ' + v + '… برنامه چند ثانیه بسته و دوباره باز می‌شود.';
+      show = busy = true;
+    }
+    bar.hidden = !show;
+    $('#updText').textContent = txt;
+    $('#updGo').disabled = busy;
+    $('#updGo').textContent = UPD.canInstall ? 'آپدیت' : 'دانلود';
+    $('#updLater').style.display = busy ? 'none' : '';
+    if (ab) {
+      const labels = {
+        idle: 'هنوز بررسی نشده',
+        checking: 'در حال بررسی…',
+        uptodate: 'به‌روز است (' + UPD.current + ')',
+        available: 'نسخه‌ی ' + v + ' آمده',
+        downloading: 'در حال دانلود…',
+        ready: 'دانلود شد (تست)',
+        installing: 'در حال نصب…',
+        error: UPD.error || 'بررسی ناموفق بود'
+      };
+      ab.textContent = labels[UPD.status] || '—';
+    }
+  }
+  if (DESK && window.sahne.update) {
+    window.sahne.update.onStatus(renderUpdate);
+    window.sahne.update
+      .get()
+      .then(renderUpdate)
+      .catch(() => {});
+    if ($('#updGo'))
+      $('#updGo').onclick = async () => {
+        if (!UPD) return;
+        if (!UPD.canInstall) {
+          if (UPD.page) window.sahne.app.openExternal(UPD.page);
+          return;
+        }
+        const ok = await spConfirm({
+          title: 'آپدیت صحنه پرومکس',
+          body:
+            'نسخه‌ی ' +
+            UPD.latest +
+            ' دانلود و نصب شود؟ برنامه چند ثانیه بسته و دوباره باز می‌شود؛ تنظیمات و فایل‌ها سر جایشان می‌مانند.',
+          confirmText: 'آپدیت',
+          cancelText: 'انصراف',
+          icon: '#i-refresh'
+        });
+        if (!ok) return;
+        renderUpdate(await window.sahne.update.install());
+      };
+    if ($('#updNotes')) $('#updNotes').onclick = () => UPD && UPD.page && window.sahne.app.openExternal(UPD.page);
+    if ($('#updLater'))
+      $('#updLater').onclick = () => {
+        updLater = true;
+        renderUpdate();
+      };
+    if ($('#abCheckUpd'))
+      $('#abCheckUpd').onclick = async () => {
+        updLater = false;
+        const s = await window.sahne.update.check();
+        renderUpdate(s);
+        if (!s) return;
+        if (s.status === 'uptodate') toast('صحنه پرومکس به‌روز است', 'ok');
+        else if (s.status === 'available') toast('نسخه‌ی ' + s.latest + ' آمده است', 'ok');
+        else toast(s.error || 'بررسی آپدیت ناموفق بود', 'err');
+      };
+  } else {
+    if ($('#abCheckUpd')) $('#abCheckUpd').disabled = true;
+    renderUpdate(null);
   }
 
   if ($('#btnCopy')) {

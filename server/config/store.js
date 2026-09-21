@@ -47,6 +47,10 @@ class ConfigStore {
       app: { ...DEFAULT_CONFIG.app, ...(c.app || {}) }
     };
 
+    merged.app.updateCheck = merged.app.updateCheck !== false;
+    if (!/^\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(String(merged.app.updateNotifiedFor || '')))
+      merged.app.updateNotifiedFor = null;
+
     // Secret storage handling (DPAPI or plain)
     const isStoreAvailable = !!(this.store && typeof this.store.available === 'function' && this.store.available());
     if (c.secret_id_enc && isStoreAvailable) {

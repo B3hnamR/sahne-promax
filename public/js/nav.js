@@ -20,7 +20,7 @@ export function initNav({ onPageChange }) {
       return;
     }
     const ok = await spConfirm({
-      title: 'خروج از صحنه پلاس',
+      title: 'خروج از صحنه پرومکس',
       body: 'برنامه کاملاً بسته می‌شه و تا باز شدن دوباره، هیچ آلرتی روی استریم نمایش داده نمی‌شه. مطمئنی؟',
       confirmText: 'خروج کامل',
       cancelText: 'انصراف',

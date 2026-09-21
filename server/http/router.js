@@ -124,8 +124,16 @@ function createHttpRouter(context) {
       }
 
       if (p.startsWith('/media/')) {
-        const fileName = path.basename(decodeURIComponent(url.pathname.slice(7)));
-        return serveFile(req, res, path.join(mediaDir, fileName));
+        // only files that are registered alerts: never other content of the media folder (notes, partial uploads)
+        const name = path.basename(decodeURIComponent(url.pathname.slice(7)));
+        const lower = name.toLowerCase();
+        const entry = configStore.config.files.find(
+          f => f.file === name || f.file.toLowerCase() === lower || f.audioFile === name
+        );
+        if (!entry) return json(res, 404, { error: 'not found' });
+        // a paired-audio reference serves that audio file, not the image entry's own file
+        const served = entry.file === name || entry.file.toLowerCase() === lower ? entry.file : entry.audioFile;
+        return serveFile(req, res, path.join(mediaDir, served));
       }
 
       // Server-Sent Events (SSE)
@@ -134,6 +142,20 @@ function createHttpRouter(context) {
         const profile = url.searchParams.get('profile') || 'default';
         if (!['overlay', 'admin', 'preview', 'goal'].includes(role)) {
           return json(res, 400, { error: 'bad role' });
+        }
+        // A page on another site can open an EventSource to this server; the browser cannot read the answer, but the
+        // connection alone would count as a Browser Source and consume alerts. Browsers send Origin (and Sec-Fetch-Site)
+        // on such a request, while our own pages, OBS and Meld are same-origin.
+        if (!originAllowed(req) || String(req.headers['sec-fetch-site'] || '').toLowerCase() === 'cross-site') {
+          logger.warn('اتصال اورلی از یک صفحه‌ی خارجی رد شد', {
+            origin: String(req.headers.origin || '').slice(0, 100),
+            role
+          });
+          return json(res, 403, { error: 'forbidden origin' });
+        }
+        if (sse.clientCount(role) >= ((LIMITS.sse && LIMITS.sse[role]) || 4)) {
+          logger.warn('تعداد اتصال‌های هم‌زمان به صف رویدادها پر است', { role, open: sse.clientCount(role) });
+          return json(res, 429, { error: 'too many connections' });
         }
 
         res.writeHead(200, {
@@ -292,7 +314,8 @@ function createHttpRouter(context) {
         if (body.app && typeof body.app === 'object') {
           config.app = {
             ...config.app,
-            autostart: body.app.autostart === undefined ? config.app.autostart : !!body.app.autostart
+            autostart: body.app.autostart === undefined ? config.app.autostart : !!body.app.autostart,
+            updateCheck: body.app.updateCheck === undefined ? config.app.updateCheck !== false : !!body.app.updateCheck
           };
         }
 

@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { PUSHER_WS, KICK_CHANNEL_API, KICK_SUB_USD, UA, LIMITS } = require('../constants');
 const { cleanText, finite } = require('../utils/validation');
 const { httpsRequest } = require('../utils/http-client');
+const { describeKickFailure, routeLabel } = require('../utils/net');
 
 class KickChatClient {
   constructor({ configStore, queue, rateManager, logger, sse }) {
@@ -18,7 +19,7 @@ class KickChatClient {
     this.kickRetry = 5000;
     this.checkTimer = null;
     this.stopped = false;
-    this.kickState = { connected: false, error: null };
+    this.kickState = { connected: false, error: null, hint: null };
     this.recentKeys = new Map();
   }
 
@@ -53,28 +54,41 @@ class KickChatClient {
     if (!/^[a-z0-9_.-]{1,40}$/.test(slug)) {
       if (slug) {
         this.kickState.error = 'اسم کانال نامعتبر است';
+        this.kickState.hint = 'فقط اسم کانال را بنویسید (حروف انگلیسی، عدد، _ . -)، مثلاً amireyzed.';
         this.sse.sendState();
       }
       return false;
     }
 
     if (config.kick.chatroomId && config.kick.resolvedFor === slug) return true;
-    const proxy = (config.rate.proxy || '').trim();
-    const order = proxy ? [proxy, ''] : [''];
-    let last = null;
+    const attempts = [];
 
-    for (const px of order) {
+    for (const px of await this.rateManager.routesFor(KICK_CHANNEL_API, false)) {
       try {
         const r = await httpsRequest(KICK_CHANNEL_API + encodeURIComponent(slug), {
           headers: { 'User-Agent': UA, Accept: 'application/json' },
           proxy: px
         });
-        if (r.status === 404) throw new Error('کانالی با این اسم پیدا نشد؛ فقط قسمت بعد از kick.com/ را وارد کنید');
-        if (r.status !== 200) throw new Error('kick api HTTP ' + r.status);
-        const j = JSON.parse(r.text);
+        if (r.status !== 200) {
+          const e = new Error('kick api HTTP ' + r.status);
+          e.httpStatus = r.status;
+          throw e;
+        }
+        let j;
+        try {
+          j = JSON.parse(r.text);
+        } catch {
+          const e = new Error('kick api: response is not JSON');
+          e.kind = 'parse';
+          throw e;
+        }
         const chatroomId = Number(j && j.chatroom && j.chatroom.id);
         const channelId = Number(j && j.id);
-        if (!chatroomId) throw new Error('chatroom not in response');
+        if (!chatroomId) {
+          const e = new Error('kick api: chatroom not in response');
+          e.kind = 'parse';
+          throw e;
+        }
 
         config.kick.channel = slug;
         config.kick.chatroomId = chatroomId;
@@ -82,17 +96,26 @@ class KickChatClient {
         config.kick.resolvedFor = slug;
         this.configStore.saveConfig();
         this.kickState.error = null;
-        this.logger.info('کانال کیک شناسایی شد', { channel: slug, chatroom: chatroomId });
+        this.kickState.hint = null;
+        this.logger.info('کانال کیک شناسایی شد', { channel: slug, chatroom: chatroomId, via: routeLabel(px) });
         return true;
       } catch (e) {
-        last = e;
+        attempts.push({ route: px, err: e });
+        if (e.httpStatus === 404) break; // definitive: no such channel, other routes would say the same
       }
     }
 
-    this.kickState.error = (last && last.message) || 'unknown';
+    const d = describeKickFailure(attempts);
+    this.kickState.error = d.error;
+    this.kickState.hint = d.hint;
     this.logger.warn(
-      'شناسایی کانال کیک ناموفق بود (اسم کانال یا دسترسی به kick.com را بررسی کن)',
-      this.kickState.error
+      'شناسایی کانال کیک ناموفق بود: ' + d.error,
+      attempts
+        .map(
+          a =>
+            routeLabel(a.route) + ': ' + (a.err.httpStatus ? 'HTTP ' + a.err.httpStatus : a.err.code || a.err.message)
+        )
+        .join(' | ')
     );
     this.sse.sendState();
     return false;
@@ -128,6 +151,7 @@ class KickChatClient {
         }
         this.kickState.connected = true;
         this.kickState.error = null;
+        this.kickState.hint = null;
         this.kickRetry = 5000;
         this.logger.info('به چت کیک وصل شد (ساب / ساب‌گیفت)', { channel: config.kick.channel });
         clearInterval(this.kickPing);

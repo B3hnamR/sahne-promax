@@ -2,7 +2,8 @@
 const { BAHA24, UA } = require('../constants');
 const { httpsRequest } = require('../utils/http-client');
 
-async function fetchBaha24(proxy = '') {
+// routes: ordered, de-duplicated proxies to try ('' = direct). When omitted, a direct request only.
+async function fetchBaha24(proxyOrRoutes = '') {
   const attempt = async px => {
     const r = await httpsRequest(
       BAHA24,
@@ -26,8 +27,10 @@ async function fetchBaha24(proxy = '') {
     return Math.round(v);
   };
 
-  const cleanProxy = (proxy || '').trim();
-  const order = ['', ...(cleanProxy ? [cleanProxy] : [])];
+  // baha24 is usually reachable directly: direct first (when not given an explicit order), proxies as retries
+  const order = Array.isArray(proxyOrRoutes)
+    ? proxyOrRoutes
+    : ['', ...((proxyOrRoutes || '').trim() ? [(proxyOrRoutes || '').trim()] : [])];
   let lastErr;
   for (const px of order) {
     try {

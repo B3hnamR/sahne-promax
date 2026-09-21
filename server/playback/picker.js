@@ -78,6 +78,7 @@ function buildPayload(t, media, { mediaDir, currentRate, tomanOf }) {
           type: media.type,
           volume: media.volume ?? 100,
           duration: media.duration || null,
+          cardDelay: media.cardDelay ?? null,
           name: media.name,
           audio_url: pairedAudioUrl
         }

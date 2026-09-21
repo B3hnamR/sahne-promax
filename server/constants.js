@@ -18,6 +18,7 @@ const LIMITS = {
   fileName: 120,
   upload: 512 * 1024 * 1024,
   files: 500,
+  sse: { overlay: 8, preview: 4, admin: 4, goal: 4 }, // concurrent event streams per role
   played: 1000,
   logs: 300,
   minRateInterval: 1,
@@ -60,6 +61,7 @@ const DEFAULT_APPEARANCE = {
   imageDuration: 8,
   minDuration: 6,
   maxDuration: 90,
+  cardDelay: 0,
   mediaMaxHeight: 55,
   volume: 80,
   ttsVolume: 70,
@@ -113,7 +115,7 @@ const DEFAULT_CONFIG = {
     subValueToman: 0,
     showNewSubs: true
   },
-  app: { autostart: true }
+  app: { autostart: true, updateCheck: true, updateNotifiedFor: null }
 };
 
 const FONTS = ['Vazirmatn', 'Estedad', 'Lalezar', 'Inter', 'Poppins', 'Segoe UI', 'Tahoma'];

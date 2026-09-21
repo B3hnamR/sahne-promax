@@ -6,7 +6,73 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
-const { createServer, typeOf, parseThreshold, safeMediaName, sniffOk, cleanText, normFa } = require('../server/server');
+const {
+  createServer,
+  typeOf,
+  parseThreshold,
+  safeMediaName,
+  sniffOk,
+  cleanText,
+  normFa,
+  isNetError,
+  parsePacProxy,
+  routeOrder,
+  describeKickFailure
+} = require('../server/server');
+
+test('system proxy parsing, route order and readable Kick errors (1.3.1)', () => {
+  assert.equal(parsePacProxy('PROXY 127.0.0.1:10809; DIRECT'), 'http://127.0.0.1:10809');
+  assert.equal(parsePacProxy('DIRECT'), '');
+  assert.equal(parsePacProxy('SOCKS5 127.0.0.1:10808'), '', 'SOCKS is not usable by the CONNECT client');
+  assert.equal(parsePacProxy('SOCKS5 127.0.0.1:10808; PROXY localhost:2080'), 'http://localhost:2080');
+  assert.deepEqual(routeOrder({ manual: '', system: 'http://127.0.0.1:10809' }), ['http://127.0.0.1:10809', '']);
+  assert.deepEqual(routeOrder({ manual: 'http://1.2.3.4:8080', system: 'http://1.2.3.4:8080' }), [
+    'http://1.2.3.4:8080',
+    ''
+  ]);
+  assert.deepEqual(routeOrder({ manual: 'http://a:1', system: 'http://b:2', directFirst: true }), [
+    '',
+    'http://a:1',
+    'http://b:2'
+  ]);
+  assert.deepEqual(routeOrder({ manual: 'junk', system: '' }), ['']);
+  const reset = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' });
+  const refused = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:10809'), { code: 'ECONNREFUSED' });
+  const http = code => Object.assign(new Error('kick api HTTP ' + code), { httpStatus: code });
+  assert.ok(isNetError(reset) && isNetError(new Error('timeout')) && !isNetError(http(500)));
+  const filtered = describeKickFailure([{ route: '', err: reset }]);
+  assert.match(filtered.error, /فیلتر/);
+  assert.match(filtered.hint, /TUN/);
+  assert.ok(
+    !filtered.error.includes('ECONNRESET') && !filtered.hint.includes('ECONNRESET'),
+    'no raw error codes in the UI'
+  );
+  const viaVpn = describeKickFailure([
+    { route: 'http://127.0.0.1:10809', err: refused },
+    { route: '', err: reset }
+  ]);
+  assert.match(viaVpn.hint, /127\.0\.0\.1:10809/, 'says which proxy was tried');
+  const withCreds = describeKickFailure([
+    { route: 'http://user:secret@10.0.0.1:3128', err: refused },
+    { route: '', err: reset }
+  ]);
+  assert.ok(!withCreds.hint.includes('secret'), 'proxy credentials never shown');
+  assert.equal(
+    describeKickFailure([
+      { route: 'http://p:1', err: http(404) },
+      { route: '', err: reset }
+    ]).error,
+    'کانال پیدا نشد'
+  );
+  assert.match(
+    describeKickFailure([
+      { route: 'http://p:1', err: http(403) },
+      { route: '', err: reset }
+    ]).error,
+    /403/
+  );
+  assert.match(describeKickFailure([{ route: '', err: http(502) }]).error, /502/);
+});
 
 test('typeOf / parseThreshold', () => {
   assert.equal(typeOf('a.webm'), 'video');
@@ -111,6 +177,14 @@ test('loopback hardening: Host and Origin checks, traversal, secret never expose
   assert.equal(after.mode, 'standalone');
   assert.equal(after.appearance.textSize, 120);
   assert.match(after.appearance.nameColor, /^#[0-9a-f]{6}$/);
+  const appCfg = async () => JSON.parse((await req('GET', '/api/config')).body).config.app;
+  assert.equal((await appCfg()).updateCheck, true, 'update check is on by default');
+  await req('POST', '/api/config', {
+    headers: { Origin: `http://127.0.0.1:${port}` },
+    body: { app: { updateCheck: false } }
+  });
+  assert.equal((await appCfg()).updateCheck, false, 'update check can be turned off');
+  assert.equal((await appCfg()).autostart, false, 'turning it off does not touch autostart');
   assert.equal((await req('GET', '/fonts/../../package.json')).status, 404, 'traversal');
   assert.equal((await req('GET', '/media/..%5c..%5cconfig.json')).status, 404);
   const onDisk = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
@@ -211,6 +285,16 @@ test('upload streaming + sniffing, suffix Range, config.files merge, capture ret
   assert.equal((await req('POST', '/api/config', { body: { files: [] } })).status, 200);
   assert.equal(JSON.parse((await req('GET', '/api/config')).body).config.files.length, 1);
 
+  // card delay (1.3.1): per-file value rounded to 0.1 s and clamped; '' clears it; the appearance value is clamped to 60 s
+  const setDelay = async v =>
+    JSON.parse((await req('PATCH', '/api/file', { body: { id: entry.id, cardDelay: v } })).body).file.cardDelay;
+  assert.equal(await setDelay(1.54), 1.5);
+  assert.equal(await setDelay(''), null);
+  assert.equal(await setDelay(999), 60);
+  assert.equal(await setDelay(1.5), 1.5);
+  assert.equal((await req('POST', '/api/config', { body: { appearance: { cardDelay: 999 } } })).status, 200);
+  assert.equal(JSON.parse((await req('GET', '/api/config')).body).config.appearance.cardDelay, 60);
+
   // queue: with a Browser Source connected, a real tip whose capture fails transiently is retried and never marked as played (audit P0-2)
   const events = [];
   es = http.get({ host: '127.0.0.1', port, path: '/events?role=overlay' }, res => {
@@ -245,4 +329,117 @@ test('upload streaming + sniffing, suffix Range, config.files merge, capture ret
   assert.equal(srv.testHooks.isPlayed('pi_ok'), true, 'a captured tip is marked as played');
   const seen = events.join('');
   assert.ok(seen.includes('"type":"play"') && seen.includes('Donor'), 'the captured tip is played on the overlay');
+  assert.ok(seen.includes('"cardDelay":1.5'), 'the per-file card delay reaches the overlay');
+});
+
+test('event streams: foreign pages are refused and the number of streams is bounded (1.3.2)', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-test-'));
+  const port = 8000 + Math.floor(Math.random() * 100);
+  fs.writeFileSync(
+    path.join(dir, 'config.json'),
+    JSON.stringify({ port, rate: { auto: false }, kick: { enabled: false }, app: { autostart: false } })
+  );
+  const srv = createServer({
+    dataDir: dir,
+    publicDir: path.join(__dirname, '..', 'public'),
+    appVersion: 'test',
+    testHooks: { offline: true }
+  });
+  await srv.start();
+  const open = [];
+  t.after(async () => {
+    for (const r of open) r.destroy();
+    await srv.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const stream = (p, headers = {}) =>
+    new Promise((resolve, reject) => {
+      const r = http.get({ host: '127.0.0.1', port, path: p, headers }, res => {
+        res.resume();
+        resolve({ status: res.statusCode, res });
+      });
+      open.push(r);
+      r.on('error', reject);
+    });
+
+  // our own pages are same-origin: browsers send no Origin, or the server's own
+  assert.equal((await stream('/events?role=overlay')).status, 200);
+  assert.equal((await stream('/events?role=preview', { Origin: `http://localhost:${port}` })).status, 200);
+  // a page on another site: the connection alone must not count as a Browser Source
+  assert.equal((await stream('/events?role=overlay', { Origin: 'https://evil.example' })).status, 403);
+  assert.equal(
+    (await stream('/events?role=overlay', { 'Sec-Fetch-Site': 'cross-site' })).status,
+    403,
+    'cross-site fetch metadata is refused even without an Origin header'
+  );
+  assert.equal((await stream('/events?role=admin', { Origin: 'https://evil.example' })).status, 403);
+  // bounded number of streams per role (one overlay stream is already open)
+  const codes = [];
+  for (let i = 0; i < 10; i++) codes.push((await stream('/events?role=overlay')).status);
+  assert.ok(codes.includes(429), 'a flood of streams is refused once the cap is reached, got ' + JSON.stringify(codes));
+  assert.equal(codes.filter(c => c === 200).length, 7, 'the cap is 8 overlay streams in total');
+});
+
+test('media: only registered alert files are served (1.3.2)', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-test-'));
+  const port = 8100 + Math.floor(Math.random() * 100);
+  fs.writeFileSync(
+    path.join(dir, 'config.json'),
+    JSON.stringify({ port, rate: { auto: false }, kick: { enabled: false }, app: { autostart: false } })
+  );
+  const srv = createServer({
+    dataDir: dir,
+    publicDir: path.join(__dirname, '..', 'public'),
+    appVersion: 'test',
+    testHooks: { offline: true }
+  });
+  await srv.start();
+  t.after(async () => {
+    await srv.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const get = p =>
+    new Promise((resolve, reject) => {
+      http
+        .get({ host: '127.0.0.1', port, path: p }, res => {
+          const chunks = [];
+          res.on('data', c => chunks.push(c));
+          res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks) }));
+        })
+        .on('error', reject);
+    });
+  const webm = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.from('alert bytes')]);
+  const up = await new Promise((resolve, reject) => {
+    const r = http.request(
+      {
+        host: '127.0.0.1',
+        port,
+        path: '/api/upload?name=' + encodeURIComponent('100T clip.webm'),
+        method: 'PUT',
+        headers: { Origin: `http://127.0.0.1:${port}`, 'Content-Type': 'application/octet-stream' }
+      },
+      res => {
+        let d = '';
+        res.on('data', c => (d += c));
+        res.on('end', () => resolve({ status: res.statusCode, body: d }));
+      }
+    );
+    r.on('error', reject);
+    r.end(webm);
+  });
+  assert.equal(up.status, 200, up.body);
+  const entry = JSON.parse(up.body).entry;
+  const registered = await get('/media/' + encodeURIComponent(entry.file));
+  assert.equal(registered.status, 200);
+  assert.deepEqual([...registered.body], [...webm]);
+  // other content of the media folder is not served
+  fs.writeFileSync(path.join(dir, 'media', 'notes.txt'), 'private notes');
+  fs.writeFileSync(path.join(dir, 'media', '.upload-abc123.tmp'), 'partial upload');
+  assert.equal((await get('/media/notes.txt')).status, 404, 'unregistered file');
+  assert.equal((await get('/media/.upload-abc123.tmp')).status, 404, 'partial upload');
+  assert.equal(
+    (await get('/media/' + encodeURIComponent(entry.file.toUpperCase()))).status,
+    200,
+    'case-insensitive on Windows'
+  );
 });

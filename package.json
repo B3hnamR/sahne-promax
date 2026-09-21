@@ -1,7 +1,7 @@
 {
   "name": "sahne-promax",
   "productName": "Sahne ProMax",
-  "version": "2.0.0-pro",
+  "version": "2.1.1",
   "description": "Sahne ProMax — High-performance modular Kick / KickBot donation, sub and gift-sub alerts, goal widgets, paired media, and Stream Deck control",
   "author": "AmirEyZed & Contributors",
   "license": "Apache-2.0",
@@ -9,7 +9,7 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/server.test.js test/overlay-xss.test.js test/promax.test.js",
+    "test": "node --test test/server.test.js test/update.test.js test/promax.test.js && node test/overlay-xss.test.js",
     "icons": "electron scripts/render-icons.js",
     "screenshots": "electron scripts/capture-pages.js",
     "dist": "electron-builder --win --x64 --publish never",

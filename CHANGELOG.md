@@ -1,6 +1,32 @@
-# Changelog — Sahne Plus
+# Changelog — Sahne ProMax
 
 All notable changes to the public builds. Versions follow semantic versioning.
+
+## 2.1.1 — 2026-09-21 (Sahne+ 1.3.2 security fixes ported to ProMax)
+
+Security fixes and UI polish from upstream [Sahne+ 1.3.2](https://github.com/AmirEyZed/sahne-plus/releases/tag/v1.3.2):
+
+- **Security (reported by [KernelDotDLL](https://github.com/KernelDotDLL)):** a web page open in the streamer's browser could connect to the alert event stream (`/events`). It could not read anything, but the connection counted as a Browser Source, so an alert could be consumed while OBS was closed, and the number of connections was unbounded. The stream now refuses requests from another site (`Origin` / `Sec-Fetch-Site` checks) and caps concurrent connections per role (8 overlay / 4 preview / 4 admin / 4 goal).
+- **Security (same report):** `/media/…` served every file in the media folder, including notes or a partial upload. Only files registered as alerts (or paired audio) are served now.
+- **Hardening:** the installed app ignores Chromium's remote-debugging switches (`--remote-debugging-port`, `--remote-debugging-pipe`, `--remote-debugging-address`), so it can no longer be started with the DevTools protocol open; the ignored switch is noted in the log. Development runs (`electron .`) are unchanged.
+- **Fixed:** in the file editor the header icon was oversized and the preview could collapse when the window was short; the panel now scrolls instead of squashing its parts. (The upstream "setup card gap" fix was already present in ProMax's stylesheet.)
+- Tests for the SSE origin/cap rules and the registered-only media serving.
+
+## 2.1.0 — 2026-09-19 (Sahne+ 1.3.1 features ported to ProMax)
+
+All four headline features of upstream [Sahne+ 1.3.1](https://github.com/AmirEyZed/sahne-plus/releases/tag/v1.3.1), ported onto the modular ProMax architecture (goal widget, paired media, profiles, Stream Deck API, Nobitex rates and the glassmorphic UI are unchanged):
+
+- **Updates inside the app:** 30 s after start and every 6 hours the app checks this repository's latest GitHub release (can be turned off in Settings) and shows a banner and a Windows notification when a newer version exists. «آپدیت» downloads the official installer, verifies it against the release's `SHA256SUMS.txt`, closes the app and installs it; the new version starts by itself, settings and media stay. Nothing is downloaded or installed without a click. (`electron/updater.js` + `electron/update-core.js`, checks `B3hnamR/sahne-promax` releases.)
+- **Kick subs with a VPN, no extra setup:** if kick.com is filtered on your network, Sahne ProMax now uses your VPN app's Windows system proxy automatically (for example v2rayN in "system proxy" mode) for kick.com and the rate sources — after a manually entered proxy and before a direct connection. Only plain HTTP proxies are used; a SOCKS-only setup needs the VPN's TUN mode or a manual HTTP proxy. The detected proxy is shown under the proxy field in Settings.
+- **Readable Kick errors:** instead of raw codes such as `read ECONNRESET`, the Kick card says what happened (kick.com filtered, channel not found, request refused by Kick, …) and what to do, in Persian. A "channel not found" answer is no longer hidden by a later network error.
+- **Card delay:** the name/amount card (and the KickBot TTS) can appear a few seconds after the alert media starts — a global setting on the Look page and an optional per-file value in the file editor. A delayed card always stays up for a few seconds.
+- The uninstaller removes the autostart entry only on a real uninstall, not while updating.
+- The in-app copies of PRIVACY.md / TERMS.md (About page) are synced with the 1.3.1 repository copies.
+- Tests for proxy parsing, route order, the new Kick messages, the card delay and the update helpers.
+
+## 2.0.0-pro — 2026-09-19 (initial ProMax release)
+
+- Modular server architecture (`server/config`, `server/http`, `server/integrations`, `server/media`, `server/playback`, `server/rates`, `server/utils`), goal widget, paired media, appearance profiles, Stream Deck / hardware REST endpoints, 1-click zip backup & restore, Nobitex USDT/IRT rate source, glassmorphic custom dropdowns and modal UI, dark theme overhaul.
 
 ## 1.3.0 — 2026-09-19 (open source)
 

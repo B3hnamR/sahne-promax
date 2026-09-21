@@ -31,6 +31,7 @@ export function selectFile(id, { onUpdate, onDelete }) {
   $('#iKw').value = (f.keywords || []).join(', ');
   $('#iVol').value = f.volume ?? 100;
   $('#iDur').value = f.duration ?? '';
+  if ($('#iCardDelay')) $('#iCardDelay').value = f.cardDelay ?? '';
   $('#iMinChip').textContent = fmtToman(f.minToman);
 
   // Paired Media Audio Selection (Image Alerts)
@@ -94,6 +95,7 @@ export function collectInspector() {
       .filter(Boolean),
     volume: Math.max(0, Math.min(100, Number($('#iVol').value) || 0)),
     duration: num($('#iDur').value),
+    cardDelay: $('#iCardDelay') ? num($('#iCardDelay').value) : null,
     audioFile: audioSelect && !$('#iAudioRow').hidden && audioSelect.value ? audioSelect.value : null,
     minMonths: num($('#iMinMonths') ? $('#iMinMonths').value : null),
     maxMonths: num($('#iMaxMonths') ? $('#iMaxMonths').value : null),
@@ -105,7 +107,21 @@ export function collectInspector() {
 export function initInspector({ onUpdate, onDelete, onPreview }) {
   $('#insClose').onclick = closeInspector;
 
-  const fields = ['#iName', '#iEnabled', '#iMin', '#iMax', '#iKw', '#iVol', '#iDur', '#iAudioFile', '#iMinMonths', '#iMaxMonths', '#iMinCount', '#iMaxCount'];
+  const fields = [
+    '#iName',
+    '#iEnabled',
+    '#iMin',
+    '#iMax',
+    '#iKw',
+    '#iVol',
+    '#iDur',
+    '#iCardDelay',
+    '#iAudioFile',
+    '#iMinMonths',
+    '#iMaxMonths',
+    '#iMinCount',
+    '#iMaxCount'
+  ];
   fields.forEach(sel => {
     const el = $(sel);
     if (!el) return;

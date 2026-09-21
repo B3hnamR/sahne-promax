@@ -14,10 +14,7 @@ function parseNobitex(input) {
   }
 
   // Nobitex orderbook provides lastTradePrice, bids, and asks in Iranian Rials (IRR)
-  const p =
-    j.lastTradePrice ||
-    (j.bids && j.bids[0] && j.bids[0][0]) ||
-    (j.asks && j.asks[0] && j.asks[0][0]);
+  const p = j.lastTradePrice || (j.bids && j.bids[0] && j.bids[0][0]) || (j.asks && j.asks[0] && j.asks[0][0]);
 
   if (!p) throw new Error('nobitex: no price found in orderbook');
 
@@ -34,7 +31,8 @@ function parseNobitex(input) {
   return toman;
 }
 
-async function fetchNobitex(proxy = '') {
+// routes: ordered, de-duplicated proxies to try ('' = direct). When omitted, a direct request only.
+async function fetchNobitex(proxyOrRoutes = '') {
   const attempt = async px => {
     const r = await httpsRequest(
       NOBITEX,
@@ -45,8 +43,10 @@ async function fetchNobitex(proxy = '') {
     return parseNobitex(r.text);
   };
 
-  const cleanProxy = (proxy || '').trim();
-  const order = ['', ...(cleanProxy ? [cleanProxy] : [])];
+  // nobitex is a domestic exchange: direct first (when not given an explicit order), proxies as retries
+  const order = Array.isArray(proxyOrRoutes)
+    ? proxyOrRoutes
+    : ['', ...((proxyOrRoutes || '').trim() ? [(proxyOrRoutes || '').trim()] : [])];
   let lastErr;
   for (const px of order) {
     try {

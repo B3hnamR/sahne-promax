@@ -41,6 +41,11 @@ function sanitizeFile(f) {
     keywords: kw,
     volume: finite(f.volume, 0, 100, 100),
     duration: intOrNull(f.duration, 1, 3600),
+    // seconds before the name/amount card (and TTS) appears for this file; null = use the appearance setting
+    cardDelay:
+      f.cardDelay === null || f.cardDelay === undefined || f.cardDelay === ''
+        ? null
+        : Math.round(finite(f.cardDelay, 0, 60, 0) * 10) / 10,
     size: finite(f.size, 0, 1e13, 0)
   };
 }
@@ -84,6 +89,8 @@ function sanitizeAppearance(a, current = {}) {
   num('imageDuration', 1, 600, 8);
   num('minDuration', 1, 600, 6);
   num('maxDuration', 2, 3600, 90);
+  num('cardDelay', 0, 60, 0);
+  out.cardDelay = Math.round((Number(out.cardDelay) || 0) * 10) / 10;
   num('volume', 0, 100, 80);
   num('ttsVolume', 0, 100, 70);
 

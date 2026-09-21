@@ -1,18 +1,49 @@
 'use strict';
-const { LIMITS } = require('../constants');
+const { LIMITS, NOBITEX, BAHA24 } = require('../constants');
 const { fetchNobitex } = require('./nobitex');
 const { fetchBaha24 } = require('./baha24');
+const { routeOrder, routeLabel } = require('../utils/net');
 
 class RateManager {
-  constructor({ configStore, logger, sse, fetchNobitexFn = null, fetchBaha24Fn = null }) {
+  constructor({ configStore, logger, sse, systemProxy = null, fetchNobitexFn = null, fetchBaha24Fn = null }) {
     this.configStore = configStore;
     this.logger = logger;
     this.sse = sse;
     this.fetchNobitex = fetchNobitexFn || fetchNobitex;
     this.fetchBaha24 = fetchBaha24Fn || fetchBaha24;
+    this.systemProxy = systemProxy;
+    this.systemProxyLabel = null;
     this.rateError = null;
     this.rateTimer = null;
     this.rateBusy = false;
+  }
+
+  // ---------- Windows system proxy (a VPN app in "system proxy" mode). Node ignores it, so the Electron shell
+  // resolves it (opts.systemProxy, Chromium's resolver incl. PAC) and it is tried after a manual proxy. ----------
+  async systemProxyFor(url) {
+    if (typeof this.systemProxy !== 'function') return '';
+    let p = '';
+    try {
+      p = String((await this.systemProxy(url)) || '');
+    } catch {
+      p = '';
+    }
+    if (!/^https?:\/\/\S+$/.test(p)) p = '';
+    const label = p ? routeLabel(p) : null;
+    if (label !== this.systemProxyLabel) {
+      this.systemProxyLabel = label;
+      if (label) this.logger.info('پراکسی سیستم ویندوز پیدا شد', { proxy: label });
+      this.sse.sendState();
+    }
+    return p;
+  }
+
+  async routesFor(url, directFirst) {
+    return routeOrder({
+      manual: this.configStore.config.rate.proxy,
+      system: await this.systemProxyFor(url),
+      directFirst
+    });
   }
 
   currentRate() {
@@ -34,16 +65,15 @@ class RateManager {
       let v;
       let source = 'nobitex';
       const errs = [];
-      const proxy = (config.rate.proxy || '').trim();
 
-      // Main source: Nobitex USDTIRT orderbook
+      // Main source: Nobitex USDTIRT orderbook (domestic: direct first, proxies as retries)
       try {
-        v = await this.fetchNobitex(proxy);
+        v = await this.fetchNobitex(await this.routesFor(NOBITEX, true));
       } catch (e1) {
         errs.push('nobitex: ' + e1.message);
-        // Fallback source: Baha24 public API
+        // Fallback source: Baha24 public API (direct first, proxies as retries)
         try {
-          v = await this.fetchBaha24(proxy);
+          v = await this.fetchBaha24(await this.routesFor(BAHA24, true));
           source = 'baha24';
         } catch (e2) {
           errs.push('baha24: ' + e2.message);

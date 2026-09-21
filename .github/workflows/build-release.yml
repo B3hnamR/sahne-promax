@@ -60,10 +60,10 @@ jobs:
         shell: pwsh
         run: |
           $v = "${{ github.ref_name }}".TrimStart("v")
-          $notes = "docs/RELEASE_NOTES_$v.md"
-          if (-not (Test-Path $notes)) { $notes = "docs/RELEASE_TEMPLATE.md" }
+          $notes = "docs/releases/RELEASE_NOTES_$v.md"
+          if (-not (Test-Path $notes)) { $notes = "docs/releases/RELEASE_TEMPLATE.md" }
           Copy-Item $notes dist\NOTES.md
-          Copy-Item docs\README-FA.txt dist\README-FA.txt
+          Copy-Item docs\README-FA.md dist\README-FA.md
 
       - name: Publish GitHub Release
         shell: pwsh
@@ -71,5 +71,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $files = @((Get-ChildItem dist\*.exe).FullName) + "dist\SHA256SUMS.txt" + "dist\README-FA.txt"
-          gh release create $tag --repo "${{ github.repository }}" --title "Sahne+ $($tag.TrimStart('v'))" --notes-file dist\NOTES.md --latest @files
+          $files = @((Get-ChildItem dist\*.exe).FullName) + "dist\SHA256SUMS.txt" + "dist\README-FA.md"
+          gh release create $tag --repo "${{ github.repository }}" --title "Sahne ProMax $($tag.TrimStart('v'))" --notes-file dist\NOTES.md --latest @files
