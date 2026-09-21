@@ -1,11 +1,6 @@
 'use strict';
 const { sanitizeGoal } = require('../utils/sanitizers');
-
-// Local (streamer machine) calendar day key; the first_sub milestone resets on this boundary
-function localDayKey(d = new Date()) {
-  const p = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
-}
+const { localDayKey } = require('../utils/time');
 
 class GoalManager {
   constructor({ configStore, logger, sse }) {
@@ -48,13 +43,21 @@ class GoalManager {
       const milestone = Math.max(0, Number(goal.milestoneToman) || 0);
       if (milestone > 0 && add >= milestone) events.push({ reason: 'big_donation' });
 
-      if (goal.confettiOnFirstSub !== false && meta.kind === 'sub') {
+      if (meta.kind === 'sub') {
+        // Counters live on the local calendar day; the first sub of a new day also celebrates (when enabled)
         const day = localDayKey();
         if (goal.subsDay !== day) {
           goal.subsDay = day;
-          this.configStore.debouncedSave();
-          events.push({ reason: 'first_sub' });
+          goal.subsToday = 0;
+          if (goal.confettiOnFirstSub !== false) events.push({ reason: 'first_sub' });
         }
+        goal.subsToday = (goal.subsToday || 0) + 1;
+        goal.subCount = (goal.subCount || 0) + 1;
+        this.configStore.debouncedSave();
+      } else if (meta.kind === 'gift') {
+        goal.giftSubCount = (goal.giftSubCount || 0) + Math.max(1, Number(meta.count) || 1);
+        goal.giftCount = (goal.giftCount || 0) + 1;
+        this.configStore.debouncedSave();
       }
     }
 
@@ -94,6 +97,11 @@ class GoalManager {
     const goal = this.getGoal();
     goal.currentToman = 0;
     goal.completedCelebrated = false;
+    goal.subCount = 0;
+    goal.giftSubCount = 0;
+    goal.giftCount = 0;
+    goal.subsToday = 0;
+    goal.subsDay = null; // the next sub counts as the first of the day again
     if (newTarget && Number(newTarget) > 0) {
       goal.targetToman = Math.round(Number(newTarget));
     }
@@ -130,12 +138,16 @@ class GoalManager {
       serverNow: Date.now(),
       milestoneToman: Math.max(0, Number(g.milestoneToman) || 0),
       confettiOnComplete: g.confettiOnComplete !== false,
-      confettiOnFirstSub: g.confettiOnFirstSub !== false
+      confettiOnFirstSub: g.confettiOnFirstSub !== false,
+      showCounters: g.showCounters !== false,
+      subCount: Math.max(0, Number(g.subCount) || 0),
+      giftSubCount: Math.max(0, Number(g.giftSubCount) || 0),
+      giftCount: Math.max(0, Number(g.giftCount) || 0),
+      subsToday: Math.max(0, Number(g.subsToday) || 0)
     };
   }
 }
 
 module.exports = {
-  GoalManager,
-  localDayKey
+  GoalManager
 };

@@ -140,6 +140,13 @@ function sanitizeGoal(g, current = {}) {
   if ('confettiOnFirstSub' in g) out.confettiOnFirstSub = !!g.confettiOnFirstSub;
   if ('completedCelebrated' in g) out.completedCelebrated = !!g.completedCelebrated;
   if ('subsDay' in g) out.subsDay = /^\d{4}-\d{2}-\d{2}$/.test(String(g.subsDay || '')) ? g.subsDay : null;
+
+  // Live counters (subs / gift-subs / subs today) shown on the goal widget
+  if ('showCounters' in g) out.showCounters = !!g.showCounters;
+  if ('subCount' in g) out.subCount = Math.round(finite(g.subCount, 0, 1e9, cur.subCount || 0));
+  if ('giftSubCount' in g) out.giftSubCount = Math.round(finite(g.giftSubCount, 0, 1e9, cur.giftSubCount || 0));
+  if ('giftCount' in g) out.giftCount = Math.round(finite(g.giftCount, 0, 1e9, cur.giftCount || 0));
+  if ('subsToday' in g) out.subsToday = Math.round(finite(g.subsToday, 0, 1e9, cur.subsToday || 0));
   return out;
 }
 

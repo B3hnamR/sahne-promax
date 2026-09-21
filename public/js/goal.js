@@ -29,6 +29,7 @@ export function fillGoal(goal) {
   if ($('#gConfettiDone')) $('#gConfettiDone').checked = goal.confettiOnComplete !== false;
   if ($('#gConfettiSub')) $('#gConfettiSub').checked = goal.confettiOnFirstSub !== false;
   if ($('#gMilestone')) $('#gMilestone').value = goal.milestoneToman || 0;
+  if ($('#gCounters')) $('#gCounters').checked = goal.showCounters !== false;
   if ($('#gCurrentLbl')) $('#gCurrentLbl').textContent = fmtToman(goal.currentToman || 0);
   if ($('#gTargetLbl')) $('#gTargetLbl').textContent = fmtToman(goal.targetToman || 5000000);
 }
@@ -71,7 +72,8 @@ export function initGoal() {
         deadline,
         confettiOnComplete: !!($('#gConfettiDone') || {}).checked,
         confettiOnFirstSub: !!($('#gConfettiSub') || {}).checked,
-        milestoneToman: Number(($('#gMilestone') || {}).value) || 0
+        milestoneToman: Number(($('#gMilestone') || {}).value) || 0,
+        showCounters: !!($('#gCounters') || {}).checked
       });
       if (r.ok) {
         toast('تنظیمات هدف دونیت ذخیره شد', 'ok');
@@ -87,7 +89,7 @@ export function initGoal() {
     $('#btnResetGoal').onclick = async () => {
       const ok = await spConfirm({
         title: 'صفر کردن پیشرفت هدف',
-        body: 'آیا از صفر کردن مبلغ جمع‌آوری‌شده هدف مطمئنید؟',
+        body: 'آیا از صفر کردن مبلغ جمع‌آوری‌شده و شمارنده‌های هدف (ساب / ساب‌گیفت) مطمئنید؟',
         confirmText: 'صفر کردن',
         cancelText: 'انصراف',
         icon: '#i-chart',

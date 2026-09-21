@@ -18,8 +18,9 @@ const LIMITS = {
   fileName: 120,
   upload: 512 * 1024 * 1024,
   files: 500,
-  sse: { overlay: 8, preview: 4, admin: 4, goal: 4 }, // concurrent event streams per role
+  sse: { overlay: 8, preview: 4, admin: 4, goal: 4, top: 4 }, // concurrent event streams per role
   played: 1000,
+  history: 20000,
   logs: 300,
   minRateInterval: 1,
   profiles: 10,
@@ -113,7 +114,13 @@ const DEFAULT_CONFIG = {
     confettiOnComplete: true,
     confettiOnFirstSub: true,
     completedCelebrated: false,
-    subsDay: null
+    subsDay: null,
+    // live counters on the goal widget (subs / gift-subs / subs today)
+    showCounters: true,
+    subCount: 0,
+    giftSubCount: 0,
+    giftCount: 0,
+    subsToday: 0
   },
   chatCommands: {
     enabled: false,
@@ -188,6 +195,8 @@ const CSP_OVERLAY =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' https: data:; media-src 'self' https://ttsaudio.kickbot.com https://tts.kickbotcdn.com blob:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none';";
 const CSP_GOAL =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none';";
+const CSP_TOP =
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none';";
 
 module.exports = {
   KB_WS,
@@ -208,5 +217,6 @@ module.exports = {
   TYPES,
   CSP_APP,
   CSP_OVERLAY,
-  CSP_GOAL
+  CSP_GOAL,
+  CSP_TOP
 };

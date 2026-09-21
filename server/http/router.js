@@ -1,8 +1,9 @@
 'use strict';
 const path = require('path');
 const crypto = require('crypto');
-const { LIMITS, ENUMS, FONTS, CSP_APP, CSP_OVERLAY, CSP_GOAL, DEFAULT_CONFIG } = require('../constants');
+const { LIMITS, ENUMS, FONTS, CSP_APP, CSP_OVERLAY, CSP_GOAL, CSP_TOP, DEFAULT_CONFIG } = require('../constants');
 const { cleanText, finite, intOrNull } = require('../utils/validation');
+const { localDayKey } = require('../utils/time');
 const { sanitizeFile, sanitizeAppearance, sanitizeChatCommands } = require('../utils/sanitizers');
 const { serveFile, servePublic } = require('./streaming');
 const { handleStreamUpload } = require('../media/upload');
@@ -59,6 +60,7 @@ function createHttpRouter(context) {
     kickBotClient,
     kickChatClient,
     goalManager,
+    historyStore,
     appVersion,
     openPathFn
   } = context;
@@ -79,7 +81,7 @@ function createHttpRouter(context) {
 
   const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
   const STATIC_PATTERN =
-    /^\/(app\.css|app\.js|overlay\.css|overlay\.js|goal\.html|goal\.js|goal\.css|licenses\.html|licenses\.js)$/;
+    /^\/(app\.css|app\.js|overlay\.css|overlay\.js|goal\.html|goal\.js|goal\.css|top\.html|top\.js|top\.css|licenses\.html|licenses\.js)$/;
 
   return async function handleHttpRequest(req, res) {
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -104,12 +106,14 @@ function createHttpRouter(context) {
     if (/^\/(overlay|overlay\.html|overly|overlai|alert|alerts|browser|source)$/.test(p)) p = '/overlay';
     if (/^\/(app|admin|panel|index\.html|admin\.html|app\.html)$/.test(p)) p = '/';
     if (/^\/(goal|goal\.html|widget\/goal)$/.test(p)) p = '/goal';
+    if (/^\/(top|top\.html|widget\/top)$/.test(p)) p = '/top';
 
     try {
       // Pages & Static Assets
       if (p === '/') return serveFile(req, res, path.join(publicDir, 'app.html'), { csp: CSP_APP });
       if (p === '/overlay') return serveFile(req, res, path.join(publicDir, 'overlay.html'), { csp: CSP_OVERLAY });
       if (p === '/goal') return serveFile(req, res, path.join(publicDir, 'goal.html'), { csp: CSP_GOAL });
+      if (p === '/top') return serveFile(req, res, path.join(publicDir, 'top.html'), { csp: CSP_TOP });
 
       if (
         STATIC_PATTERN.test(p) ||
@@ -140,7 +144,7 @@ function createHttpRouter(context) {
       if (p === '/events') {
         const role = url.searchParams.get('role') || 'overlay';
         const profile = url.searchParams.get('profile') || 'default';
-        if (!['overlay', 'admin', 'preview', 'goal'].includes(role)) {
+        if (!['overlay', 'admin', 'preview', 'goal', 'top'].includes(role)) {
           return json(res, 400, { error: 'bad role' });
         }
         // A page on another site can open an EventSource to this server; the browser cannot read the answer, but the
@@ -246,6 +250,27 @@ function createHttpRouter(context) {
         return json(res, 200, { ok: true, goal: goalManager.getPublicGoal() });
       }
 
+      // History & Top-Donors (2.3.0)
+      if (p === '/api/history' && req.method === 'GET') {
+        const limit = Math.min(1000, Math.max(1, Number(url.searchParams.get('limit')) || 100));
+        const dayParam = String(url.searchParams.get('day') || '');
+        const day = /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : null;
+        return json(res, 200, {
+          ok: true,
+          entries: historyStore.getEntries({ limit, day }),
+          days: historyStore.getDays(30),
+          today: historyStore.day(localDayKey()),
+          totals: historyStore.totals()
+        });
+      }
+
+      if (p === '/api/top' && req.method === 'GET') {
+        const rangeParam = String(url.searchParams.get('range') || '');
+        const range = ['daily', 'weekly', 'all'].includes(rangeParam) ? rangeParam : 'all';
+        const limit = Math.min(50, Math.max(1, Number(url.searchParams.get('limit')) || 10));
+        return json(res, 200, { ok: true, range, donors: historyStore.getTop(range, limit) });
+      }
+
       // ProMax 1-Click Backup & Restore Endpoints
       if (p === '/api/backup' && req.method === 'GET') {
         try {
@@ -266,7 +291,7 @@ function createHttpRouter(context) {
       if (p === '/api/restore' && req.method === 'POST') {
         try {
           const zipBuffer = await readBody(req, 512 * 1024 * 1024);
-          const result = await importBackup(dataDir, zipBuffer, { configStore, logger, sse });
+          const result = await importBackup(dataDir, zipBuffer, { configStore, logger, sse, historyStore });
           return json(res, 200, { ok: true, ...result });
         } catch (e) {
           logger.error('بازیابی نسخه پشتیبان ناموفق بود', e.message);

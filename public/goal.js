@@ -11,6 +11,7 @@
   const confettiHolder = document.getElementById('confetti');
   const timerEl = document.getElementById('goal-timer');
   const timerValEl = document.getElementById('goal-timer-val');
+  const countersEl = document.getElementById('goal-counters');
 
   let wasReached = false;
   let timerDeadline = null,
@@ -57,6 +58,24 @@
 
     currentEl.textContent = fmtToman(current);
     targetEl.textContent = fmtToman(target);
+
+    // Live counters (subs / gift-subs / subs today) — hidden when off or still all zero
+    if (countersEl) {
+      const subs = Math.max(0, Number(goal.subCount || 0));
+      const gifts = Math.max(0, Number(goal.giftSubCount || 0));
+      const today = Math.max(0, Number(goal.subsToday || 0));
+      const visible = goal.showCounters !== false && (subs > 0 || gifts > 0 || today > 0);
+      countersEl.hidden = !visible;
+      const set = (id, valId, n) => {
+        const el = document.getElementById(id);
+        const val = document.getElementById(valId);
+        if (el) el.hidden = n <= 0;
+        if (val) val.textContent = faDigits(String(n));
+      };
+      set('gc-subs', 'gc-subs-val', subs);
+      set('gc-gifts', 'gc-gifts-val', gifts);
+      set('gc-today', 'gc-today-val', today);
+    }
 
     const isReached = current >= target;
     if (isReached) {

@@ -5,6 +5,7 @@ const path = require('path');
 const { DEFAULT_CONFIG } = require('./constants');
 const { ConfigStore } = require('./config/store');
 const { PlayedStore } = require('./config/played');
+const { HistoryStore } = require('./config/history');
 const { Logger } = require('./logger');
 const { SseManager } = require('./sse');
 const { RateManager } = require('./rates/manager');
@@ -31,7 +32,7 @@ function createServer(opts = {}) {
   const dataDir = opts.dataDir;
   const publicDir = opts.publicDir || path.join(__dirname, '..', 'public');
   const mediaDir = path.join(dataDir, 'media');
-  const appVersion = opts.appVersion || '2.2.0';
+  const appVersion = opts.appVersion || '2.3.0';
   const nodeOk = typeof fetch === 'function' && typeof WebSocket === 'function';
 
   fs.mkdirSync(mediaDir, { recursive: true });
@@ -49,6 +50,7 @@ function createServer(opts = {}) {
   });
 
   const playedStore = new PlayedStore(dataDir);
+  const historyStore = new HistoryStore(dataDir, { logger: (level, msg, extra) => logger.log(level, msg, extra) });
   const goalManager = new GoalManager({ configStore, logger, sse });
   const rateManager = new RateManager({ configStore, logger, sse, systemProxy: opts.systemProxy });
   const mediaManager = new MediaManager({ mediaDir, configStore, logger, sse });
@@ -69,6 +71,7 @@ function createServer(opts = {}) {
     sse,
     rateManager,
     captureFn,
+    historyStore,
     publishFn: (ev, pl) => {
       if (kickBotClient) kickBotClient.publish(ev, pl);
     },
@@ -155,6 +158,7 @@ function createServer(opts = {}) {
     kickBotClient,
     kickChatClient,
     goalManager,
+    historyStore,
     appVersion,
     openPathFn: opts.openPath
   });
@@ -202,6 +206,7 @@ function createServer(opts = {}) {
     started = false;
     playbackQueue.stop();
     configStore.stop();
+    historyStore.stop();
     rateManager.stop();
     kickBotClient.stop();
     kickChatClient.stop();
@@ -219,6 +224,7 @@ function createServer(opts = {}) {
       configStore.config.appearance = { ...DEFAULT_CONFIG.appearance };
       configStore.saveConfig();
       playedStore.clear();
+      historyStore.clear();
 
       if (fs.existsSync(mediaDir)) {
         for (const f of fs.readdirSync(mediaDir)) {
@@ -267,6 +273,7 @@ function createServer(opts = {}) {
     configStore,
     playbackQueue,
     goalManager,
+    historyStore,
     // Legacy compat surface used by electron/main.js (added in the 2.0.1 review fixes)
     appUrl: () => `http://localhost:${configStore.config.port}/`,
     overlayUrl: () => `http://localhost:${configStore.config.port}/overlay`,

@@ -42,8 +42,12 @@ body {
   border: 1px solid var(--border-color);
   border-radius: 20px;
   padding: 18px 24px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s ease;
   position: relative;
   z-index: 10;
 }
@@ -116,8 +120,12 @@ body {
 }
 
 @keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 .goal-footer {
@@ -150,13 +158,20 @@ body {
 /* Celebration and Reached States */
 .goal-container.reached {
   border-color: #10b981;
-  box-shadow: 0 0 35px rgba(16, 185, 129, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 0 35px rgba(16, 185, 129, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
   animation: pulse-border 2s infinite ease-in-out;
 }
 
 @keyframes pulse-border {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.02); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
 }
 
 .celebration-overlay {
@@ -221,4 +236,38 @@ body {
 
 .goal-container.expired .goal-timer .val {
   color: #ef4444;
+}
+/* ---- live counters (subs / gift-subs / subs today) ---- */
+.goal-counters {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.goal-counters[hidden] {
+  display: none;
+}
+
+.goal-counters .gc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.goal-counters .gc[hidden] {
+  display: none;
+}
+
+.goal-counters .gc b {
+  color: var(--text-main);
+  font-weight: 700;
 }

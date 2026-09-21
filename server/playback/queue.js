@@ -14,6 +14,7 @@ class PlaybackQueue {
     rateManager,
     captureFn,
     publishFn,
+    historyStore = null,
     captureRetryMs = 15000
   }) {
     this.configStore = configStore;
@@ -24,6 +25,7 @@ class PlaybackQueue {
     this.rateManager = rateManager;
     this.capture = captureFn;
     this.publish = publishFn || (() => {});
+    this.historyStore = historyStore;
     this.captureRetryMs = Number(captureRetryMs) || 15000;
 
     this.pending = [];
@@ -217,6 +219,31 @@ class PlaybackQueue {
       at: Date.now()
     });
     if (this.recent.length > 30) this.recent.pop();
+
+    // Persistent history ledger: displayed alerts only, with live totals for the admin UI and the /top widget
+    if (this.historyStore) {
+      const hist = this.historyStore.add({
+        id: payload.id,
+        name: payload.name,
+        kind: payload.kind || 'tip',
+        usd: payload.amount,
+        toman: payload.toman,
+        count: payload.count,
+        months: payload.months,
+        message: payload.message,
+        media: media ? media.file : null,
+        test: !!t.is_test,
+        replay: !!t.is_replay,
+        at: Date.now()
+      });
+      this.sse.broadcast('admin', {
+        type: 'history_update',
+        day: hist.day,
+        dayTotals: this.historyStore.day(hist.day),
+        totals: this.historyStore.totals()
+      });
+      this.sse.broadcast('top', { type: 'history_update' });
+    }
 
     // Auto-increment goal + milestone celebrations (confetti). Meta carries the alert class so the
     // goal manager can tell subs/gifts apart from tips and test/replay traffic.

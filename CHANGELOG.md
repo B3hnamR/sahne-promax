@@ -2,12 +2,22 @@
 
 All notable changes to the public builds. Versions follow semantic versioning.
 
+## 2.3.0 — 2026-09-21 (stats pack: counters, alert history, top-donors widget)
+
+Three streamer tools built on one shared ledger:
+
+- **🔢 Live sub & gift counters on the goal widget:** running totals of subs, gifted subs and today's subs (`⭐ ۱۲ ساب · 🎁 ۳۴ سابگیفت · امروز ۵ ساب`), updating on every sub/gift-sub, persisted in the goal config, zeroed by the goal reset, hidden when off or still all zero. Test/replay traffic is excluded; the daily counter rolls at the streamer's local midnight.
+- **📜 Alert history:** every alert actually shown on the overlay is persisted to `history.json` (newest 20 000 entries kept) together with per-day totals and per-donor sums that pruning never shrinks. New `GET /api/history` (+ `?limit=&day=`), an admin SSE `history_update` per alert, a **History** page in the controller (today / 7-day / all-time cards, alert list, daily breakdown, top donors), and the ledger now rides along in 1-click backups (export + restore).
+- **🥇 Top-donors OBS widget:** a second Browser Source at `/top` (`?range=daily|weekly|all`, `&limit=1..20`, `&title=…`) rendering a live leaderboard with medals for the top 3, Persian Toman figures, SSE-driven refresh and a 60 s fallback poll. Backed by `GET /api/top`, with a new `top` SSE role (capped at 4 concurrent streams) and its own CSP.
+- **Fixed:** donor grouping is case/space-insensitive and display names are trimmed before storage.
+- New tests (29 total): the history store (aggregates, pruning, persistence, clear), counters end-to-end with reset behaviour, history API + SSE, top-donor ranges/ordering, widget page/asset serving, and a backup round-trip that carries `history.json`.
+
 ## 2.2.0 — 2026-09-21 (chat commands, queue priority, milestone confetti, timed goal)
 
 Four streamer tools unique to ProMax:
 
 - **⌨️ Kick chat commands:** viewers type `!dance` (any configured token) in Kick chat and the mapped alert file plays on stream. Counterpart to the existing sub/gift pipeline: no money, no capture. Each command maps to any uploaded file; three rate-limit layers (per viewer, global, per minute) plus a queue-length cap stop spam waves; duplicate commands and references to deleted files are rejected by the config validator. Command alerts use a dedicated card template (`commandTemplate`) and never show an amount.
-- **🥇 Sub-first queue priority:** subscription and gift-sub alerts jump ahead of regular tips while keeping FIFO inside each class. Capture retries (which re-queue at the back) and manual replays (which stay at the very front) keep their original ordering; companion mode is unaffected. The KickBot flood cap now drops the oldest *tips* first, so a sync burst can never evict sub alerts.
+- **🥇 Sub-first queue priority:** subscription and gift-sub alerts jump ahead of regular tips while keeping FIFO inside each class. Capture retries (which re-queue at the back) and manual replays (which stay at the very front) keep their original ordering; companion mode is unaffected. The KickBot flood cap now drops the oldest _tips_ first, so a sync burst can never evict sub alerts.
 - **🎊 Milestone confetti:** the overlay throws a confetti burst when the goal completes (exactly once per goal — resetting or raising the target arms it again), when a single donation reaches a configurable toman threshold (`milestoneToman`), or on the first sub of the day. Test/replay traffic never triggers or consumes milestones; goals that are already complete when upgrading do not fire retroactively. All three effects are toggleable on the Goal page.
 - **⏳ Timed goal countdown:** optional deadline (`mode: 'timed'`) on the goal widget with a live `DD روز HH:MM:SS` countdown, an expired "زمان تمام شد" state, and `serverNow` clock-skew correction. The controller validates that the deadline is in the future before saving.
 - **Fixed:** the goal page's auto-increment switch carried a wrong label ("صفر شدن خودکار…" instead of "افزودن خودکار دونیت‌ها…").
@@ -71,6 +81,7 @@ All four headline features of upstream [Sahne+ 1.3.1](https://github.com/AmirEyZ
 ## 1.1.0 — 2026-09-18 (release-readiness hardening)
 
 Security
+
 - KickBot widget key is now stored encrypted with Windows DPAPI (`secret_id_enc`); existing plaintext keys are migrated on first start and the plaintext field is removed. The key is no longer returned by any API, masked in the UI and redacted from logs.
 - Local server: `Host` validation (DNS rebinding) and `Origin` validation for state-changing requests (CSRF); `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` headers.
 - Browser Source: strict Content-Security-Policy, scripts and styles moved to files, single-pass safe template rendering for donor names/messages (all values escaped), only `https:` GIF/TTS URLs and same-origin media URLs are loaded, `postMessage` restricted to the app origin.
@@ -79,10 +90,12 @@ Security
 - Electron: `sandbox: true`, DevTools disabled in packaged builds, permission requests denied, IPC calls accepted only from the app window, external links limited to an allow-list, Electron fuses (RunAsNode / NODE_OPTIONS / inspect off, ASAR integrity on).
 
 Privacy
+
 - Google Fonts removed from the Browser Source; all fonts are bundled locally.
 - New in-app About page with privacy policy, terms, third-party notices, data location and security contact.
 
 Reliability
+
 - Played-alert ids are persisted (`played.json`) so a donation is not replayed after a restart.
 - Corrupted `config.json` is preserved as `config.json.corrupt-<timestamp>` instead of being overwritten; config writes are atomic.
 - Bonbast: malformed or out-of-range responses are rejected and the previous rate is kept; the failure is shown in the UI; minimum refresh interval 5 minutes; requests have timeouts.
@@ -90,6 +103,7 @@ Reliability
 - Queue advance is guarded against re-entrancy; in-memory queues are capped.
 
 Data controls
+
 - Disconnect KickBot, Reset settings, Clear application data (with confirmation dialogs).
 
 ## 1.0.1 — 2026-09-18

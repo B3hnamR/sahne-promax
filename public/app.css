@@ -531,3 +531,13 @@ table.sim td.num { color: var(--text-2); }
   font-size: 13px;
   font-weight: 700;
 }
+
+/* ---- history & stats page (2.3.0) ---- */
+.big-num { font-size: 26px; font-weight: 800; color: var(--text); letter-spacing: -.01em; }
+.hlist { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow: auto; }
+.hrow { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--surface-hover); border: 1px solid var(--border); font-size: 13px; min-width: 0; }
+.hrow .t { color: var(--muted); min-width: 52px; flex: none; font-variant-numeric: tabular-nums; }
+.hrow .n { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; flex: none; }
+.hrow .m { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; }
+.hrow .a { margin-inline-start: auto; color: var(--accent); font-weight: 700; white-space: nowrap; flex: none; }
+.hrow .chip { flex: none; }

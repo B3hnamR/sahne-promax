@@ -165,10 +165,16 @@ async function exportBackup(dataDir, configStore = null) {
     }
   }
 
+  // Alert history ledger (2.3.0) — optional, older installs may not have one yet
+  const historyPath = path.join(dataDir, 'history.json');
+  if (fs.existsSync(historyPath)) {
+    files['history.json'] = await fs.promises.readFile(historyPath);
+  }
+
   return createZipArchive(files);
 }
 
-async function importBackup(dataDir, zipBuffer, { configStore, logger, sse }) {
+async function importBackup(dataDir, zipBuffer, { configStore, logger, sse, historyStore = null }) {
   const extracted = extractZipArchive(zipBuffer);
   if (!extracted['config.json']) {
     throw new Error('فایل config.json در پشتیبان یافت نشد');
@@ -188,6 +194,17 @@ async function importBackup(dataDir, zipBuffer, { configStore, logger, sse }) {
       const cleanName = safeMediaName(path.basename(filePath));
       await fs.promises.writeFile(path.join(mediaDir, cleanName), data);
       mediaCount++;
+    }
+  }
+
+  // Alert history ledger: replace the current one when the backup carries it
+  if (historyStore && extracted['history.json']) {
+    try {
+      await fs.promises.writeFile(path.join(dataDir, 'history.json'), extracted['history.json']);
+      historyStore.reload();
+      logger.info('تاریخچه‌ی الرت‌ها از پشتیبان بازیابی شد', { entries: historyStore.entries.length });
+    } catch (e) {
+      logger.warn('بازیابی تاریخچه ناموفق بود', e.message);
     }
   }
 

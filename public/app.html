@@ -62,6 +62,7 @@
       <button data-page="files"><svg><use href="#i-files"/></svg>فایل‌ها<span class="badge" id="navFiles">0</span></button>
       <button data-page="look"><svg><use href="#i-look"/></svg>ظاهر الرت</button>
       <button data-page="goal"><svg><use href="#i-chart"/></svg>هدف دونیت</button>
+      <button data-page="history"><svg><use href="#i-queue"/></svg>تاریخچه و آمار</button>
       <button data-page="settings"><svg><use href="#i-settings"/></svg>تنظیمات</button>
       <button data-page="logs"><svg><use href="#i-logs"/></svg>لاگ</button>
       <button data-page="about"><svg><use href="#i-info"/></svg>درباره</button>
@@ -293,6 +294,12 @@
               <label>کانفتی دونیت بزرگ (تومان) — ۰ = خاموش</label>
               <input type="number" id="gMilestone" min="0" step="100000" class="ltr" placeholder="0">
             </div>
+            <div class="field full">
+              <div class="switch-row">
+                <label class="lbl" style="margin:0">نمایش شمارنده‌ها روی ویجت (ساب / ساب‌گیفت / ساب امروز)</label>
+                <label class="switch"><input type="checkbox" id="gCounters"><span></span></label>
+              </div>
+            </div>
           </div>
           <div class="row" style="margin-top:14px;gap:8px">
             <button class="btn primary" id="btnSaveGoal">ذخیره تنظیمات هدف</button>
@@ -309,6 +316,62 @@
           <div style="background:radial-gradient(circle, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.9) 100%);padding:30px 20px;border-radius:16px;border:1px solid rgba(255,255,255,0.08);display:flex;justify-content:center;align-items:center;min-height:220px">
             <iframe id="goalPv" src="/goal" style="width:100%;max-width:540px;height:232px;border:none;background:transparent;overflow:hidden" scrolling="no"></iframe>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="page" data-page="history">
+      <div class="page-head">
+        <div>
+          <h2>تاریخچه و آمار</h2>
+          <p>همه‌ی الرت‌هایی که روی استریم نمایش داده شده‌اند، جمع روزانه و برترین حامیان — فقط روی همین کامپیوتر ذخیره می‌شود.</p>
+        </div>
+        <div class="actions"><button class="btn" id="btnHistoryRefresh"><svg><use href="#i-refresh"/></svg>به‌روزرسانی</button></div>
+      </div>
+      <div class="bento">
+        <div class="card span-4">
+          <h3><svg><use href="#i-pulse"/></svg>امروز</h3>
+          <div class="big-num" id="hTodayToman">—</div>
+          <p class="hint" id="hTodayMeta" style="margin:6px 0 0">—</p>
+        </div>
+        <div class="card span-4">
+          <h3><svg><use href="#i-chart"/></svg>۷ روز اخیر</h3>
+          <div class="big-num" id="hWeekToman">—</div>
+          <p class="hint" id="hWeekMeta" style="margin:6px 0 0">—</p>
+        </div>
+        <div class="card span-4">
+          <h3><svg><use href="#i-star"/></svg>کل</h3>
+          <div class="big-num" id="hTotalToman">—</div>
+          <p class="hint" id="hTotalMeta" style="margin:6px 0 0">—</p>
+        </div>
+        <div class="card span-7">
+          <h3><svg><use href="#i-queue"/></svg>آخرین الرت‌ها</h3>
+          <div id="hEntries" class="hlist"></div>
+        </div>
+        <div class="card span-5">
+          <h3><svg><use href="#i-star"/></svg>برترین حامیان</h3>
+          <div class="field" style="margin-bottom:10px">
+            <select id="hTopRange">
+              <option value="all">همه‌وقت</option>
+              <option value="weekly">۷ روز اخیر</option>
+              <option value="daily">امروز</option>
+            </select>
+          </div>
+          <div id="hTop" class="hlist"></div>
+        </div>
+        <div class="card span-7">
+          <h3><svg><use href="#i-chart"/></svg>جمع روزانه</h3>
+          <div id="hDays" class="hlist"></div>
+        </div>
+        <div class="card span-5">
+          <h3><svg><use href="#i-star"/></svg>ویجت برترین‌ها (OBS)</h3>
+          <div class="field">
+            <label>لینک Browser Source</label>
+            <input type="text" id="hTopUrl" readonly class="ltr">
+          </div>
+          <div class="row" style="margin-top:10px"><button class="btn primary" id="btnCopyTopUrl"><svg><use href="#i-copy"/></svg>کپی لینک ویجت</button></div>
+          <p class="hint">پارامترها: <code>?range=daily|weekly|all</code> و <code>&amp;limit=1..20</code> و <code>&amp;title=متن دلخواه</code> — اندازه‌ی پیشنهادی در OBS: ۴۲۰×۲۴۰.</p>
         </div>
       </div>
     </section>

@@ -6,7 +6,8 @@ class SseManager {
       overlay: new Set(),
       admin: new Set(),
       preview: new Set(),
-      goal: new Set()
+      goal: new Set(),
+      top: new Set()
     };
     this.keepAliveTimer = null;
     this.getState = null;

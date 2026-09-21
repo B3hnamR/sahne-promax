@@ -8,6 +8,7 @@ import { initInspector, closeInspector } from './inspector.js';
 import { initFiles, renderFiles } from './files.js';
 import { initLook, fillLook, fitPreview } from './look.js';
 import { initGoal, fillGoal } from './goal.js';
+import { initHistory, refreshHistory, renderHistoryLive } from './history.js';
 import { initCommands, fillCommands } from './commands.js';
 import { initControls } from './controls.js';
 import { initBackup } from './backup.js';
@@ -31,7 +32,7 @@ async function load() {
     } catch {}
   }
 
-  const ver = r.version || (state.info && state.info.version) || '2.2.0';
+  const ver = r.version || (state.info && state.info.version) || '2.3.0';
   const brandVer = $('#brandVer');
   if (brandVer) brandVer.textContent = 'Sahne ProMax v' + ver;
 
@@ -167,7 +168,7 @@ function fillApp() {
   const info = state.info;
   const cfg = state.cfg;
   if ($('#appVer'))
-    $('#appVer').value = info ? info.version + ' · Electron ' + info.electron : (cfg && cfg.version) || '2.2.0';
+    $('#appVer').value = info ? info.version + ' · Electron ' + info.electron : (cfg && cfg.version) || '2.3.0';
   if ($('#dataDir')) $('#dataDir').value = info ? info.dataDir : '';
   if ($('#autostart')) {
     $('#autostart').checked = !!(info && info.autostart);
@@ -184,7 +185,7 @@ function fillApp() {
   if ($('#abVer')) {
     $('#abVer').textContent = info
       ? `${info.version} · Electron ${info.electron} · Chromium ${info.chrome}`
-      : (cfg && cfg.version) || '2.2.0';
+      : (cfg && cfg.version) || '2.3.0';
   }
   if ($('#abData')) $('#abData').textContent = info ? info.dataDir : '—';
   if ($('#abServer')) $('#abServer').textContent = 'http://localhost:' + ((cfg && cfg.port) || 7788);
@@ -367,6 +368,8 @@ function connectEvents() {
         fillGoal(d.goal);
       } else if (d.type === 'log') {
         addLog(d.entry);
+      } else if (d.type === 'history_update') {
+        renderHistoryLive(d);
       } else if (d.type === 'rate') {
         if (state.cfg) state.cfg.rate = d.rate;
         renderRate();
@@ -385,6 +388,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     onPageChange: name => {
       if (name === 'look') setTimeout(fitPreview, 40);
       if (name === 'home') loadSim();
+      if (name === 'history') refreshHistory();
       if (name === 'about' && !$('#docView').textContent) showDoc('PRIVACY.md');
       if (name !== 'files') closeInspector();
     }
@@ -410,6 +414,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initFiles({ onLoadNeeded: load });
   initLook();
   initGoal();
+  initHistory();
   initCommands();
   initControls({ onStateChange: renderState });
   initBackup({ onRestoreComplete: load });
