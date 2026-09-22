@@ -15,6 +15,7 @@ const { PlaybackQueue } = require('./playback/queue');
 const { createCaptureTip } = require('./playback/capture');
 const { KickBotClient } = require('./integrations/kickbot');
 const { KickChatClient } = require('./integrations/kick-chat');
+const { StreamElementsClient } = require('./integrations/streamelements');
 const { MeldManager } = require('./integrations/meld');
 const { createHttpRouter } = require('./http/router');
 const {
@@ -32,7 +33,7 @@ function createServer(opts = {}) {
   const dataDir = opts.dataDir;
   const publicDir = opts.publicDir || path.join(__dirname, '..', 'public');
   const mediaDir = path.join(dataDir, 'media');
-  const appVersion = opts.appVersion || '2.3.0';
+  const appVersion = opts.appVersion || '2.4.0';
   const nodeOk = typeof fetch === 'function' && typeof WebSocket === 'function';
 
   fs.mkdirSync(mediaDir, { recursive: true });
@@ -96,6 +97,17 @@ function createServer(opts = {}) {
     sse
   });
 
+  const streamElementsClient = new StreamElementsClient({
+    configStore,
+    rateManager,
+    queue: playbackQueue,
+    playedStore,
+    logger,
+    sse,
+    WebSocketCtor: opts.testHooks && opts.testHooks.WebSocketCtor,
+    fetchProfile: opts.testHooks && opts.testHooks.fetchStreamElementsProfile
+  });
+
   const meldManager = new MeldManager({
     configStore,
     logger,
@@ -129,6 +141,7 @@ function createServer(opts = {}) {
         error: kickChatClient.kickState.error,
         hint: kickChatClient.kickState.hint
       },
+      se: streamElementsClient.publicState(),
       rate: rateManager.currentRate(),
       rateUpdatedAt: config.rate.updatedAt,
       rateManual: Number(config.rate.manual) > 0,
@@ -159,6 +172,7 @@ function createServer(opts = {}) {
     kickChatClient,
     goalManager,
     historyStore,
+    streamElementsClient,
     appVersion,
     openPathFn: opts.openPath
   });
@@ -188,6 +202,7 @@ function createServer(opts = {}) {
           }
           kickBotClient.connect();
           kickBotClient.startKeepAlive();
+          streamElementsClient.connect();
           if (configStore.config.kick.enabled && configStore.config.kick.channel) {
             kickChatClient.resolveKickChannel().then(ok => {
               if (ok) kickChatClient.connect();
@@ -210,6 +225,7 @@ function createServer(opts = {}) {
     rateManager.stop();
     kickBotClient.stop();
     kickChatClient.stop();
+    streamElementsClient.stop();
     meldManager.stop();
     sse.close();
 
@@ -220,8 +236,13 @@ function createServer(opts = {}) {
 
   function clearData() {
     try {
-      configStore.config.files = [];
-      configStore.config.appearance = { ...DEFAULT_CONFIG.appearance };
+      kickBotClient.stop();
+      kickChatClient.stop();
+      streamElementsClient.disconnect();
+      playbackQueue.stop();
+      configStore.setSecret('');
+      configStore.setSeToken('');
+      configStore.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
       configStore.saveConfig();
       playedStore.clear();
       historyStore.clear();
@@ -261,7 +282,8 @@ function createServer(opts = {}) {
     queueLength: () => playbackQueue.approved.length,
     playingTip: () => playbackQueue.playing,
     recentList: () => playbackQueue.recent,
-    captureTip: opts.testHooks && opts.testHooks.captureTip
+    captureTip: opts.testHooks && opts.testHooks.captureTip,
+    streamElementsActivity: activity => streamElementsClient.handleActivity(activity)
   };
 
   return {
@@ -274,6 +296,7 @@ function createServer(opts = {}) {
     playbackQueue,
     goalManager,
     historyStore,
+    streamElementsClient,
     // Legacy compat surface used by electron/main.js (added in the 2.0.1 review fixes)
     appUrl: () => `http://localhost:${configStore.config.port}/`,
     overlayUrl: () => `http://localhost:${configStore.config.port}/overlay`,

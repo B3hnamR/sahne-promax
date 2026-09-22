@@ -1,14 +1,13 @@
-# Sahne Plus — Data-flow audit
+# Sahne ProMax — Data-flow overview
 
-Version audited: 1.1.0 (network table updated for 1.2.0; unchanged in 1.3.0) (build from `Documents\SahnePlus`, files `electron/main.js`, `electron/preload.js`, `server/server.js`, `public/app.js`, `public/overlay.js`).
-Method: line-by-line review of the actual implementation plus runtime observation of the installed 1.0.1 build (listening sockets, established connections, LAN probe). Every statement below points at the code that produces it.
+Version: Sahne ProMax 2.4.0. This document describes the current ProMax fork and its runtime connections; historical runtime observations below were from earlier Sahne Plus builds and are not measurements of a ProMax 2.4.0 installation.
 
 ## 1. Process model
 
 | Process | Role | Network |
 |---|---|---|
 | Electron main (`electron/main.js`) | window, tray, autostart, IPC, hosts the server | none of its own (only through the server module) |
-| Server module (`server/server.js`, runs inside main) | HTTP + SSE on **127.0.0.1:7788**, KickBot WebSocket, Kick Pusher WebSocket, Bonbast HTTPS, Meld loopback WebSocket | all outbound traffic listed in §3 |
+| Server module (`server/server.js`, runs inside main) | HTTP + SSE on **127.0.0.1:7788**, KickBot and StreamElements connections, Kick Pusher WebSocket, exchange-rate HTTPS, optional Meld loopback WebSocket | all outbound traffic listed in §3 |
 | Controller renderer (`public/app.html`, sandboxed, context-isolated) | the app UI, loads `http://127.0.0.1:7788/` | loopback only (`connect-src 'self'` CSP) |
 | Browser Source (`public/overlay.html`, runs inside OBS / Meld Studio's browser) | plays alerts | loopback for events and media; external only for KickBot TTS audio and KickBot-supplied tip GIFs (§3.6) |
 
@@ -38,6 +37,7 @@ Endpoints (all under `http://127.0.0.1:7788`):
 | `/api/upload` | PUT | controller (browser fallback) | media body ≤ 512 MB, extension + content sniff |
 | `/api/scan` | POST | controller | registers files already in the media folder |
 | `/api/setup` | POST | controller | the KickBot widget URL → parsed, secret kept in memory + encrypted store |
+| StreamElements provider settings | controller | controller | JWT credential stored locally and used by the server for the realtime connection |
 | `/api/disconnect-kickbot` | POST | controller | wipes the secret and streamer id |
 | `/api/reset-settings` | POST | controller | defaults for appearance / rate / kick / mode |
 | `/api/test`, `/api/test-sub`, `/api/preview`, `/api/simulate` | POST / GET | controller | simulated events (see §7) |
@@ -58,12 +58,14 @@ The Browser Source therefore has access to: the overlay page, static assets, med
 | 3.6 | `wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679` | WebSocket | while a Kick channel is configured and enabled | `pusher:subscribe` for the public channels `chatrooms.<id>.v2`, `chatroom_<id>`, `channel.<id>` (auth string empty, public channels) and pings | Kick chat events; only `*GiftedSubscriptionsEvent` and `*SubscriptionEvent` are used | `kickConnect()` — **Kick's public chat feed via Pusher; undocumented, not the official Kick API** |
 | 3.7 | `https://apiv2.nobitex.ir/v3/orderbook/USDTIRT` | HTTPS GET (JSON) | **primary**; at start and every N minutes (N ≥ 1, default 2) while auto-rate is on; also on manual refresh | `Accept: application/json`, desktop User-Agent | orderbook with `lastTradePrice` / `bids` / `asks` in Iranian Rials; divided by 10 to obtain Toman | `fetchNobitex()` — public orderbook API, no key |
 | 3.8 | `https://baha24.com/api/v1/price` | HTTPS GET (JSON) | **fallback only** when Nobitex fails | `Accept: application/json`, desktop User-Agent | array of {symbol, sell, last_update}; `USD.sell` is used | `fetchBaha24()` — public API, no key |
-| 3.9 | KickBot TTS audio (`audio_url` from the tip event; fallbacks `https://ttsaudio.kickbot.com/…`, `https://tts.kickbotcdn.com/…`) | HTTPS GET | from the **Browser Source**, per tip that has TTS | nothing but the URL | audio | `overlay.js playTts()` |
-| 3.10 | KickBot tip GIF (`gif_url` from the tip event) | HTTPS GET | from the Browser Source, when the tip carries one and no local video/image is used | nothing but the URL | image | `overlay.js addImg()` (https only) |
-| 3.11 | `ws://127.0.0.1:13376` (Meld Studio local API) | WebSocket, loopback | when no Browser Source has been connected for 20 s (at most every 2 min) or on demand | asks Meld to reload the Browser layer whose URL contains `localhost:7788/overlay` | layer list | `meldReloadLayers()` |
-| — | optional HTTP CONNECT proxy (`rate.proxy`, user-configured) | HTTP | only for 3.5, 3.7, and 3.8 | the destinations above pass through it | — | `httpsRequest()` |
+| 3.9 | `wss://realtime.streamelements.com` | WebSocket over TLS | while StreamElements is connected | StreamElements JWT authentication | realtime tip events, including donor, amount, currency and message fields | StreamElements integration |
+| 3.10 | KickBot TTS audio (`audio_url` from the tip event; fallbacks `https://ttsaudio.kickbot.com/…`, `https://tts.kickbotcdn.com/…`) | HTTPS GET | from the **Browser Source**, per tip that has TTS | nothing but the URL | audio | `overlay.js playTts()` |
+| 3.11 | KickBot tip GIF (`gif_url` from the tip event) | HTTPS GET | from the Browser Source, when the tip carries one and no local video/image is used | nothing but the URL | image | `overlay.js addImg()` (https only) |
+| 3.12 | `ws://127.0.0.1:13376` (Meld Studio local API) | WebSocket, loopback | when no Browser Source has been connected for 20 s (at most every 2 min) or on demand | asks Meld to reload the Browser layer whose URL contains `localhost:7788/overlay` | layer list | `meldReloadLayers()` |
+| 3.13 | `https://github.com/B3hnamR/sahne-promax/releases/latest` and release assets | HTTPS via Electron `net` | 30 seconds after startup and every 6 hours when update checks are enabled; installer/checksum fetch only after the user clicks | app version in User-Agent; user-initiated requests fetch the installer and `SHA256SUMS.txt` | latest release version and, after user action, release files | `electron/updater.js`, `electron/update-core.js` |
+| — | optional HTTP CONNECT proxy (`rate.proxy`, user-configured) | HTTP | for configured Kick and rate-source requests | destinations pass through the selected proxy route | — | `httpsRequest()` |
 
-Not present in the code: analytics, telemetry, crash reporting, advertising, auto-update, update checks, any Sahne Plus server, Google Fonts (removed in 1.1.0; all fonts are bundled), any contact with GitHub at runtime.
+Not present in the code: analytics, telemetry, crash reporting, advertising, or a cloud backend. Update checks contact this fork's GitHub Releases when enabled; they do not contact the upstream Sahne Plus repository. Google Fonts are not used; fonts are bundled locally.
 
 Electron/Chromium platform traffic: the app does not set Google API keys, does not enable the Chromium component updater and does not load remote content in the controller window. Observed established connections of the running 1.0.1 build were exactly two: an AWS host (KickBot) and one other host (Pusher/KickBot). Chromium-level background requests (e.g. certificate revocation checks) were not exhaustively traced and are documented as "not expected, not fully verified".
 
@@ -75,6 +77,7 @@ Electron/Chromium platform traffic: the app does not set Google API keys, does n
 | `Documents\Sahne Plus\config.json.corrupt-<ts>` | W | copy of an unparsable config | same as above |
 | `Documents\Sahne Plus\media\*` | R/W | imported alert media (copied; the source file is never touched) | user content |
 | `Documents\Sahne Plus\played.json` | R/W | last 1000 played tip ids | low |
+| `Documents\Sahne Plus\history.json` | R/W | up to 20,000 displayed-alert records plus persistent daily and per-donor aggregates | viewer names, event details and amounts; included in backups and deleted by Clear application data |
 | `Documents\Sahne Plus\sahne-plus.log` (+ `.1`) | W, rotates at 5 MB | log lines: connection state, tip name / amount / message / media, errors. Secrets are redacted by `safe()` | donor names and messages (personal data of third parties, local only) |
 | `%APPDATA%\SahnePlus\` | R/W by Chromium | Electron userData: cache, `Local Storage` (only `sp.page`), GPU cache, single-instance lock | low |
 | `Documents\KickAlerts\config.json`, `media\` | **R only, once** | legacy import on first run (copy) | — |
@@ -110,4 +113,4 @@ Uninstalling removes the program folder and (by default) `%APPDATA%\SahnePlus`. 
 
 The sentence "no information leaves the computer" is **false** for this application and must not be used. Verified wording:
 
-> Sahne Plus has no cloud backend. Your alert media, settings and logs stay on your computer. The application connects only to the third-party services it needs to work: KickBot (donation events and payment capture), Kick's public chat feed (subscriptions), and bonbast.com (exchange rate). It contains no analytics, telemetry, crash reporting or advertising.
+> Sahne ProMax has no cloud backend. Alert media, settings, logs and alert history stay on your computer. When enabled, the application connects to KickBot for donations, StreamElements for tips, Kick's public chat feed for subscriptions, Nobitex with Baha24 as its rate fallback, and this fork's GitHub Releases for update checks. It contains no analytics, telemetry, crash reporting or advertising.

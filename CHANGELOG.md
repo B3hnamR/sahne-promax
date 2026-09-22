@@ -2,6 +2,31 @@
 
 All notable changes to the public builds. Versions follow semantic versioning.
 
+## 2.4.0 — 2026-09-23 (StreamElements and multi-currency tips)
+
+Upstream ancestry from Sahne+ 1.3.4–1.3.5 is merged into ProMax's modular architecture. The newly ported user-facing features are:
+
+- **StreamElements tips:** connect with a StreamElements JWT from Settings. StreamElements tips enter the same alert queue as KickBot donations and use the existing alert files and toman-based tiers. The token is encrypted through Electron `safeStorage` when available and can be removed by disconnecting the provider.
+- **Tip currencies beyond USD:** supported StreamElements currencies are converted with the configured daily rate, matched against the same toman-based tiers, and shown with their original amount and currency on the card. Unsupported currencies remain visible with their currency code and do not use an inferred conversion.
+- **Upstream ancestry merge:** v1.3.4 and v1.3.5 source changes are incorporated where applicable to the ProMax server, controller and installer. The two features above are the upstream capabilities newly exposed in the ProMax UI.
+- **Updated the fork's privacy and security disclosures** for StreamElements credentials, persistent alert history and ProMax's own update and report endpoints.
+
+### How to update
+
+Any 2.3.x install shows the update notice inside the app: click **آپدیت**. The installer is downloaded from this repository, checked against `SHA256SUMS.txt`, and installed after your confirmation.
+
+### Files in this release
+
+- `Sahne-ProMax-Setup-2.4.0.exe` — Windows installer (per-user, no admin rights needed)
+- `SHA256SUMS.txt` — SHA-256 checksum of the installer (generated in the release workflow)
+- `README-FA.md` — راهنمای فارسی
+
+### Notice
+
+SHA-256 checksums verify file integrity against the published manifest; they are not a security audit or proof of publisher identity. The installer is not Authenticode-signed, so Windows SmartScreen may warn. Check the release page for any build-provenance attestation. Download Sahne ProMax only from this repository's Releases page.
+
+Sahne ProMax is an independent fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus). It is not affiliated with, endorsed by, or sponsored by Kick, KickBot, StreamElements, Nobitex, Baha24 or Bonbast.
+
 ## 2.3.0 — 2026-09-21 (stats pack: counters, alert history, top-donors widget)
 
 Three streamer tools built on one shared ledger:
@@ -10,7 +35,7 @@ Three streamer tools built on one shared ledger:
 - **📜 Alert history:** every alert actually shown on the overlay is persisted to `history.json` (newest 20 000 entries kept) together with per-day totals and per-donor sums that pruning never shrinks. New `GET /api/history` (+ `?limit=&day=`), an admin SSE `history_update` per alert, a **History** page in the controller (today / 7-day / all-time cards, alert list, daily breakdown, top donors), and the ledger now rides along in 1-click backups (export + restore).
 - **🥇 Top-donors OBS widget:** a second Browser Source at `/top` (`?range=daily|weekly|all`, `&limit=1..20`, `&title=…`) rendering a live leaderboard with medals for the top 3, Persian Toman figures, SSE-driven refresh and a 60 s fallback poll. Backed by `GET /api/top`, with a new `top` SSE role (capped at 4 concurrent streams) and its own CSP.
 - **Fixed:** donor grouping is case/space-insensitive and display names are trimmed before storage.
-- New tests (29 total): the history store (aggregates, pruning, persistence, clear), counters end-to-end with reset behaviour, history API + SSE, top-donor ranges/ordering, widget page/asset serving, and a backup round-trip that carries `history.json`.
+- Added coverage for the history store, counters, history API/SSE, top-donor ranges and ordering, widget assets, and backup round-trip with `history.json`.
 
 ## 2.2.0 — 2026-09-21 (chat commands, queue priority, milestone confetti, timed goal)
 

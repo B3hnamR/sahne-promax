@@ -246,6 +246,37 @@ assert.deepStrictEqual(
 );
 console.log('OK: local image alerts render; foreign image hosts refused');
 
+// StreamElements tips preserve their original ISO currency and show the converted
+// toman amount when available; unknown currencies remain readable without a rate.
+const playCurrencyCard = (currency, toman, style = 'toman') => {
+  es.onmessage({ data: JSON.stringify({ type: 'config', appearance: { ...appearance, currency: style } }) });
+  es.onmessage({
+    data: JSON.stringify({
+      type: 'play',
+      tip: {
+        ...tip,
+        id: 'currency-' + currency + '-' + toman,
+        name: 'Supporter',
+        amount: 5,
+        currency,
+        toman,
+        message: '',
+        media: null,
+        gif_url: null,
+        tts_url: null,
+        is_test: false
+      }
+    })
+  });
+  return stage.children[stage.children.length - 1].querySelector('.card').innerHTML;
+};
+assert.match(playCurrencyCard('EUR', 1600200), /EUR/);
+assert.match(playCurrencyCard('EUR', 1600200), /تومان/);
+assert.match(playCurrencyCard('EUR', 1600200, 'eq-en'), /Toman/);
+assert.match(playCurrencyCard('EUR', null), /EUR/);
+assert.doesNotMatch(playCurrencyCard('EUR', null), /تومان/);
+console.log('OK: foreign-currency alerts show the original amount and available toman conversion');
+
 // Card delay (1.3.1): the per-file value wins over the appearance setting; the card and the TTS appear only after it.
 (async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));

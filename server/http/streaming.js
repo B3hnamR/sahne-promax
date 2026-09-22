@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { MIME } = require('../constants');
+const { parseRange } = require('../utils/validation');
 
 function serveFile(req, res, fp, { csp = null, isImmutable = false } = {}) {
   fs.stat(fp, (err, st) => {
@@ -29,28 +30,12 @@ function serveFile(req, res, fp, { csp = null, isImmutable = false } = {}) {
 
     const range = req.headers.range;
     if (range) {
-      const m = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
-      if (!m) {
+      const parsed = parseRange(range, st.size);
+      if (!parsed) {
         res.writeHead(416, { 'Content-Range': `bytes */${st.size}` });
         return res.end();
       }
-
-      let start;
-      let end;
-      if (!m[1] && m[2]) {
-        start = Math.max(0, st.size - parseInt(m[2], 10));
-        end = st.size - 1;
-      } else {
-        start = m[1] ? parseInt(m[1], 10) : 0;
-        end = m[2] ? parseInt(m[2], 10) : st.size - 1;
-      }
-
-      if (start >= st.size) {
-        res.writeHead(416, { 'Content-Range': `bytes */${st.size}` });
-        return res.end();
-      }
-
-      end = Math.min(end, st.size - 1);
+      const { start, end } = parsed;
       res.writeHead(206, {
         'Content-Type': type,
         'Content-Range': `bytes ${start}-${end}/${st.size}`,

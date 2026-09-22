@@ -32,7 +32,7 @@ function dayLabel(key) {
 function row(children) {
   const d = document.createElement('div');
   d.className = 'hrow';
-  for (const c of children) d.appendChild(c);
+  for (const c of children) if (c) d.appendChild(c);
   return d;
 }
 
@@ -125,11 +125,28 @@ function renderEntries() {
   }
   for (const e of list.slice(0, 120)) {
     const k = KIND_CHIP[e.kind] || KIND_CHIP.tip;
-    const amount = e.kind === 'command' ? 'دستور چت' : e.toman ? fmtToman(e.toman) : e.usd ? '$' + e.usd : '—';
+    const currency = String(e.currency || 'USD').toUpperCase();
+    const original =
+      e.usd == null && currency === 'USD'
+        ? '—'
+        : currency === 'USD'
+          ? '$' + (Number(e.usd) || 0)
+          : (Number(e.usd) || 0) + ' ' + currency;
+    const amount =
+      e.kind === 'command' ? 'دستور چت' : Number(e.toman) > 0 ? fmtToman(e.toman) + ' · ' + original : original;
+    const source =
+      e.source === 'streamelements'
+        ? 'StreamElements'
+        : e.source === 'kickbot'
+          ? 'KickBot'
+          : e.source === 'kick'
+            ? 'Kick'
+            : '';
     const rowEl = row([
       span('t', shortTime(e.at)),
       span('n', e.name || 'ناشناس'),
       chip(k.label, k.cls),
+      source ? chip(source) : null,
       e.test ? chip('تست', 'warn') : e.replay ? chip('ریپلی') : null,
       span('m', e.message || ''),
       span('a', amount)

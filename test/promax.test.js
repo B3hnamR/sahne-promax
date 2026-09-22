@@ -391,22 +391,24 @@ test('ProMax: Nobitex USDTIRT Rate Provider as Primary & Baha24 as Fallback', as
   const mockLogger = { info: () => {}, warn: () => {}, error: () => {} };
   const mockSse = { broadcast: () => {}, sendState: () => {} };
 
-  // Scenario A: Nobitex succeeds -> source is 'nobitex'
+  // Scenario A: Nobitex supplies USD; Baha24 still supplies non-USD FX.
   let baha24Called = false;
   const mgrA = new RateManager({
     configStore: mockConfigStore,
     logger: mockLogger,
     sse: mockSse,
     fetchNobitexFn: async () => 228883,
-    fetchBaha24Fn: async () => {
+    fetchBaha24QuoteFn: async () => {
       baha24Called = true;
-      return 229500;
-    }
+      return { usd: 229500, fx: { EUR: 250000 } };
+    },
+    fetchBonbastFxFn: async () => ({})
   });
   const rateA = await mgrA.refreshRate(true);
   assert.equal(rateA, 228883);
   assert.equal(mockConfigStore.config.rate.source, 'nobitex');
-  assert.equal(baha24Called, false, 'Baha24 is not queried when Nobitex succeeds');
+  assert.equal(baha24Called, true, 'Baha24 supplies FX even when Nobitex supplies USD');
+  assert.equal(mockConfigStore.config.rate.fx.EUR, 250000);
 
   // Scenario B: Nobitex fails -> fallback to Baha24 -> source is 'baha24'
   const mgrB = new RateManager({
@@ -416,7 +418,8 @@ test('ProMax: Nobitex USDTIRT Rate Provider as Primary & Baha24 as Fallback', as
     fetchNobitexFn: async () => {
       throw new Error('Nobitex rate limit or network unreachable');
     },
-    fetchBaha24Fn: async () => 229500
+    fetchBaha24QuoteFn: async () => ({ usd: 229500, fx: { EUR: 251000 } }),
+    fetchBonbastFxFn: async () => ({})
   });
   const rateB = await mgrB.refreshRate(true);
   assert.equal(rateB, 229500);
@@ -430,9 +433,10 @@ test('ProMax: Nobitex USDTIRT Rate Provider as Primary & Baha24 as Fallback', as
     fetchNobitexFn: async () => {
       throw new Error('Nobitex down');
     },
-    fetchBaha24Fn: async () => {
+    fetchBaha24QuoteFn: async () => {
       throw new Error('Baha24 down');
-    }
+    },
+    fetchBonbastFxFn: async () => ({})
   });
   const rateC = await mgrC.refreshRate(true);
   assert.equal(rateC, null);

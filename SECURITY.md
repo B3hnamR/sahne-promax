@@ -1,70 +1,42 @@
-# Security Policy — Sahne+
+# Security Policy — Sahne ProMax
 
-## Source code and builds
-
-The source code of Sahne+ is public in this repository under the Apache License 2.0. Starting with 1.3.0, official installers are built by the `build-release` GitHub Actions workflow from the tagged source and published with a build provenance attestation (`gh attestation verify <file> --repo AmirEyZed/sahne-plus`). Releases before 1.3.0 were built locally by the maintainer.
+Sahne ProMax is an independent fork of Sahne Plus. Security reports for this fork should go to the ProMax maintainer through this repository, not to the upstream Sahne Plus maintainer.
 
 ## Supported versions
 
-| Version | Supported |
-|---|---|
-| 1.3.x (current) | yes — security fixes |
-| 1.2.x and older | no — please upgrade |
-
-Only the latest release on the [Releases](https://github.com/AmirEyZed/sahne-plus/releases) page receives fixes.
+Only the latest ProMax release receives security fixes. The current release is **2.4.0**. Please upgrade before reporting an issue against an older build.
 
 ## Reporting a vulnerability
 
-Please report security issues **privately**. Do not open a public GitHub issue and do not post details publicly before a fix is available.
+Please report security issues privately. Do not open a public issue with exploit details or publish them before a fix is available.
 
-- **Preferred:** GitHub private vulnerability reporting — https://github.com/AmirEyZed/sahne-plus/security/advisories/new (only the maintainer can read it).
-- **Security contact (e-mail):** Eyzedam@gmail.com
-- **Alternative:** open a GitHub issue titled `security contact request` **without any details**; the maintainer will reply with a private channel.
+- **Preferred:** [GitHub private vulnerability reporting](https://github.com/B3hnamR/sahne-promax/security/advisories/new), if enabled for this repository.
+- **If private reporting is unavailable:** open an issue titled `security contact request` without vulnerability details so the maintainer can arrange a private channel.
 
 Please include:
 
-- the Sahne+ version (About page) and Windows version;
-- a description of the issue and its impact: what an attacker can do, and from where (another program on the PC, a web page in the streamer's browser, the local network, a viewer through a donation message, a malicious media file, etc.);
-- steps to reproduce, a proof of concept if you have one, and the affected file/line in the source when you know it;
-- relevant lines from `Documents\Sahne Plus\sahne-plus.log` with **donation names removed**;
-- never include your own KickBot widget key.
+- ProMax version shown on the About page and your Windows version;
+- the affected feature and its impact, including attacker access required;
+- reproduction steps or a proof of concept, and source locations if known;
+- relevant lines from `Documents\Sahne Plus\sahne-plus.log` after removing donor names and other personal data;
+- never include your KickBot widget secret or StreamElements JWT.
 
 ## Responsible disclosure
 
-- We acknowledge reports within **7 days**.
-- Confirmed issues are fixed in the next release; we will tell you when the fix is published and credit you in `CHANGELOG.md` if you wish.
-- We ask for a **90-day** disclosure window from the report date (or until a fix is released, whichever comes first) before any public disclosure. If we need more time we will say so and explain why.
-- We do not take legal action against good-faith research that respects this policy, avoids privacy violations and does not disrupt other people's streams or third-party services.
-- Sahne+ does not offer a bug bounty at this time.
-
-## Acknowledgements
-
-- [B3hnamR](https://github.com/B3hnamR) — independent review of 1.2.0 ([SahnePlusReview](https://github.com/B3hnamR/SahnePlusReview)) and a code audit of the 1.3.0 source that found the image-alert and capture-retry bugs fixed in 1.3.0.
+We aim to acknowledge reports within 7 days and coordinate a fix and disclosure timeline with the reporter. Please allow time for a fix to reach users before public disclosure. The ProMax project has no bug bounty.
 
 ## Scope
 
 In scope:
 
-- the local server on `127.0.0.1:7788` being reachable from another machine, from another origin in the browser (CSRF, DNS rebinding) or leaking the KickBot widget key;
-- the Browser Source executing injected content from a donation name or message;
-- imported media files causing code execution or path traversal;
-- the Electron shell (IPC, preload bridge, navigation, permissions) and the installer doing anything not described in [PRIVACY.md](PRIVACY.md);
-- the release workflow (a way to get an unofficial binary attested or published as official).
+- the loopback server being reachable from another machine or another browser origin;
+- injected content in the OBS Browser Source;
+- imported media causing code execution or path traversal;
+- the Electron shell, IPC bridge, navigation, permissions or updater;
+- a release workflow issue that could publish an unofficial binary as a ProMax release.
 
-Out of scope: KickBot, Kick, Pusher, baha24 and Bonbast themselves (report issues in those services to their owners); social engineering; issues that require a compromised Windows account.
+Out of scope: vulnerabilities in Kick, KickBot, StreamElements, Nobitex, Baha24, Meld Studio or GitHub itself; social engineering; issues requiring a compromised Windows account.
 
-## Supply-chain status
+## Release integrity
 
-Honest current state, so nobody over-trusts a release:
-
-| Measure | Status |
-|---|---|
-| Public source code | **yes** (Apache-2.0), this repository |
-| Builds by public CI | **yes from 1.3.0** — `.github/workflows/build-release.yml` on GitHub-hosted Windows runners; earlier releases were built locally |
-| Build provenance attestation | **yes from 1.3.0** — verify with `gh attestation verify` |
-| SHA-256 checksums (`SHA256SUMS.txt`) | **yes**, generated in the release workflow; verify integrity only |
-| Windows code signing (Authenticode) | **not yet** — installers are unsigned; SmartScreen warns |
-| Signed checksums (GPG / minisign) | **not yet** |
-| Reproducible builds | **not verified** — electron-builder output is not guaranteed bit-for-bit reproducible |
-| Automatic updates | **none** — updates are manual downloads from the Releases page |
-| Runtime npm dependencies | **none** — only Node built-ins and Electron |
+Release installers are accompanied by a `SHA256SUMS.txt` manifest. Verify the installer against that file before running it. Check the individual release page for any build-provenance attestation; do not assume one is available. The installers are not Authenticode-signed, checksums are not separately signed, and builds have not been verified as reproducible. A checksum verifies file integrity against the published manifest; it is not a security audit or proof of publisher identity.

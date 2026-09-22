@@ -59,6 +59,7 @@ function createHttpRouter(context) {
     playbackQueue,
     kickBotClient,
     kickChatClient,
+    streamElementsClient,
     goalManager,
     historyStore,
     appVersion,
@@ -169,7 +170,7 @@ function createHttpRouter(context) {
           'X-Accel-Buffering': 'no'
         });
         res.write(':ok\n\n');
-        sse.addClient(role, res);
+        sse.addClient(role, res, { profile });
 
         if (role === 'overlay' || role === 'preview') {
           const appearance = configStore.getEffectiveAppearance(profile);
@@ -292,6 +293,7 @@ function createHttpRouter(context) {
         try {
           const zipBuffer = await readBody(req, 512 * 1024 * 1024);
           const result = await importBackup(dataDir, zipBuffer, { configStore, logger, sse, historyStore });
+          streamElementsClient.reloadAfterRestore();
           return json(res, 200, { ok: true, ...result });
         } catch (e) {
           logger.error('بازیابی نسخه پشتیبان ناموفق بود', e.message);
@@ -404,8 +406,7 @@ function createHttpRouter(context) {
         }
 
         configStore.saveConfig();
-        sse.broadcast('overlay', { type: 'config', appearance: config.appearance });
-        sse.broadcast('preview', { type: 'config', appearance: config.appearance });
+        sse.broadcastAppearance(profileName => configStore.getEffectiveAppearance(profileName));
         sse.sendState();
         return json(res, 200, { ok: true, config: configStore.publicConfig() });
       }
@@ -534,6 +535,54 @@ function createHttpRouter(context) {
         return json(res, 200, { ok: true, rate: rateManager.currentRate(), rows });
       }
 
+      // StreamElements tips are already paid by StreamElements, so they join the queue without capture.
+      if (p === '/api/se/setup' && req.method === 'POST') {
+        const body = await readJson(req);
+        const token = String(body.token || '').trim();
+        if (!streamElementsClient || !configStore.isValidSeToken(token)) {
+          return json(res, 400, { error: 'توکن معتبر نیست. JWT را از داشبورد StreamElements کپی کنید.' });
+        }
+        const verified = await streamElementsClient.verifyToken(token);
+        if (!verified.ok) {
+          if (verified.rejected) {
+            return json(res, 400, { error: 'StreamElements این توکن را قبول نکرد؛ توکن کامل و به‌روز را وارد کنید.' });
+          }
+          return json(res, 502, {
+            error: 'اتصال به StreamElements ناموفق بود: ' + String(verified.error || 'unknown').slice(0, 160)
+          });
+        }
+        streamElementsClient.disconnect({ clearAccount: false });
+        configStore.setSeToken(token);
+        configStore.config.se = {
+          channelId: verified.channelId,
+          username: verified.username,
+          provider: verified.provider
+        };
+        configStore.saveConfig();
+        logger.info('حساب StreamElements وصل شد', {
+          username: verified.username,
+          provider: verified.provider,
+          secretStorage: configStore.seSecretStorage
+        });
+        streamElementsClient.connect();
+        sse.sendState();
+        return json(res, 200, {
+          ok: true,
+          username: verified.username,
+          provider: verified.provider,
+          secretStorage: configStore.seSecretStorage
+        });
+      }
+
+      if (p === '/api/se/disconnect' && req.method === 'POST') {
+        streamElementsClient.disconnect();
+        playbackQueue.approved = playbackQueue.approved.filter(t => t.source !== 'streamelements');
+        configStore.saveConfig();
+        logger.info('اتصال StreamElements حذف شد');
+        sse.sendState();
+        return json(res, 200, { ok: true });
+      }
+
       // KickBot Setup & Disconnect
       if (p === '/api/setup' && req.method === 'POST') {
         const body = await readJson(req);
@@ -607,8 +656,7 @@ function createHttpRouter(context) {
         configStore.config.mode = 'standalone';
         configStore.saveConfig();
         logger.info('تنظیمات به حالت اولیه برگشت');
-        sse.broadcast('overlay', { type: 'config', appearance: configStore.config.appearance });
-        sse.broadcast('preview', { type: 'config', appearance: configStore.config.appearance });
+        sse.broadcastAppearance(profileName => configStore.getEffectiveAppearance(profileName));
         sse.sendState();
         return json(res, 200, { ok: true, config: configStore.publicConfig() });
       }

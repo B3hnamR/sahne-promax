@@ -6,6 +6,7 @@ const PUSHER_WS = 'wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&c
 const KICK_CHANNEL_API = 'https://kick.com/api/v2/channels/';
 const NOBITEX = 'https://apiv2.nobitex.ir/v3/orderbook/USDTIRT';
 const BAHA24 = 'https://baha24.com/api/v1/price';
+const BONBAST = 'https://www.bonbast.com/';
 const MELD_WS = 'ws://127.0.0.1:13376';
 const KICK_SUB_USD = 4.99;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36';
@@ -132,7 +133,17 @@ const DEFAULT_CONFIG = {
   },
   files: [],
   showAlertWithoutMedia: true,
-  rate: { auto: true, manual: null, value: null, updatedAt: null, source: null, intervalMin: 2, proxy: '' },
+  rate: {
+    auto: true,
+    manual: null,
+    value: null,
+    updatedAt: null,
+    source: null,
+    intervalMin: 2,
+    proxy: '',
+    fx: {},
+    fxSource: null
+  },
   kick: {
     enabled: true,
     channel: '',
@@ -143,6 +154,7 @@ const DEFAULT_CONFIG = {
     subValueToman: 0,
     showNewSubs: true
   },
+  se: { channelId: null, username: null, provider: null },
   app: { autostart: true, updateCheck: true, updateNotifiedFor: null }
 };
 
@@ -204,6 +216,7 @@ module.exports = {
   PUSHER_WS,
   KICK_CHANNEL_API,
   BAHA24,
+  BONBAST,
   NOBITEX,
   MELD_WS,
   KICK_SUB_USD,

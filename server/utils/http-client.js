@@ -42,13 +42,23 @@ function httpsRequest(urlStr, { method = 'GET', headers = {}, body = null, proxy
   } catch {
     return Promise.reject(new Error('bad proxy url'));
   }
+  if (!['http:', 'https:'].includes(pu.protocol)) return Promise.reject(new Error('unsupported proxy protocol'));
   return new Promise((resolve, reject) => {
-    const creq = http.request({
+    const requestProxy = pu.protocol === 'https:' ? https.request : http.request;
+    const proxyPort = Number(pu.port) || (pu.protocol === 'https:' ? 443 : 80);
+    const proxyHeaders = { Host: `${pu.hostname}:${proxyPort}` };
+    if (pu.username || pu.password) {
+      proxyHeaders['Proxy-Authorization'] =
+        'Basic ' +
+        Buffer.from(decodeURIComponent(pu.username) + ':' + decodeURIComponent(pu.password)).toString('base64');
+    }
+    const creq = requestProxy({
       host: pu.hostname,
-      port: Number(pu.port) || 80,
+      port: proxyPort,
       method: 'CONNECT',
       path: `${u.hostname}:${u.port || 443}`,
-      headers: { Host: `${u.hostname}:${u.port || 443}` }
+      headers: { ...proxyHeaders, Host: `${u.hostname}:${u.port || 443}` },
+      ...(pu.protocol === 'https:' ? { servername: pu.hostname } : {})
     });
     creq.setTimeout(timeoutMs, () => creq.destroy(new Error('proxy connect timeout')));
     creq.on('connect', (res, socket) => {

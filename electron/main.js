@@ -31,7 +31,7 @@ const DATA_DIR = process.env.SAHNE_PLUS_DATA_DIR
 const LEGACY_DIR = path.join(app.getPath('documents'), 'KickAlerts');
 const LOG_FILE = path.join(DATA_DIR, 'sahne-plus.log');
 const START_HIDDEN = process.argv.includes('--hidden');
-const SECURITY_CONTACT = 'https://github.com/AmirEyZed/sahne-plus/security/advisories/new';
+const SECURITY_CONTACT = 'https://github.com/B3hnamR/sahne-promax/security/advisories/new';
 
 app.setName(APP_NAME);
 // userData (Chromium profile + single-instance lock). A test instance with its own data dir must not collide with the installed app.
@@ -39,7 +39,7 @@ app.setPath(
   'userData',
   process.env.SAHNE_PLUS_DATA_DIR ? path.join(DATA_DIR, '.electron') : path.join(app.getPath('appData'), 'SahnePlus')
 );
-app.setAppUserModelId('com.amireyzed.sahneplus');
+app.setAppUserModelId('com.sahnepromax.app');
 
 // app.quit() does not cancel the pending 'ready' event, so startup below must also check the lock (a second launch
 // must only bring the existing window to the front, never start a second server or show a port error).

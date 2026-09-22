@@ -1,10 +1,10 @@
-# Contributing to Sahne+
+# Contributing to Sahne ProMax
 
-Thanks for helping. Sahne+ is a small, dependency-free Electron app; please keep it that way.
+Thanks for helping. Sahne ProMax is an independent Sahne+ fork with no runtime npm dependencies; please keep it that way.
 
 ## Ground rules
 
-- **Security issues are never reported in public issues.** Use GitHub private vulnerability reporting or the contact in [SECURITY.md](SECURITY.md).
+- **Security issues are never reported in public issues.** Use the private reporting route in [SECURITY.md](SECURITY.md).
 - **No new runtime dependencies** without a discussion first. The application deliberately uses only Node built-ins and Electron; the zero-dependency design is part of its security posture.
 - **Never commit secrets or personal data**: no KickBot widget URLs, `config.json`, media files, logs, or channel names in code, tests, fixtures or screenshots. `.gitignore` blocks the usual files; check `git diff --cached` before committing.
 - Keep user-facing text in Persian consistent with the existing UI wording; code, comments and commit messages are in English.
@@ -14,7 +14,7 @@ Thanks for helping. Sahne+ is a small, dependency-free Electron app; please keep
 ```bash
 npm ci            # installs Electron 43 and electron-builder (dev only)
 npm start         # runs the app from source
-npm test          # unit tests (server validation + overlay XSS test)
+npm test          # automated unit and integration tests
 npm run dist      # builds the Windows installer into dist/
 ```
 

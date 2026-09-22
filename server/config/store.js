@@ -4,6 +4,7 @@ const path = require('path');
 const { DEFAULT_CONFIG, DEFAULT_APPEARANCE, LIMITS, ENUMS } = require('../constants');
 const { sanitizeFile, sanitizeAppearance, sanitizeGoal, sanitizeChatCommands } = require('../utils/sanitizers');
 const { finite } = require('../utils/validation');
+const { sanitizeFx } = require('../rates/baha24');
 
 class ConfigStore {
   constructor({ dataDir, secretStore, logger }) {
@@ -12,12 +13,16 @@ class ConfigStore {
     this.store = secretStore || null;
     this.log = logger || (() => {});
     this.secret = '';
+    this.seToken = '';
     this.secretStorage = 'none';
+    this.seSecretStorage = 'none';
     this.config = this.loadConfig();
     this.saveDebounceTimer = null;
   }
 
   loadConfig() {
+    this.secret = '';
+    this.seToken = '';
     let c = {};
     let raw = null;
     try {
@@ -42,7 +47,7 @@ class ConfigStore {
           ? { ...DEFAULT_CONFIG.profiles, ...c.profiles }
           : { ...DEFAULT_CONFIG.profiles },
       goal: sanitizeGoal(c.goal || {}, DEFAULT_CONFIG.goal),
-      rate: { ...DEFAULT_CONFIG.rate, ...(c.rate || {}) },
+      rate: { ...DEFAULT_CONFIG.rate, ...(c.rate || {}), fx: sanitizeFx(c.rate && c.rate.fx) },
       kick: { ...DEFAULT_CONFIG.kick, ...(c.kick || {}) },
       chatCommands: { ...DEFAULT_CONFIG.chatCommands, ...(c.chatCommands || {}) },
       app: { ...DEFAULT_CONFIG.app, ...(c.app || {}) }
@@ -71,6 +76,27 @@ class ConfigStore {
     delete merged.secret_id;
     delete merged.secret_id_enc;
 
+    this.seSecretStorage = isStoreAvailable ? 'os' : 'plain';
+    if (c.se_token_enc && isStoreAvailable) {
+      try {
+        this.seToken = String(this.store.decrypt(c.se_token_enc) || '');
+        this.seSecretStorage = 'os';
+      } catch {
+        this.seToken = '';
+      }
+    } else if (typeof c.se_token === 'string' && c.se_token) {
+      this.seToken = c.se_token;
+      this.seSecretStorage = 'plain';
+    }
+    // Validate stored credentials before ever using them for API or websocket authentication.
+    if (!this.isValidSeToken(this.seToken)) this.seToken = '';
+    if (!this.seToken) this.seSecretStorage = 'none';
+    delete merged.se_token;
+    delete merged.se_token_enc;
+    if (!merged.se || typeof merged.se !== 'object' || Array.isArray(merged.se)) merged.se = { ...DEFAULT_CONFIG.se };
+    else merged.se = { ...DEFAULT_CONFIG.se, ...merged.se };
+    if (!/^[A-Za-z0-9]{1,64}$/.test(String(merged.se.channelId || ''))) merged.se.channelId = null;
+
     if (!Array.isArray(merged.files)) merged.files = [];
     merged.files = merged.files.map(sanitizeFile).filter(Boolean).slice(0, LIMITS.files);
     merged.chatCommands = sanitizeChatCommands(merged.chatCommands, DEFAULT_CONFIG.chatCommands, merged.files);
@@ -86,6 +112,7 @@ class ConfigStore {
         process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || '';
     }
     merged.rate.intervalMin = Math.max(LIMITS.minRateInterval, Number(merged.rate.intervalMin) || 2);
+    if (!['baha24', 'bonbast'].includes(merged.rate.fxSource)) merged.rate.fxSource = null;
     merged.port = finite(merged.port, 1024, 65535, 7788);
     if (!ENUMS.mode.includes(merged.mode)) merged.mode = 'standalone';
 
@@ -106,6 +133,20 @@ class ConfigStore {
       } else {
         out.secret_id = this.secret;
         this.secretStorage = 'plain';
+      }
+    }
+    if (this.seToken) {
+      if (this.store && typeof this.store.available === 'function' && this.store.available()) {
+        try {
+          out.se_token_enc = this.store.encrypt(this.seToken);
+          this.seSecretStorage = 'os';
+        } catch {
+          out.se_token = this.seToken;
+          this.seSecretStorage = 'plain';
+        }
+      } else {
+        out.se_token = this.seToken;
+        this.seSecretStorage = 'plain';
       }
     }
     return out;
@@ -147,6 +188,12 @@ class ConfigStore {
         configured: !!(this.secret && this.config.streamer_id),
         streamer_id: this.config.streamer_id,
         secretStorage: this.secretStorage
+      },
+      streamelements: {
+        configured: !!(this.seToken && this.config.se && this.config.se.channelId),
+        username: this.config.se && this.config.se.username,
+        provider: this.config.se && this.config.se.provider,
+        secretStorage: this.seSecretStorage
       }
     };
   }
@@ -159,11 +206,30 @@ class ConfigStore {
     this.secret = sec ? String(sec).trim() : '';
   }
 
+  setSeToken(token) {
+    this.seToken = token ? String(token).trim() : '';
+    this.seSecretStorage = this.seToken ? 'plain' : 'none';
+  }
+
+  isValidSeToken(token) {
+    const s = String(token || '').trim();
+    if (s.length < 40 || s.length > 4000 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(s)) return false;
+    try {
+      const payload = JSON.parse(Buffer.from(s.split('.')[1], 'base64url').toString('utf8'));
+      return !!payload && typeof payload === 'object' && !Array.isArray(payload);
+    } catch {
+      return false;
+    }
+  }
+
   getEffectiveAppearance(profileName) {
     if (!profileName || profileName === 'default') {
       return this.config.appearance;
     }
-    const profile = this.config.profiles && this.config.profiles[profileName];
+    const profile =
+      this.config.profiles && Object.prototype.hasOwnProperty.call(this.config.profiles, profileName)
+        ? this.config.profiles[profileName]
+        : null;
     if (profile) {
       return sanitizeAppearance(profile, this.config.appearance);
     }

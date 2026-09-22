@@ -17,12 +17,12 @@ class GoalManager {
   // meta: { kind, count, name, test, replay } from the alert that triggered this.
   addAmount(toman, meta = {}) {
     const goal = this.getGoal();
-    if (!goal || !goal.enabled || !goal.autoIncrement) return;
+    if (!goal || !goal.enabled) return;
     const add = Math.max(0, Math.round(Number(toman) || 0));
     const test = !!meta.test || !!meta.replay;
     const events = [];
 
-    if (add > 0) {
+    if (add > 0 && !test && goal.autoIncrement) {
       goal.currentToman = (goal.currentToman || 0) + add;
       this.configStore.debouncedSave();
       this.logger.info('هدف حمایت به‌روز شد', { added: add, current: goal.currentToman, target: goal.targetToman });

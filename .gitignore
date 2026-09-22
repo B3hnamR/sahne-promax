@@ -6,6 +6,10 @@ release/
 config.json
 config.json.*
 played.json
+history.json
+history.json.*
+/media/
+/.electron/
 .env
 .env.*
 scripts/xss-payload.json

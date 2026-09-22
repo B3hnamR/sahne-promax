@@ -20,6 +20,39 @@ const KB_TEXT = {
   reconnecting: ['قطع شده، تلاش مجدد…', 'chip warn'],
   unconfigured: ['تنظیم نشده', 'chip']
 };
+const SE_TEXT = {
+  connected: ['متصل', 'chip on'],
+  connecting: ['در حال اتصال…', 'chip warn'],
+  reconnecting: ['قطع شده، تلاش مجدد…', 'chip warn'],
+  error: ['خطا', 'chip warn'],
+  unconfigured: ['تنظیم نشده', 'chip']
+};
+
+function originalAmount(t) {
+  const amount = Number((t && (t.amount ?? t.usd)) || 0);
+  const value = Math.round(amount * 100) / 100;
+  const currency = String((t && t.currency) || 'USD').toUpperCase();
+  return currency === 'USD' ? '$' + value : value + ' ' + currency;
+}
+
+function displayedAmount(t) {
+  const original = originalAmount(t);
+  return t && t.toman != null ? fmtToman(t.toman) + ' · ' + original : original;
+}
+
+function sourceLabel(source) {
+  if (source === 'streamelements') return 'StreamElements';
+  if (source === 'kickbot') return 'KickBot';
+  if (source === 'kick') return 'Kick';
+  return '';
+}
+
+function rateSourceLabel(source) {
+  if (source === 'nobitex') return 'نوبیتکس';
+  if (source === 'baha24') return 'بهاء۲۴';
+  if (source === 'bonbast') return 'بون‌بست';
+  return source || 'نوبیتکس';
+}
 
 async function load() {
   const r = await api('/api/config');
@@ -162,6 +195,43 @@ function fillSettings() {
   if ($('#mode')) $('#mode').value = state.cfg.mode;
   if ($('#showNoMedia')) $('#showNoMedia').checked = state.cfg.showAlertWithoutMedia !== false;
   renderKb();
+  renderSe();
+}
+
+function renderSe() {
+  const cfg = (state.cfg && state.cfg.streamelements) || {};
+  const runtime = (state.runtimeState && state.runtimeState.se) || {};
+  const status = runtime.status || (cfg.configured ? 'reconnecting' : 'unconfigured');
+  const [txt, cls] = SE_TEXT[status] || SE_TEXT.unconfigured;
+  const label = status === 'error' && runtime.error ? 'خطا: ' + runtime.error : txt;
+  const configured = !!cfg.configured;
+
+  if ($('#seChip')) {
+    $('#seChip').textContent = label;
+    $('#seChip').className = cls;
+  }
+  if ($('#hSe')) {
+    $('#hSe').textContent = label;
+    $('#hSe').className = cls;
+  }
+  if ($('#hSeRow')) $('#hSeRow').hidden = !configured;
+  if ($('#stSe')) {
+    $('#stSe').hidden = !configured;
+    $('#stSe').className = 'status-pill' + (status === 'connected' ? ' on' : configured ? ' warn' : '');
+  }
+  if ($('#seAccount')) {
+    $('#seAccount').textContent = configured
+      ? (cfg.username || '—') + (cfg.provider ? ' (' + cfg.provider + ')' : '')
+      : 'وصل نشده';
+  }
+  if ($('#seSecret')) {
+    $('#seSecret').textContent = configured
+      ? cfg.secretStorage === 'os'
+        ? 'ذخیره شده (رمزنگاری‌شده با سیستم‌عامل)'
+        : 'متن ساده ذخیره شده (رمزنگاری سیستم‌عامل در دسترس نیست)'
+      : 'وارد نشده';
+  }
+  if ($('#btnSeDisconnect')) $('#btnSeDisconnect').disabled = !configured;
 }
 
 function fillApp() {
@@ -214,6 +284,7 @@ function renderState() {
   if (state.cfg) {
     renderKb();
     renderKickStatus();
+    renderSe();
   }
 
   if ($('#stOv')) $('#stOv').className = 'status-pill' + (s.overlays > 0 ? ' on' : ' warn');
@@ -245,7 +316,7 @@ function renderState() {
     $('#hRateMeta').textContent = s.rateManual
       ? 'دستی'
       : s.rateUpdatedAt
-        ? (s.rateSource === 'nobitex' ? 'نوبیتکس' : s.rateSource === 'baha24' ? 'بهاء۲۴' : s.rateSource || 'نوبیتکس') +
+        ? rateSourceLabel(s.rateSource) +
           ' · ' +
           new Date(s.rateUpdatedAt).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) +
           (s.rateError ? ' · آخرین تلاش ناموفق' : '')
@@ -260,7 +331,7 @@ function renderState() {
     s.recent.forEach(t => {
       const d = document.createElement('div');
       d.className = 'it';
-      d.innerHTML = `<span class="a">${t.toman ? fmtToman(t.toman) : t.kind === 'command' ? 'دستور چت' : '$' + t.amount}</span><b>${esc(t.name || '')}</b>${
+      d.innerHTML = `<span class="a">${t.kind === 'command' ? 'دستور چت' : esc(displayedAmount(t))}</span><b>${esc(t.name || '')}</b>${
         t.kind === 'gift'
           ? '<span class="chip">🎁 ' + faNum(t.count) + ' ساب‌گیفت</span>'
           : t.kind === 'sub'
@@ -268,7 +339,7 @@ function renderState() {
             : t.kind === 'command'
               ? '<span class="chip acc">⌨️ دستور</span>'
               : ''
-      }<span class="m">${esc(t.message || '')}</span><span class="chip">${
+      }${sourceLabel(t.source) ? '<span class="chip">' + esc(sourceLabel(t.source)) + '</span>' : ''}<span class="m">${esc(t.message || '')}</span><span class="chip">${
         t.media ? esc(t.media) : 'بدون فایل'
       }</span>${t.test ? '<span class="chip warn">تست</span>' : ''}`;
       rc.appendChild(d);
@@ -285,15 +356,21 @@ function renderRate() {
       Number(r.manual) > 0
         ? '(دستی)'
         : r.updatedAt
-          ? (r.source === 'nobitex' ? 'نوبیتکس' : r.source === 'baha24' ? 'بهاء۲۴' : r.source || 'نوبیتکس') +
-            ' · ' +
-            new Date(r.updatedAt).toLocaleTimeString('fa-IR')
+          ? rateSourceLabel(r.source) + ' · ' + new Date(r.updatedAt).toLocaleTimeString('fa-IR')
           : 'هنوز دریافت نشده';
   }
   if ($('#rateAuto')) $('#rateAuto').checked = r.auto !== false;
   if ($('#rateInt')) $('#rateInt').value = r.intervalMin || 2;
   if ($('#rateManual')) $('#rateManual').value = r.manual || '';
   if ($('#rateProxy')) $('#rateProxy').value = r.proxy || '';
+  if ($('#fxMeta')) {
+    const currencies = Object.keys(r.fx || {}).sort();
+    $('#fxMeta').textContent = currencies.length
+      ? 'ارزهای دارای نرخ تبدیل: ' +
+        currencies.join('، ') +
+        (r.fxSource ? ' · منبع: ' + rateSourceLabel(r.fxSource) : '')
+      : 'نرخ تبدیل ارزهای دیگر هنوز دریافت نشده.';
+  }
   renderProxy();
 }
 
@@ -443,6 +520,60 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ($('#btnSetup')) $('#btnSetup').onclick = () => doSetup('#setupUrl', '#setupMsg');
   if ($('#btnSetup2')) $('#btnSetup2').onclick = () => doSetup('#setupUrl2', '#setupMsg2');
+
+  if ($('#btnSeSetup')) {
+    $('#btnSeSetup').onclick = async () => {
+      const btn = $('#btnSeSetup');
+      const msg = $('#seMsg');
+      const token = $('#seToken').value.trim();
+      if (!token) {
+        toast('توکن JWT را وارد کنید', 'err');
+        return;
+      }
+      btn.disabled = true;
+      if (msg) msg.textContent = 'در حال بررسی اتصال…';
+      try {
+        const r = await post('/api/se/setup', { token });
+        if (r && r.ok) {
+          $('#seToken').value = '';
+          if (msg) msg.textContent = 'انجام شد: ' + (r.username || '') + (r.provider ? ' (' + r.provider + ')' : '');
+          toast('StreamElements وصل شد', 'ok');
+          await load();
+        } else {
+          if (msg) msg.textContent = (r && r.error) || 'خطا در اتصال StreamElements';
+          toast((r && r.error) || 'خطا در اتصال StreamElements', 'err');
+        }
+      } catch (err) {
+        if (msg) msg.textContent = 'ارتباط با سرور برقرار نشد';
+        toast('ارتباط با سرور برقرار نشد', 'err');
+      } finally {
+        btn.disabled = false;
+      }
+    };
+  }
+
+  if ($('#btnSeDisconnect')) {
+    $('#btnSeDisconnect').onclick = async () => {
+      const ok = await spConfirm({
+        title: 'قطع اتصال StreamElements',
+        body: 'اتصال StreamElements قطع و توکن ذخیره‌شده حذف شود؟',
+        confirmText: 'قطع اتصال',
+        cancelText: 'انصراف',
+        icon: '#i-x',
+        danger: true
+      });
+      if (!ok) return;
+      try {
+        const r = await post('/api/se/disconnect');
+        if (r && r.ok) {
+          toast('اتصال StreamElements حذف شد', 'ok');
+          await load();
+        } else toast((r && r.error) || 'قطع اتصال ناموفق بود', 'err');
+      } catch {
+        toast('قطع اتصال ناموفق بود', 'err');
+      }
+    };
+  }
 
   if ($('#btnSaveKick')) {
     $('#btnSaveKick').onclick = async () => {

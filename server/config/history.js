@@ -18,13 +18,21 @@ function donorKey(name) {
     .slice(0, LIMITS.name);
 }
 
+function safeMap(value) {
+  const out = Object.create(null);
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    for (const [key, entry] of Object.entries(value)) out[key] = entry;
+  }
+  return out;
+}
+
 class HistoryStore {
   constructor(dataDir, { logger } = {}) {
     this.file = path.join(dataDir, 'history.json');
     this.log = logger || (() => {});
     this.entries = [];
-    this.days = {};
-    this.donors = {};
+    this.days = safeMap();
+    this.donors = safeMap();
     this.saveTimer = null;
     this.load();
   }
@@ -35,12 +43,12 @@ class HistoryStore {
       this.entries = Array.isArray(raw.entries)
         ? raw.entries.filter(e => e && typeof e === 'object').slice(-LIMITS.history)
         : [];
-      this.days = raw.days && typeof raw.days === 'object' ? raw.days : {};
-      this.donors = raw.donors && typeof raw.donors === 'object' ? raw.donors : {};
+      this.days = safeMap(raw.days);
+      this.donors = safeMap(raw.donors);
     } catch {
       this.entries = [];
-      this.days = {};
-      this.donors = {};
+      this.days = safeMap();
+      this.donors = safeMap();
     }
   }
 
@@ -60,6 +68,10 @@ class HistoryStore {
       name,
       kind: KINDS.has(rec.kind) ? rec.kind : 'tip',
       usd: Math.max(0, Number(rec.usd) || 0),
+      currency: /^[A-Za-z]{3}$/.test(String(rec.currency || 'USD'))
+        ? String(rec.currency || 'USD').toUpperCase()
+        : 'USD',
+      source: String(rec.source || 'kickbot').slice(0, 24),
       toman: Math.max(0, Math.round(Number(rec.toman) || 0)),
       count: rec.count != null ? Math.max(1, Math.round(Number(rec.count) || 1)) : null,
       months: rec.months != null ? Math.max(1, Math.round(Number(rec.months) || 1)) : null,
@@ -142,17 +154,18 @@ class HistoryStore {
     }
     const days = range === 'daily' ? 1 : 7;
     const cutoff = startOfDay(Date.now() - (days - 1) * 86400000);
-    const map = {};
+    const map = new Map();
     for (const e of this.entries) {
       if (e.test || e.replay || e.toman <= 0 || e.at < cutoff) continue;
       const key = donorKey(e.name);
       if (!key) continue;
-      const d = map[key] || (map[key] = { name: e.name, toman: 0, count: 0 });
+      const d = map.get(key) || { name: e.name, toman: 0, count: 0 };
+      map.set(key, d);
       d.name = e.name;
       d.toman += e.toman;
       d.count++;
     }
-    return Object.values(map)
+    return Array.from(map.values())
       .sort((a, b) => b.toman - a.toman || b.count - a.count)
       .slice(0, n)
       .map((d, i) => ({ rank: i + 1, ...d }));
@@ -160,8 +173,8 @@ class HistoryStore {
 
   clear() {
     this.entries = [];
-    this.days = {};
-    this.donors = {};
+    this.days = safeMap();
+    this.donors = safeMap();
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;

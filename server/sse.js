@@ -11,6 +11,7 @@ class SseManager {
     };
     this.keepAliveTimer = null;
     this.getState = null;
+    this.clientProfiles = new WeakMap();
   }
 
   init({ getState }) {
@@ -26,17 +27,19 @@ class SseManager {
     }, 15000);
   }
 
-  addClient(role, res) {
+  addClient(role, res, { profile = 'default' } = {}) {
     if (!this.clients[role]) {
       this.clients[role] = new Set();
     }
     this.clients[role].add(res);
+    this.clientProfiles.set(res, profile || 'default');
   }
 
   removeClient(role, res) {
     if (this.clients[role]) {
       this.clients[role].delete(res);
     }
+    this.clientProfiles.delete(res);
   }
 
   clientCount(role) {
@@ -56,6 +59,17 @@ class SseManager {
   broadcastAll(obj) {
     for (const role of Object.keys(this.clients)) {
       this.broadcast(role, obj);
+    }
+  }
+
+  broadcastAppearance(getAppearance) {
+    for (const role of ['overlay', 'preview']) {
+      for (const res of this.clients[role]) {
+        try {
+          const profile = this.clientProfiles.get(res) || 'default';
+          res.write(`data: ${JSON.stringify({ type: 'config', appearance: getAppearance(profile), profile })}\n\n`);
+        } catch {}
+      }
     }
   }
 

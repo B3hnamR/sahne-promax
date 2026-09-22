@@ -7,9 +7,9 @@
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.0.0-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/Electron-43.7.3-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Zero Dependencies](https://img.shields.io/badge/Runtime%20Dependencies-0-brightgreen?style=flat-square)](#architecture)
-[![Tests](https://img.shields.io/badge/Tests-29%2F29%20Passing-success?style=flat-square)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-automated-success?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.3.0-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
+[![Version](https://img.shields.io/badge/Version-2.4.0-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
 
 <p align="center">
   <a href="#key-features">Features</a> •
@@ -26,17 +26,17 @@
 
 ## 📖 Overview
 
-**Sahne ProMax** is a modernized, modular fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus) designed specifically for Kick streamers. It plays transparent WebM animations, GIFs, images, and audio alerts on stream for **KickBot donations**, **Kick subscriptions**, and **Kick gifted subscriptions** — completely local on your machine with **zero cloud dependencies** and **zero runtime npm packages**.
+**Sahne ProMax** is a modernized, modular fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus) designed for Kick streamers. It plays transparent WebM animations, GIFs, images, and audio alerts for **KickBot donations**, **StreamElements tips**, **Kick subscriptions**, and **Kick gifted subscriptions**. The controller and alert server run locally, with no cloud backend and no runtime npm packages.
 
-ProMax elevates the foundation with **asynchronous non-blocking file I/O**, **GPU decoder throttling via lazy loading**, **Nobitex USDT/IRT live currency conversions**, a **standalone OBS Goal Widget**, **Stream Deck / hardware REST endpoints**, **Paired Media audio synchronization**, and **1-Click native `.zip` Backup & Restore** — and tracks upstream Sahne+ releases (currently through **1.3.2**), adding its **in-app updater**, **Windows system-proxy support for kick.com**, **readable Kick errors**, and **per-alert card delay** on top of the ProMax feature set. Version **2.2.0** added four streamer tools (**Kick chat commands**, **sub-first queue priority**, **milestone confetti**, a **timed goal countdown**); version **2.3.0** adds the **stats pack**: live **sub/gift counters** on the goal widget, a persistent **alert history** with daily totals, and a **top-donors OBS widget**.
+ProMax combines its modular architecture and streamer tools with upstream Sahne+ 1.3.1–1.3.5 fixes and features. Version **2.4.0** ports **StreamElements tip alerts** and **multi-currency conversion**: tips enter the same queue as KickBot donations, use the same media tiers, and supported non-USD amounts are converted to toman while preserving the original amount and currency on the alert card. Earlier ProMax releases added a standalone OBS Goal Widget, Stream Deck controls, Paired Media, backup and restore, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, persistent alert history, and a top-donors widget.
 
 > **Note:** Sahne ProMax is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Kick, KickBot, Nobitex, or Baha24.
 
 ---
 
-## 🚀 ProMax Exclusives — what upstream Sahne+ doesn't have
+## 🚀 ProMax Features
 
-Everything below exists **only** in Sahne ProMax. Upstream Sahne+ (through v1.3.2) has none of these:
+These tools are ProMax additions built on its modular server and overlay architecture. Upstream-derived features are described separately under Updates & Connectivity:
 
 | Feature                         | What it does                                                                                                                                                                            |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -91,11 +91,13 @@ Everything below exists **only** in Sahne ProMax. Upstream Sahne+ (through v1.3.
 - **⏱️ Card Delay:** Show the name/amount card (and KickBot TTS) a few seconds after the alert media starts — globally on the Look page, or per file in the file editor.
 - **💾 Zero-Dependency 1-Click Backup & Restore:** Export and import complete backups (`config.json` + all media files) as standard `.zip` archives via Node's native `zlib`.
 
-### 🔄 Updates & Connectivity (parity with Sahne+ 1.3.1–1.3.2)
+### 🔄 Updates & Connectivity (upstream parity through Sahne+ 1.3.5)
 
 - **In-App Updater:** The app checks this repository's GitHub Releases 30 s after start and every 6 hours (can be turned off in Settings). One click downloads the official installer, verifies it against the release's `SHA256SUMS.txt`, and installs it — never silently, never automatically.
 - **Kick Behind a Filter:** If kick.com is filtered on your network, Sahne ProMax automatically uses your VPN app's Windows system proxy (manual proxy still wins; SOCKS-only setups need TUN mode or a manual HTTP proxy).
 - **Readable Kick Errors:** The Kick card explains problems in Persian — kick.com filtered, channel not found, request refused — instead of raw codes like `read ECONNRESET`.
+- **StreamElements Tips:** Connect with the JWT token from StreamElements → Account → Channels → Show secrets. The credential is stored locally and uses Electron `safeStorage` encryption when available; disconnect it from Settings to remove it.
+- **Other Tip Currencies:** Supported StreamElements currencies are converted using the configured rate and matched against the same toman-based alert tiers. The alert card retains the tip's original amount and currency.
 
 ---
 
@@ -135,7 +137,7 @@ cd sahne-promax
 # Install dev dependencies (Electron & Prettier)
 npm install
 
-# Run the test suite (29 automated tests)
+# Run the automated test suite
 npm test
 
 # Launch the desktop application
@@ -197,8 +199,8 @@ sahne-promax/
 
 ## 🛡️ Security & Privacy
 
-- **No Cloud Backend:** Your media, settings, and logs remain strictly local on your machine (`Documents\Sahne Plus`).
-- **Encrypted Secrets:** KickBot API keys are encrypted at rest using Windows DPAPI (`CryptProtectData`) and never exposed over HTTP or written to logs.
+- **No Cloud Backend:** Your media, settings, logs, and alert history remain on your machine (`Documents\Sahne Plus`); the app connects directly to the third-party services its features need.
+- **Encrypted Secrets:** KickBot and StreamElements credentials use Windows DPAPI through Electron `safeStorage` when available; they are not returned by the local HTTP API or written to logs.
 - **Strict Loopback Protection:** The local server binds exclusively to `127.0.0.1` and enforces strict `Host` and `Origin` validation to block DNS rebinding and cross-site request forgery (CSRF).
 - **Event-Stream Gating:** `/events` refuses cross-site pages (`Origin` / `Sec-Fetch-Site`) and caps concurrent streams per role, so a random open browser tab can't consume alerts while OBS is closed.
 - **Registered-Media Only:** `/media/…` serves only files registered as alerts (or their paired audio) — never notes or partial uploads left in the folder.
@@ -218,7 +220,7 @@ Run the automated test suite with Node's native test runner:
 npm test
 ```
 
-All 29 integration and unit tests run in offline test-harness mode:
+The integration and unit tests run in offline test-harness mode:
 
 - ✅ Paired Media & Milestone Sub Alerts matching logic
 - ✅ Stream Deck & Hardware REST Controls
@@ -233,6 +235,7 @@ All 29 integration and unit tests run in offline test-harness mode:
 - ✅ System-proxy parsing, route order & readable Kick errors
 - ✅ Card delay (per-file over appearance; TTS waits for the card)
 - ✅ Update version parsing, release-redirect pinning & checksum lookup
+- ✅ StreamElements tip normalization and non-USD currency conversion
 - ✅ Event-stream origin refusal & per-role connection caps
 - ✅ Media route serves registered alerts only
 - ✅ Queue priority (subs/gift-subs first, FIFO inside a class, replay/retry safe, flood cap keeps subs)

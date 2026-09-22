@@ -1,16 +1,33 @@
 'use strict';
-const { LIMITS, NOBITEX, BAHA24 } = require('../constants');
+const { LIMITS, NOBITEX, BAHA24, BONBAST } = require('../constants');
 const { fetchNobitex } = require('./nobitex');
-const { fetchBaha24 } = require('./baha24');
+const { fetchBaha24, fetchBaha24Quote, sanitizeFx } = require('./baha24');
+const { fetchBonbastFx } = require('./bonbast');
 const { routeOrder, routeLabel } = require('../utils/net');
 
 class RateManager {
-  constructor({ configStore, logger, sse, systemProxy = null, fetchNobitexFn = null, fetchBaha24Fn = null }) {
+  constructor({
+    configStore,
+    logger,
+    sse,
+    systemProxy = null,
+    fetchNobitexFn = null,
+    fetchBaha24Fn = null,
+    fetchBaha24QuoteFn = null,
+    fetchBonbastFxFn = null,
+    bonbastMinIntervalMs = 5 * 60 * 1000
+  }) {
     this.configStore = configStore;
     this.logger = logger;
     this.sse = sse;
     this.fetchNobitex = fetchNobitexFn || fetchNobitex;
     this.fetchBaha24 = fetchBaha24Fn || fetchBaha24;
+    this.fetchBaha24Quote =
+      fetchBaha24QuoteFn ||
+      (fetchBaha24Fn ? async routes => ({ usd: await fetchBaha24Fn(routes), fx: {} }) : fetchBaha24Quote);
+    this.fetchBonbastFx = fetchBonbastFxFn || fetchBonbastFx;
+    this.bonbastMinIntervalMs = Math.max(0, Number(bonbastMinIntervalMs) || 0);
+    this.lastBonbastAttempt = 0;
     this.systemProxy = systemProxy;
     this.systemProxyLabel = null;
     this.rateError = null;
@@ -56,6 +73,29 @@ class RateManager {
     return r ? Math.round(usd * r) : null;
   }
 
+  rateFor(currency = 'USD') {
+    const code = String(currency || 'USD').toUpperCase();
+    if (code === 'USD') return this.currentRate() || null;
+    const value = this.configStore.config.rate.fx && this.configStore.config.rate.fx[code];
+    return Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : null;
+  }
+
+  tomanFor(amount, currency = 'USD') {
+    const rate = this.rateFor(currency);
+    const value = Number(amount);
+    return rate && Number.isFinite(value) ? Math.round(value * rate) : null;
+  }
+
+  async fetchFxFallback() {
+    if (Date.now() - this.lastBonbastAttempt < this.bonbastMinIntervalMs) return null;
+    this.lastBonbastAttempt = Date.now();
+    return this.fetchBonbastFx(await this.routesFor(BONBAST, false));
+  }
+
+  async fetchBahaQuote() {
+    return this.fetchBaha24Quote(await this.routesFor(BAHA24, true));
+  }
+
   async refreshRate(force = false) {
     if (this.rateBusy) return null;
     const config = this.configStore.config;
@@ -64,16 +104,50 @@ class RateManager {
     try {
       let v;
       let source = 'nobitex';
+      let fx = null;
+      let fxSource = null;
       const errs = [];
 
       // Main source: Nobitex USDTIRT orderbook (domestic: direct first, proxies as retries)
       try {
         v = await this.fetchNobitex(await this.routesFor(NOBITEX, true));
+        // Baha24 is still queried on the normal Nobitex path: its quote table supplies non-USD SE currency rates.
+        try {
+          const quote = await this.fetchBahaQuote();
+          fx = quote && quote.fx;
+          if (!fx || !Object.keys(sanitizeFx(fx)).length) throw new Error('no supported foreign exchange rates');
+          fxSource = 'baha24';
+        } catch (e) {
+          this.logger.warn('دریافت نرخ ارزهای دیگر از بها۲۴ ناموفق بود؛ تلاش با بون‌بست', e.message);
+          try {
+            fx = await this.fetchFxFallback();
+            if (fx && Object.keys(sanitizeFx(fx)).length) fxSource = 'bonbast';
+          } catch (fallbackError) {
+            this.logger.warn(
+              'دریافت نرخ ارزهای دیگر از بون‌بست ناموفق بود؛ نرخ‌های قبلی استفاده می‌شود',
+              fallbackError.message
+            );
+          }
+        }
       } catch (e1) {
         errs.push('nobitex: ' + e1.message);
         // Fallback source: Baha24 public API (direct first, proxies as retries)
         try {
-          v = await this.fetchBaha24(await this.routesFor(BAHA24, true));
+          const quote = await this.fetchBahaQuote();
+          v = quote && typeof quote === 'object' ? quote.usd : quote;
+          fx = quote && typeof quote === 'object' ? quote.fx : null;
+          if (fx && Object.keys(sanitizeFx(fx)).length) fxSource = 'baha24';
+          if (!fx || !Object.keys(sanitizeFx(fx)).length) {
+            try {
+              fx = await this.fetchFxFallback();
+              if (fx && Object.keys(sanitizeFx(fx)).length) fxSource = 'bonbast';
+            } catch (fallbackError) {
+              this.logger.warn(
+                'دریافت نرخ ارزهای دیگر از بون‌بست ناموفق بود؛ نرخ‌های قبلی استفاده می‌شود',
+                fallbackError.message
+              );
+            }
+          }
           source = 'baha24';
         } catch (e2) {
           errs.push('baha24: ' + e2.message);
@@ -85,6 +159,10 @@ class RateManager {
       config.rate.value = v;
       config.rate.updatedAt = new Date().toISOString();
       config.rate.source = source;
+      if (fx && Object.keys(sanitizeFx(fx)).length) {
+        config.rate.fx = sanitizeFx(fx);
+        config.rate.fxSource = fxSource;
+      }
       this.rateError = null;
       this.configStore.debouncedSave();
 

@@ -70,6 +70,7 @@
     <div class="rail-status">
       <div class="status-pill" id="stKb"><span class="dot"></span>کیک‌بات (دونیت)</div>
       <div class="status-pill" id="stKick"><span class="dot"></span>چت کیک (ساب)</div>
+      <div class="status-pill" id="stSe" hidden><span class="dot"></span>StreamElements</div>
       <div class="status-pill" id="stOv"><span class="dot"></span>Browser Source<span class="v num" id="stOvN">0</span></div>
     </div>
     <button class="exit" id="btnExit"><svg><use href="#i-power"/></svg>خروج</button>
@@ -95,6 +96,7 @@
           <h3><svg><use href="#i-pulse"/></svg>وضعیت</h3>
           <div class="kv"><b>کیک‌بات (دونیت)</b><span class="chip" id="hKb">—</span></div>
           <div class="kv"><b>چت کیک (ساب / ساب‌گیفت)</b><span class="chip" id="hKick">—</span></div>
+          <div class="kv" id="hSeRow" hidden><b>StreamElements (دونیت)</b><span class="chip" id="hSe">—</span></div>
           <div class="kv"><b>Browser Source متصل</b><span class="num" id="hOv">0</span></div>
           <div class="kv"><b>حالت کار</b><span id="hMode">—</span></div>
           <div class="kv"><b>نرخ دلار</b><span class="row" style="gap:8px"><span class="pill-num" id="hRate">—</span><span class="hint" style="margin:0" id="hRateMeta"></span><button class="btn sm icon" id="hRateBtn" title="به‌روزرسانی الان"><svg><use href="#i-refresh"/></svg></button></span></div>
@@ -415,6 +417,15 @@
           <div class="row"><button class="btn danger" id="btnDisconnect"><svg><use href="#i-x"/></svg>قطع اتصال و حذف کلید کیک‌بات</button></div>
         </div>
         <div class="card span-6">
+          <h3><svg><use href="#i-link"/></svg>StreamElements (دونیت)<span class="chip" id="seChip" style="margin-inline-start:auto">—</span></h3>
+          <p class="hint" style="margin:0 0 10px">اگر از صفحه‌ی تیپ StreamElements هم استفاده می‌کنی، توکن JWT حسابت را اینجا بگذار (داشبورد StreamElements → Account → Channels → Show secrets → JWT Token). دونیت‌ها مثل کیک‌بات وارد صف می‌شوند و همان فایل‌ها و پله‌ها را دارند.</p>
+          <div class="kv"><b>حساب</b><span id="seAccount">—</span></div>
+          <div class="kv"><b>توکن</b><span id="seSecret" class="hint" style="margin:0">—</span></div>
+          <div class="field" style="margin:10px 0"><label>توکن JWT</label><div class="url"><input type="password" id="seToken" placeholder="eyJ…" autocomplete="off"><button class="btn primary" id="btnSeSetup">اتصال</button></div><p class="hint" id="seMsg" style="margin-top:6px"></p></div>
+          <p class="hint">توکن به حساب StreamElements دسترسی دارد؛ آن را به کسی نده. توکن نمایش داده نمی‌شود و در لاگ نمی‌آید؛ اگر رمزنگاری سیستم‌عامل در دسترس نباشد، به‌صورت متن ساده ذخیره می‌شود. مبلغ اصلی با کد ارز خودش نمایش داده می‌شود و اگر نرخ تبدیل موجود باشد، معادل تومان نیز نمایش داده می‌شود.</p>
+          <div class="row"><button class="btn danger" id="btnSeDisconnect"><svg><use href="#i-x"/></svg>قطع اتصال و حذف توکن</button></div>
+        </div>
+        <div class="card span-6">
           <h3><svg><use href="#i-gift"/></svg>ساب و ساب‌گیفت کیک<span class="chip" id="kStatus" style="margin-inline-start:auto"></span></h3>
           <div class="grid">
             <div class="field"><label>اسم کانال کیک (slug)</label><input type="text" id="kChannel" class="ltr" placeholder="your_channel"></div>
@@ -444,13 +455,14 @@
           <p class="hint">برای دستور ساب هم می‌تونی از همون کلمه‌های کلیدی <code>sub</code> یا <code>giftsub</code> در ویرایش فایل استفاده کنی.</p>
         </div>
         <div class="card span-6">
-          <h3><svg><use href="#i-chart"/></svg>نرخ دلار (نوبیتکس، پشتیبان: baha24)<span class="tail"><span class="pill-num" id="rateVal">—</span></span></h3>
+          <h3><svg><use href="#i-chart"/></svg>نرخ دلار و ارزهای دیگر<span class="tail"><span class="pill-num" id="rateVal">—</span></span></h3>
           <div class="grid">
             <div class="field"><label>هر چند دقیقه یک بار</label><input type="number" id="rateInt" min="1" max="1440" class="ltr"></div>
             <div class="field"><label>نرخ دستی (تومان) — خالی = خودکار</label><input type="number" id="rateManual" min="0" step="100" class="ltr" placeholder="1150000"></div>
             <div class="field full"><label>پراکسی دستی برای kick.com و منابع نرخ — خالی = پراکسی سیستم ویندوز یا مستقیم</label><input type="text" id="rateProxy" class="ltr" placeholder="http://127.0.0.1:10809"><p class="hint" id="sysProxy" style="margin-top:6px"></p></div>
             <div class="field"><div class="switch-row"><label class="lbl" style="margin:0">دریافت خودکار</label><label class="switch"><input type="checkbox" id="rateAuto"><span></span></label></div></div>
           </div>
+          <p class="hint" id="fxMeta">نرخ تبدیل ارزهای دیگر هنوز دریافت نشده.</p>
           <div class="row" style="margin-top:12px"><button class="btn primary" id="btnSaveRate">ذخیره</button><button class="btn" id="btnRate"><svg><use href="#i-refresh"/></svg>به‌روزرسانی الان</button><span class="hint" id="rateMeta" style="margin:0"></span></div>
         </div>
         <div class="card span-12">

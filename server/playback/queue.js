@@ -59,6 +59,8 @@ class PlaybackQueue {
       id: t.stripe_pi_id,
       name: t.tipper_name,
       amount: (t.amount_total || 0) / 100,
+      currency: t.currency || 'USD',
+      source: t.source || (t.is_local ? 'kick' : 'kickbot'),
       message: t.tip_message,
       test: !!t.is_test,
       kind: t.kind || 'tip',
@@ -175,6 +177,12 @@ class PlaybackQueue {
 
   showTip(t) {
     const config = this.configStore.config;
+    const toman =
+      t.toman_override != null
+        ? Number(t.toman_override)
+        : this.rateManager.tomanFor
+          ? this.rateManager.tomanFor((t.amount_total || 0) / 100, t.currency || 'USD')
+          : this.rateManager.tomanOf((t.amount_total || 0) / 100);
     const media = pickMedia(t, {
       config,
       mediaDir: this.mediaDir,
@@ -185,12 +193,21 @@ class PlaybackQueue {
       this.logger.info('آلرت بدون فایل نمایش داده نشد (طبق تنظیمات)', this.tipSummary(t));
       this.recent.unshift({
         ...this.tipSummary(t),
-        toman: t.toman_override != null ? t.toman_override : this.rateManager.tomanOf((t.amount_total || 0) / 100),
+        toman,
         media: null,
         skipped: true,
         at: Date.now()
       });
       if (this.recent.length > 30) this.recent.pop();
+      if (this.goalManager) {
+        this.goalManager.addAmount(toman, {
+          kind: t.kind,
+          count: t.count,
+          name: t.tipper_name,
+          test: !!t.is_test,
+          replay: !!t.is_replay
+        });
+      }
       if (config.mode !== 'companion' && this.playing && this.playing.stripe_pi_id === t.stripe_pi_id) {
         if (!t.is_test && !t.is_local) this.publish('tip_end', { stripe_pi_id: t.stripe_pi_id });
         this.playing = null;
@@ -204,7 +221,8 @@ class PlaybackQueue {
     const payload = buildPayload(t, media, {
       mediaDir: this.mediaDir,
       currentRate: () => this.rateManager.currentRate(),
-      tomanOf: usd => this.rateManager.tomanOf(usd)
+      tomanOf: usd => this.rateManager.tomanOf(usd),
+      tomanFor: (amount, currency) => this.rateManager.tomanFor(amount, currency)
     });
 
     // Master volume / mute override
@@ -227,6 +245,8 @@ class PlaybackQueue {
         name: payload.name,
         kind: payload.kind || 'tip',
         usd: payload.amount,
+        currency: payload.currency,
+        source: this.tipSummary(t).source,
         toman: payload.toman,
         count: payload.count,
         months: payload.months,

@@ -125,9 +125,6 @@ export function setupCustomSelect(select) {
           select.value = opt.value;
           select.dispatchEvent(new Event('input', { bubbles: true }));
           select.dispatchEvent(new Event('change', { bubbles: true }));
-          if (typeof select.onchange === 'function') {
-            select.onchange({ target: select });
-          }
         }
         syncFromSelect();
         closeCustomDropdown(wrap);

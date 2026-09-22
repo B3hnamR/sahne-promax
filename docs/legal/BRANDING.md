@@ -1,22 +1,13 @@
-# Sahne+ brand notice
+# Branding and upstream attribution
 
-The Sahne+ source code is licensed under the Apache License, Version 2.0 (see [LICENSE](LICENSE)).
+Sahne ProMax is an independent fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus). Its code is distributed under Apache License 2.0, subject to the license and notices in this repository.
 
-That license covers the **code**. It does **not** grant any right to use:
+## Upstream marks
 
-- the **Sahne**, **Sahne Plus** or **Sahne+** names (in any script, including صحنه / صحنه پلاس) as the name of your own application, fork, build, or service;
-- the **split-frame symbol**, the application icon and the tray icon (`build/icon.svg`, `build/tray.svg`, `build/*.png`, `public/brand/*.svg`);
-- the official product identity — the installed application name, the `com.amireyzed.sahneplus` application id, the installer identity, the `Documents\Sahne Plus` data folder name, and other identifiers that make a build present itself as an official Sahne+ release.
+The upstream branding notice says the names “Sahne”, “Sahne Plus” and “Sahne+”, the split-frame symbol, and the original application and tray icons are not included in the Apache-2.0 code license. This fork currently retains Sahne-derived names and visual marks while using the separate ProMax product name and application identifier.
 
-These are identifiers of the original project and its author. No claim is made here that they are registered trademarks; they are simply not part of the code license grant (Apache License §6 already excludes trademarks).
+This document records attribution; it does not grant permission to use any mark or claim ownership for the ProMax project. Before distributing a release, the maintainer should confirm permission for the retained marks or replace them with independently licensed branding. The code license alone does not resolve that question.
 
-## What this means in practice
+## Attribution and independence
 
-- You may build, modify and redistribute the code under the Apache-2.0 terms.
-- If you distribute a modified version or a fork, give it **your own name, icon and application identity**, replace the brand asset files with your own, and do not present your build as Sahne+ or as an official release.
-- Unmodified references to the project — "based on Sahne+", a link to this repository, package metadata that names the dependency — are fine and expected.
-- Official installers are only the ones published on the Releases page of `github.com/AmirEyZed/sahne-plus`.
-
-## Third-party names
-
-Kick, KickBot, baha24 and Bonbast are names of unrelated third parties, used descriptively. Sahne+ is not affiliated with, endorsed by or sponsored by any of them, and you must not suggest otherwise in a fork.
+The ProMax repository and releases are maintained separately from the upstream project. “Based on Sahne Plus” and links to upstream describe the code ancestry; ProMax releases are not official Sahne+ builds. The project is not affiliated with or endorsed by Kick, KickBot, StreamElements, Nobitex, Baha24, Meld Studio or GitHub.

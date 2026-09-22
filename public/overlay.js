@@ -65,6 +65,13 @@
     const n = A.persianDigits ? faDigits(s.replace('.', '٫')) : s;
     return A.currency === 'usd' ? '$' + n : A.currency === 'usd-code' ? n + ' USD' : n + ' دلار';
   }
+  function fmtOrig(tip, fa) {
+    const currency = String(tip.currency || 'USD').toUpperCase();
+    if (currency === 'USD') return fmtUsd(tip.amount);
+    const n = Number(tip.amount || 0);
+    const amount = fa ? fmtNum(n, 2) : String(Math.round(n * 100) / 100);
+    return amount + ' ' + currency;
+  }
   function fmtToman(t, full) {
     t = Number(t || 0);
     if (full) return fmtNum(t) + ' تومان';
@@ -73,6 +80,18 @@
     return fmtNum(t) + ' تومان';
   }
   function fmtAmount(tip) {
+    const foreign = !!(tip.currency && String(tip.currency).toUpperCase() !== 'USD');
+    const orig = fmtOrig(tip);
+    // StreamElements can send currencies other than USD. Preserve the original amount
+    // in the alert and include the toman conversion whenever one was calculated.
+    if (foreign) {
+      if (tip.toman == null) return orig;
+      const c = A.currency || 'toman';
+      if (c === 'eq-en') return orig + ' = ' + Math.round(tip.toman).toLocaleString('en-US') + ' Toman';
+      if (c === 'eq-fa') return fmtOrig(tip, true) + ' = ' + fmtNum(tip.toman) + ' تومان';
+      if (c === 'toman-full') return fmtToman(tip.toman, true) + ' (' + orig + ')';
+      return fmtToman(tip.toman) + ' (' + orig + ')';
+    }
     const c = A.currency || 'toman';
     if (c === 'eq-en') {
       const u = Math.round(tip.amount * 100) / 100;
@@ -128,7 +147,7 @@
       name: `<b dir="auto">${esc(tip.name)}</b>`,
       amount: A.showAmount && !isCmd ? pill(fmtAmount(tip)) : '',
       toman: !isCmd && tip.toman != null ? pill(fmtToman(tip.toman)) : '',
-      usd: isCmd ? '' : pill(fmtUsd(tip.amount)),
+      usd: isCmd ? '' : pill(fmtOrig(tip)),
       count: pill(A.persianDigits ? faDigits(String(tip.count || 1)) : String(tip.count || 1))
     };
     return esc(tpl).replace(/\{(name|amount|toman|usd|count)\}/g, (m, k) => parts[k]);

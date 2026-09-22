@@ -10,9 +10,13 @@ function rand(a) {
 }
 
 function pickMedia(t, { config, mediaDir, currentRate }) {
-  const usd = (t.amount_total || 0) / 100;
   const rate = currentRate();
-  const toman = t.toman_override != null ? Number(t.toman_override) : rate ? usd * rate : null;
+  const currency = String(t.currency || 'USD').toUpperCase();
+  const amount = (t.amount_total || 0) / 100;
+  const fxRate = currency === 'USD' ? rate : Number(config.rate && config.rate.fx && config.rate.fx[currency]) || 0;
+  const toman = t.toman_override != null ? Number(t.toman_override) : fxRate > 0 ? amount * fxRate : null;
+  // Amount thresholds are USD-denominated. Unknown foreign currencies can match keywords only.
+  const usd = currency === 'USD' ? amount : toman != null && rate > 0 ? toman / rate : 0;
   const msg = normFa(t.tip_message);
   const tags = (t.tags || []).map(x => normFa(x));
   const files = config.files.filter(f => f.enabled !== false && fs.existsSync(path.join(mediaDir, f.file)));
@@ -56,17 +60,28 @@ function pickMedia(t, { config, mediaDir, currentRate }) {
   return rand(noKw.filter(f => minT(f) === top));
 }
 
-function buildPayload(t, media, { mediaDir, currentRate, tomanOf }) {
+function buildPayload(t, media, { mediaDir, currentRate, tomanOf, tomanFor = null }) {
   let pairedAudioUrl = null;
   if (media && media.audioFile && fs.existsSync(path.join(mediaDir, media.audioFile))) {
     pairedAudioUrl = '/media/' + encodeURIComponent(media.audioFile);
   }
 
+  const currency = String(t.currency || 'USD').toUpperCase();
+  const amount = (t.amount_total || 0) / 100;
+  const toman =
+    t.toman_override != null
+      ? t.toman_override
+      : typeof tomanFor === 'function'
+        ? tomanFor(amount, currency)
+        : currency === 'USD'
+          ? tomanOf(amount)
+          : null;
   return {
     id: t.stripe_pi_id,
     name: cleanText(t.tipper_name, LIMITS.name) || 'ناشناس',
-    amount: (t.amount_total || 0) / 100,
-    toman: t.toman_override != null ? t.toman_override : tomanOf((t.amount_total || 0) / 100),
+    amount,
+    currency,
+    toman,
     rate: currentRate(),
     kind: t.kind || 'tip',
     count: t.count || null,

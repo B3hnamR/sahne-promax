@@ -78,7 +78,10 @@ function createZipArchive(files) {
   return Buffer.concat([...localChunks, ...centralChunks, eocd]);
 }
 
-function extractZipArchive(buf) {
+function extractZipArchive(
+  buf,
+  { maxEntryBytes = 512 * 1024 * 1024, maxTotalBytes = 1024 * 1024 * 1024, maxEntries = 1000 } = {}
+) {
   const result = {};
   if (!Buffer.isBuffer(buf) || buf.length < 22) {
     throw new Error('Invalid archive: buffer too small');
@@ -97,13 +100,16 @@ function extractZipArchive(buf) {
   }
 
   const totalEntries = buf.readUInt16LE(eocdOffset + 10);
+  if (totalEntries > maxEntries) throw new Error('Archive has too many entries');
   const centralDirOffset = buf.readUInt32LE(eocdOffset + 16);
+  if (centralDirOffset >= eocdOffset) throw new Error('Corrupted archive: invalid central directory offset');
 
   let curOffset = centralDirOffset;
+  let totalUncompressed = 0;
   for (let i = 0; i < totalEntries; i++) {
-    if (curOffset + 46 > buf.length) break;
+    if (curOffset + 46 > eocdOffset) throw new Error('Corrupted archive: truncated central directory');
     const sig = buf.readUInt32LE(curOffset);
-    if (sig !== 0x02014b50) break;
+    if (sig !== 0x02014b50) throw new Error('Corrupted archive: invalid central directory record');
 
     const compression = buf.readUInt16LE(curOffset + 10);
     const uncompressedSize = buf.readUInt32LE(curOffset + 24);
@@ -113,27 +119,41 @@ function extractZipArchive(buf) {
     const commentLen = buf.readUInt16LE(curOffset + 32);
     const localHeaderOffset = buf.readUInt32LE(curOffset + 42);
 
+    if (uncompressedSize > maxEntryBytes) throw new Error('Archive entry exceeds the extraction limit');
+    totalUncompressed += uncompressedSize;
+    if (totalUncompressed > maxTotalBytes) throw new Error('Archive exceeds the total extraction limit');
+    if (curOffset + 46 + nameLen + extraLen + commentLen > eocdOffset) {
+      throw new Error('Corrupted archive: truncated central directory entry');
+    }
+
     const fileName = buf.toString('utf8', curOffset + 46, curOffset + 46 + nameLen);
     curOffset += 46 + nameLen + extraLen + commentLen;
 
     // Read file from local header
-    if (localHeaderOffset + 30 > buf.length) continue;
+    if (localHeaderOffset + 30 > centralDirOffset) throw new Error('Corrupted archive: invalid local header offset');
     const localSig = buf.readUInt32LE(localHeaderOffset);
-    if (localSig !== 0x04034b50) continue;
+    if (localSig !== 0x04034b50) throw new Error('Corrupted archive: invalid local header');
 
     const localNameLen = buf.readUInt16LE(localHeaderOffset + 26);
     const localExtraLen = buf.readUInt16LE(localHeaderOffset + 28);
     const dataOffset = localHeaderOffset + 30 + localNameLen + localExtraLen;
+    if (dataOffset + compressedSize > centralDirOffset) throw new Error('Corrupted archive: truncated file data');
 
     const fileDataChunk = buf.subarray(dataOffset, dataOffset + compressedSize);
     let extracted;
     if (compression === 8) {
-      extracted = zlib.inflateRawSync(fileDataChunk);
+      try {
+        extracted = zlib.inflateRawSync(fileDataChunk, { maxOutputLength: maxEntryBytes });
+      } catch {
+        throw new Error('Invalid or oversized compressed archive entry');
+      }
     } else if (compression === 0) {
       extracted = Buffer.from(fileDataChunk);
     } else {
-      continue;
+      throw new Error('Unsupported archive compression method');
     }
+
+    if (extracted.length !== uncompressedSize) throw new Error('Corrupted archive: entry size mismatch');
 
     result[fileName] = extracted;
   }

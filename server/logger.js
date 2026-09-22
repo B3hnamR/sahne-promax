@@ -4,9 +4,21 @@ const { LIMITS } = require('./constants');
 function safe(v) {
   try {
     return JSON.parse(
-      JSON.stringify(v, (k, val) =>
-        k === 'secret_id' || k === 'authorization' || k === 'secret_id_enc' ? '[redacted]' : val
-      )
+      JSON.stringify(v, (k, val) => {
+        const key = String(k).toLowerCase();
+        return [
+          'secret_id',
+          'authorization',
+          'secret_id_enc',
+          'se_token',
+          'se_token_enc',
+          'token',
+          'jwt',
+          'access_token'
+        ].includes(key)
+          ? '[redacted]'
+          : val;
+      })
     );
   } catch {
     return String(v);
