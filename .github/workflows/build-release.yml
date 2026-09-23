@@ -101,4 +101,10 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release delete "${{ github.ref_name }}" --repo "${{ github.repository }}" --yes --cleanup-tag=false --verbose || true
+        run: |
+          $isDraft = gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" --json isDraft -q .isDraft 2>$null
+          if ($isDraft -eq 'true') {
+            gh release delete "${{ github.ref_name }}" --repo "${{ github.repository }}" --yes --cleanup-tag=false --verbose
+          } else {
+            Write-Host "release is not a draft (or does not exist); leaving it in place"
+          }

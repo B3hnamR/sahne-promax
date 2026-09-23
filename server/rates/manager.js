@@ -142,6 +142,7 @@ class RateManager {
         // Fallback source: Baha24 public API (direct first, proxies as retries)
         try {
           const quote = await this.fetchBahaQuote();
+          if (generation !== this.refreshGeneration) return null;
           v = quote && typeof quote === 'object' ? quote.usd : quote;
           fx = quote && typeof quote === 'object' ? quote.fx : null;
           source = 'baha24';

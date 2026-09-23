@@ -21,8 +21,9 @@ function portableConfig(config) {
   delete copy.se_token;
   delete copy.se_token_enc;
   if (copy.rate && typeof copy.rate.proxy === 'string') {
-    // A proxy URL can embed user:pass; keep the route, drop the credentials.
-    copy.rate = { ...copy.rate, proxy: copy.rate.proxy.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/@]*@/i, '$1') };
+    // A proxy URL can embed user:pass with or without a scheme; keep the route,
+    // drop the credentials.
+    copy.rate = { ...copy.rate, proxy: copy.rate.proxy.replace(/^([a-z][a-z0-9+.-]*:\/\/)?[^/]*@/i, '$1') };
   }
   return copy;
 }
@@ -109,28 +110,54 @@ async function exportBackupToFile(dataDir, configStore = null, limits = {}) {
   let config;
   if (configStore && typeof configStore.serializedConfig === 'function') config = configStore.serializedConfig();
   else config = JSON.parse(await fs.promises.readFile(cfgPath, 'utf8'));
-  const entries = [
-    {
-      name: 'config.json',
-      data: Buffer.from(JSON.stringify(portableConfig(config), null, 2), 'utf8')
-    }
-  ];
   const mediaDir = path.join(dataDir, 'media');
+  const mediaEntries = [];
+  const renames = new Map();
+  const usedNames = new Set();
   try {
     for (const name of await fs.promises.readdir(mediaDir)) {
       if (name.startsWith('.')) continue;
-      if (safeMediaName(name) !== name) {
+      const safe = safeMediaName(name);
+      if (usedNames.has(safe)) {
         if (configStore && typeof configStore.log === 'function')
-          configStore.log('warn', 'فایل رسانه‌ای که نام معتبر ندارد در پشتیبان گذاشته نشد', { name });
+          configStore.log('warn', 'دو فایل رسانه پس از اصلاح نام یکی می‌شوند؛ دومی در پشتیبان گذاشته نشد', {
+            name,
+            safe
+          });
         continue;
+      }
+      usedNames.add(safe);
+      if (safe !== name) {
+        renames.set(name, safe);
+        if (configStore && typeof configStore.log === 'function')
+          configStore.log('info', 'نام فایل رسانه در پشتیبان اصلاح شد', { name, safe });
       }
       const file = path.join(mediaDir, name);
       const st = await fs.promises.lstat(file);
-      if (st.isFile()) entries.push({ name: 'media/' + name, file, size: st.size });
+      if (st.isFile()) mediaEntries.push({ name: 'media/' + safe, file, size: st.size });
     }
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
+  const portable = portableConfig(config);
+  if (renames.size && Array.isArray(portable.files)) {
+    portable.files = portable.files.map(f =>
+      f && typeof f === 'object'
+        ? {
+            ...f,
+            file: renames.get(f.file) || f.file,
+            audioFile: f.audioFile ? renames.get(f.audioFile) || f.audioFile : f.audioFile
+          }
+        : f
+    );
+  }
+  const entries = [
+    {
+      name: 'config.json',
+      data: Buffer.from(JSON.stringify(portable, null, 2), 'utf8')
+    },
+    ...mediaEntries
+  ];
   const historyPath = path.join(dataDir, 'history.json');
   try {
     const st = await fs.promises.lstat(historyPath);
@@ -310,15 +337,16 @@ async function archiveEntries(filePath) {
       if (cursor + 46 + nameLength + extraLength + commentLength > endOffset)
         throw new Error('Corrupted archive: truncated file name');
       const name = (await readExact(handle, nameLength, cursor + 46)).toString('utf8');
-      const key = name.toLowerCase();
-      if (names.has(key)) throw new Error('Archive has duplicate names');
-      names.add(key);
       if (name !== 'config.json' && name !== 'history.json' && !/^media\/[^/\\]+$/.test(name))
         throw new Error('Backup contains an unexpected path');
       if (name === 'config.json' && rawSize > 8 * 1024 * 1024) throw new Error('Backup config is too large');
       if (name === 'history.json' && rawSize > 128 * 1024 * 1024) throw new Error('Backup history is too large');
-      if (name.startsWith('media/') && safeMediaName(name.slice(6)) !== name.slice(6))
-        throw new Error('Backup contains an invalid media name');
+      // Media names in older backups may not be canonical; restore them under a
+      // sanitized name and rewrite the config references below.
+      const entryName = name.startsWith('media/') ? 'media/' + safeMediaName(name.slice(6)) : name;
+      const key = entryName.toLowerCase();
+      if (names.has(key)) throw new Error('Archive has duplicate names');
+      names.add(key);
       const local = await readExact(handle, 30, localOffset);
       if (local.readUInt32LE(0) !== 0x04034b50 || local.readUInt16LE(8) !== method)
         throw new Error('Corrupted archive: bad local header');
@@ -326,7 +354,7 @@ async function archiveEntries(filePath) {
       if (localName !== name) throw new Error('Corrupted archive: mismatched local name');
       const dataStart = localOffset + 30 + local.readUInt16LE(26) + local.readUInt16LE(28);
       if (dataStart + compressedSize > directoryOffset) throw new Error('Corrupted archive: file data out of range');
-      entries.push({ name, method, crc, compressedSize, rawSize, dataStart });
+      entries.push({ name: entryName, sourceName: name, method, crc, compressedSize, rawSize, dataStart });
       cursor += 46 + nameLength + extraLength + commentLength;
     }
     return entries;
@@ -389,6 +417,22 @@ async function importBackupFromFile(dataDir, archivePath, { configStore, logger,
     }
     if (!restored || typeof restored !== 'object' || Array.isArray(restored))
       throw new Error('Backup config.json must contain a settings object');
+    const renames = new Map(
+      entries
+        .filter(entry => entry.sourceName && entry.sourceName !== entry.name && entry.sourceName.startsWith('media/'))
+        .map(entry => [entry.sourceName.slice(6), entry.name.slice(6)])
+    );
+    if (renames.size && Array.isArray(restored.files)) {
+      restored.files = restored.files.map(f =>
+        f && typeof f === 'object'
+          ? {
+              ...f,
+              file: renames.get(f.file) || f.file,
+              audioFile: f.audioFile ? renames.get(f.audioFile) || f.audioFile : f.audioFile
+            }
+          : f
+      );
+    }
     const reconnectRequired = {
       kickbot: !!restored.streamer_id || !!(configStore.getSecret && configStore.getSecret()),
       streamelements: !!(restored.se && restored.se.channelId) || !!configStore.seToken
@@ -455,14 +499,24 @@ async function importBackupFromFile(dataDir, archivePath, { configStore, logger,
     // previously-live files the backup did not contain back into media/.
     const previousMedia = path.join(rollback, 'media');
     if (fs.existsSync(previousMedia)) {
+      const failed = [];
       for (const name of fs.readdirSync(previousMedia)) {
         try {
           const from = path.join(previousMedia, name);
           const to = path.join(dataDir, 'media', name);
           if (!fs.existsSync(to)) fs.renameSync(from, to);
-        } catch (error) {
-          logger.warn('بازگرداندن فایل رسانه‌ی محلی ناموفق بود', { name, error: error.message });
+        } catch {
+          failed.push(name);
         }
+      }
+      if (failed.length) {
+        // The only copy of these files is still in the staging directory: never
+        // delete it, and point the operator at the recovery location.
+        keepStage = true;
+        logger.warn('بازگرداندن فایل‌های رسانه‌ی محلی ناموفق بود؛ پوشه‌ی موقت نگه داشته شد', {
+          stage,
+          names: failed
+        });
       }
     }
     configStore.config = configStore.loadConfig();

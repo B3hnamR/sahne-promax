@@ -6,6 +6,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const net = require('net');
+const zlib = require('node:zlib');
 const { createServer } = require('../server/server');
 const { ConfigStore } = require('../server/config/store');
 const { HistoryStore } = require('../server/config/history');
@@ -25,6 +26,15 @@ function tempDir(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-backend-audit-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
+}
+
+function firstEntryData(zip) {
+  const nameLen = zip.readUInt16LE(26);
+  const extraLen = zip.readUInt16LE(28);
+  const start = 30 + nameLen + extraLen;
+  const end = zip.indexOf(Buffer.from('PK\x07\x08', 'latin1'), start);
+  assert.notEqual(end, -1, 'data descriptor present');
+  return zlib.inflateRawSync(zip.subarray(start, end));
 }
 
 const logger = { info() {}, warn() {}, error() {} };
@@ -170,12 +180,12 @@ test('backup omits credentials and restore reports connections requiring re-entr
   store.config.se = { channelId: 'abc123', username: 'demo' };
   store.saveConfig();
   const backup = await exportBackup(dir, store);
+  const exported = JSON.parse(firstEntryData(backup).toString('utf8'));
+  assert.equal(exported.secret_id, undefined);
+  assert.equal(exported.secret_id_enc, undefined);
+  assert.equal(exported.se_token, undefined);
+  assert.equal(exported.se_token_enc, undefined);
   const result = await importBackup(dir, backup, { configStore: store, logger, sse });
-  const saved = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
-  assert.equal(saved.secret_id, undefined);
-  assert.equal(saved.secret_id_enc, undefined);
-  assert.equal(saved.se_token, undefined);
-  assert.equal(saved.se_token_enc, undefined);
   assert.deepEqual(result.reconnectRequired, { kickbot: true, streamelements: true });
   assert.equal(store.getSecret(), '');
   assert.equal(store.seToken, '');
@@ -570,7 +580,39 @@ test('export warns about media files it cannot include', async t => {
   fs.writeFileSync(path.join(dir, 'media', oddName), Buffer.from('x'));
   const archive = await exportBackupToFile(dir, store);
   t.after(() => fs.rmSync(archive.filePath, { force: true }));
-  assert.ok(warnings.some(entry => entry.level === 'warn' && entry.data && entry.data.name === oddName));
+  assert.ok(
+    warnings.some(entry => entry.data && entry.data.name === oddName),
+    'the original name is logged'
+  );
+  const zip = fs.readFileSync(archive.filePath);
+  assert.notEqual(zip.indexOf(Buffer.from('media/ab.mp4', 'utf8')), -1, 'sanitized entry is included');
+});
+
+test('export includes non-canonical media under a sanitized name and rewrites the config reference', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.saveConfig();
+  fs.mkdirSync(path.join(dir, 'media'));
+  fs.writeFileSync(path.join(dir, 'media', 'Clip.MP4'), Buffer.from('clip'));
+  store.config.files = [{ id: 'f1', file: 'Clip.MP4' }];
+  const archive = await exportBackupToFile(dir, store);
+  t.after(() => fs.rmSync(archive.filePath, { force: true }));
+  const zip = fs.readFileSync(archive.filePath);
+  assert.notEqual(zip.indexOf(Buffer.from('media/Clip.mp4', 'utf8')), -1, 'sanitized media entry present');
+  const exported = JSON.parse(firstEntryData(zip).toString('utf8'));
+  assert.equal(exported.files[0].file, 'Clip.mp4');
+});
+
+test('restore accepts archives whose media names are not canonical and rewrites references', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.saveConfig();
+  const config = { ...store.serializedConfig(), files: [{ id: 'f1', file: 'Clip.MP4', type: 'video', size: 4 }] };
+  const zip = createZipArchive({ 'config.json': JSON.stringify(config), 'media/Clip.MP4': Buffer.from('clip') });
+  const result = await importBackup(dir, zip, { configStore: store, logger, sse });
+  assert.equal(result.ok, true);
+  assert.equal(fs.readFileSync(path.join(dir, 'media', 'Clip.mp4'), 'utf8'), 'clip');
+  assert.equal(store.config.files[0].file, 'Clip.mp4');
 });
 
 test('portable backups strip proxy credentials', async t => {
@@ -579,8 +621,14 @@ test('portable backups strip proxy credentials', async t => {
   store.config.rate.proxy = 'http://user:pass@127.0.0.1:8080';
   store.saveConfig();
   const backup = await exportBackup(dir, store);
-  await importBackup(dir, backup, { configStore: store, logger, sse });
-  assert.equal(store.config.rate.proxy, 'http://127.0.0.1:8080');
+  const exported = JSON.parse(firstEntryData(backup).toString('utf8'));
+  assert.equal(exported.rate.proxy, 'http://127.0.0.1:8080');
+
+  store.config.rate.proxy = 'user:secretpass@127.0.0.1:10809';
+  store.saveConfig();
+  const second = await exportBackup(dir, store);
+  const exportedSecond = JSON.parse(firstEntryData(second).toString('utf8'));
+  assert.equal(exportedSecond.rate.proxy, '127.0.0.1:10809');
 });
 
 test('history clear discards an in-flight async save', async t => {
@@ -689,4 +737,57 @@ test('replacing the KickBot widget URL reconnects immediately', async t => {
   });
   assert.equal(second.status, 200);
   assert.equal(sockets.length, 2, 'a replacement socket is created without waiting for the reconnect timer');
+});
+
+test('stopping the rate manager discards an in-flight Baha24 fallback refresh', async () => {
+  let releaseQuote;
+  const quote = new Promise(resolve => {
+    releaseQuote = resolve;
+  });
+  let saves = 0;
+  const configStore = {
+    config: { rate: { auto: true, manual: null, value: 0, source: null, proxy: '', fx: {} } },
+    debouncedSave() {
+      saves++;
+    }
+  };
+  const rate = new RateManager({
+    configStore,
+    logger,
+    sse,
+    fetchNobitexFn: async () => {
+      throw new Error('nobitex down');
+    },
+    fetchBaha24QuoteFn: () => quote
+  });
+  const pending = rate.refreshRate();
+  await new Promise(resolve => setImmediate(resolve));
+  rate.stop();
+  releaseQuote({ usd: 92000, fx: {} });
+  await pending;
+  assert.equal(configStore.config.rate.value, 0);
+  assert.equal(saves, 0);
+});
+
+test('a media file that cannot be re-homed keeps the staging directory', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.saveConfig();
+  fs.mkdirSync(path.join(dir, 'media'));
+  fs.writeFileSync(path.join(dir, 'media', 'keep.mp4'), Buffer.from('local-only'));
+  const zip = createZipArchive({ 'config.json': JSON.stringify(store.serializedConfig()) });
+  const originalRename = fs.renameSync;
+  fs.renameSync = function (from, to) {
+    if (String(from).includes('rollback') && String(from).endsWith('keep.mp4'))
+      throw Object.assign(new Error('EBUSY'), { code: 'EBUSY' });
+    return originalRename.call(fs, from, to);
+  };
+  t.after(() => {
+    fs.renameSync = originalRename;
+  });
+  const result = await importBackup(dir, zip, { configStore: store, logger, sse });
+  assert.equal(result.ok, true);
+  const stages = fs.readdirSync(dir).filter(name => name.startsWith('.restore-'));
+  assert.equal(stages.length, 1, 'the staging directory with the un-rehomed file is preserved');
+  assert.equal(fs.readFileSync(path.join(dir, stages[0], 'rollback', 'media', 'keep.mp4'), 'utf8'), 'local-only');
 });
