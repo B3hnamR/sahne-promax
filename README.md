@@ -30,7 +30,7 @@
 
 ProMax combines its modular architecture and streamer tools with upstream Sahne+ 1.3.1–1.3.5 fixes and features. Version **2.4.0** ports **StreamElements tip alerts** and **multi-currency conversion**: tips enter the same queue as KickBot donations, use the same media tiers, and supported non-USD amounts are converted to toman while preserving the original amount and currency on the alert card. Earlier ProMax releases added a standalone OBS Goal Widget, Stream Deck controls, Paired Media, backup and restore, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, persistent alert history, and a top-donors widget.
 
-> **Note:** Sahne ProMax is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Kick, KickBot, Nobitex, or Baha24.
+> **Note:** Sahne ProMax is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Kick, KickBot, StreamElements, Nobitex, Baha24, or Bonbast.
 
 ---
 
@@ -52,8 +52,8 @@ These tools are ProMax additions built on its modular server and overlay archite
 | **🎵 Paired Media**             | Attach an audio track (`.mp3`/`.wav`/`.ogg`) to a static image alert; the overlay shows the image for exactly the audio's length.                                                       |
 | **🎖️ Milestone & Tier Alerts**  | Per-file thresholds for sub-renewal months (`minMonths`/`maxMonths`) and gift-sub counts (`minCount`/`maxCount`).                                                                       |
 | **🎛️ Stream Deck REST API**     | Sub-5ms loopback endpoints (`/api/control/skip`, `/replay`, `/pause`, `/resume`, `/mute`, `/volume`, `/clear`) for hardware keypads and macros.                                         |
-| **💾 1-Click Backup & Restore** | Export/import the whole setup (`config.json` + all media) as a standard `.zip` using Node's native `zlib` — no external tools.                                                          |
-| **🪙 Nobitex Live Rate**        | Real-time USD→Toman from Nobitex's USDT/IRT orderbook (upstream uses baha24/bonbast), with Baha24 as automatic fallback.                                                                |
+| **💾 1-Click Backup & Restore** | Export/import settings, media and alert history (see Backup & Restore below) as a standard `.zip` using Node's native `zlib` — no external tools.                                                          |
+| **🪙 Live Currency Rates**      | USD→Toman from Nobitex's USDT/IRT orderbook, with Baha24 as the USD fallback; Baha24 and Bonbast provide supported non-USD quotes.                                                      |
 | **⚡ Performance Engineering**  | Async `fs.promises` I/O for uploads/scans/restores, lazy on-hover video decoding in the file grid, targeted SSE (no polling), and HTTP 304 ETag caching.                                |
 | **🧩 Modular Server**           | The backend is split into focused modules (`config`, `http`, `integrations`, `media`, `playback`, `rates`, `utils`) instead of one monolithic file — easier to audit, test, and extend. |
 | **🪟 Modern Glassmorphic UI**   | Dark glass design system with custom dropdowns, modal dialogs, slim scrollbars, and a bento-grid layout.                                                                                |
@@ -64,7 +64,7 @@ These tools are ProMax additions built on its modular server and overlay archite
 
 ### ⚡ Performance & Resource Efficiency
 
-- **Non-Blocking Asynchronous I/O (`fs.promises`):** File uploads, media scans, and zip restores run asynchronously off the event loop, preventing UI freezes when handling large 50–200 MB media files.
+- **Non-Blocking Asynchronous I/O (`fs.promises`):** File uploads, media scans, and zip backup/restore use asynchronous file and stream operations to keep large media work off the main event loop.
 - **Lazy On-Hover Video Decoding:** File cards in the controller render lightweight static posters; video preview elements decode only on mouse hover, dramatically reducing GPU decoder saturation and RAM spikes.
 - **Targeted Server-Sent Events (SSE):** Replaced repetitive 8-second HTTP polling with instant, event-driven server pushes (`state`, `config`, `goal_update`, `rate`, `backup_restored`).
 - **HTTP 304 ETag Static Caching:** Fonts, static CSS/JS, and branding assets leverage `ETag` headers to return `304 Not Modified`, saving socket bandwidth and speeding up OBS browser source refreshes.
@@ -72,7 +72,7 @@ These tools are ProMax additions built on its modular server and overlay archite
 ### 🪙 Real-Time Currency Conversion
 
 - **Nobitex USDT/IRT Orderbook (Primary):** Live dollar-to-toman conversion powered by Nobitex's real-time orderbook API (`/v3/orderbook/USDTIRT`), converting Iranian Rials to Toman with zero external dependencies.
-- **Baha24 API (Fallback):** Seamless automatic failover to Baha24 if local or foreign network interruptions occur.
+- **Baha24 and Bonbast FX:** Baha24 supplies supported non-USD quotes during normal Nobitex operation and the fallback USD quote if Nobitex fails. Bonbast supplies fallback non-USD quotes.
 - **Proxy & Manual Pinning:** Configurable HTTP/HTTPS proxy support and manual rate locking — plus automatic use of the **Windows system proxy** (e.g. v2rayN in "system proxy" mode) for kick.com and rate sources when the manual field is empty.
 
 ### 🎬 Advanced Streamer Tools
@@ -89,7 +89,7 @@ These tools are ProMax additions built on its modular server and overlay archite
 - **🎯 Live Donation & Sub Goal Widget:** Dedicated OBS Browser Source (`/goal` & `/goal.html`) rendering real-time animated progress bars and Persian Toman figures, complete with celebratory confetti at 100%.
 - **🎖️ Milestone & Tier Alerts:** Configure tier thresholds for subscription renewals (`minMonths` / `maxMonths`) and bulk gifted subscriptions (`minCount` / `maxCount`).
 - **⏱️ Card Delay:** Show the name/amount card (and KickBot TTS) a few seconds after the alert media starts — globally on the Look page, or per file in the file editor.
-- **💾 Zero-Dependency 1-Click Backup & Restore:** Export and import complete backups (`config.json` + all media files) as standard `.zip` archives via Node's native `zlib`.
+- **💾 Backup & Restore:** Export and import settings, media and alert history as standard `.zip` archives. Each media entry is limited to 512 MB and an archive to 1 GB. Provider credentials are omitted from portable backups; reconnect KickBot and StreamElements after restoring. Media files that are not part of the backup stay on this computer; the configured port is unchanged by a restore; proxy credentials are stripped from exports like other credentials. Previously played alert IDs are local to each installation.
 
 ### 🔄 Updates & Connectivity (upstream parity through Sahne+ 1.3.5)
 
@@ -170,10 +170,10 @@ sahne-promax/
 │   ├── config/               # Atomic config persistence, played-tip & history ledgers
 │   ├── features/             # Goal widget engine & 1-click zip backup/restore
 │   ├── http/                 # Hardened loopback router, static server, range streaming
-│   ├── integrations/         # KickBot WebSocket, Kick chat feed, Meld monitor
+│   ├── integrations/         # KickBot/StreamElements WebSockets, Kick chat feed, Meld monitor
 │   ├── media/                # Async media manager & streaming upload sniffer
 │   ├── playback/             # Priority queue scheduler & payment capture engine
-│   ├── rates/                # Nobitex USDT/IRT (primary) & Baha24 (fallback)
+│   ├── rates/                # Nobitex USD, Baha24/Bonbast FX and fallback
 │   └── utils/                # Magic byte sniffing, sanitizers, HTTP client, proxy routing
 ├── public/                   # Frontend assets
 │   ├── app.html              # Main controller dashboard

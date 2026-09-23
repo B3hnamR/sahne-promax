@@ -1,47 +1,51 @@
 # Sahne ProMax — Data-flow overview
 
-Version: Sahne ProMax 2.4.0. This document describes the current ProMax fork and its runtime connections; historical runtime observations below were from earlier Sahne Plus builds and are not measurements of a ProMax 2.4.0 installation.
+Version: Sahne ProMax 2.4.0 source, including the fixes currently pending release. This is a code-based inventory; network behavior can also depend on Windows, Electron, proxies and the providers.
 
 ## 1. Process model
 
 | Process | Role | Network |
 |---|---|---|
-| Electron main (`electron/main.js`) | window, tray, autostart, IPC, hosts the server | none of its own (only through the server module) |
-| Server module (`server/server.js`, runs inside main) | HTTP + SSE on **127.0.0.1:7788**, KickBot and StreamElements connections, Kick Pusher WebSocket, exchange-rate HTTPS, optional Meld loopback WebSocket | all outbound traffic listed in §3 |
-| Controller renderer (`public/app.html`, sandboxed, context-isolated) | the app UI, loads `http://127.0.0.1:7788/` | loopback only (`connect-src 'self'` CSP) |
+| Electron main (`electron/main.js`) | window, tray, autostart, IPC, hosts the server, checks/releases updates | GitHub Releases through Electron `net` when update checks are enabled; other connections through the server module |
+| Server module (`server/index.js`, runs inside main) | HTTP + SSE on `127.0.0.1:<configured port>` (default 7788), KickBot and StreamElements connections, Kick Pusher WebSocket, exchange-rate HTTPS, optional Meld loopback WebSocket | provider and rate traffic listed in §3 |
+| Controller renderer (`public/app.html`, sandboxed, context-isolated) | the app UI, loads `http://127.0.0.1:<configured port>/` | loopback only (`connect-src 'self'` CSP) |
 | Browser Source (`public/overlay.html`, runs inside OBS / Meld Studio's browser) | plays alerts | loopback for events and media; external only for KickBot TTS audio and KickBot-supplied tip GIFs (§3.6) |
 
 ## 2. Inbound / local server
 
-- `server.listen(config.port, '127.0.0.1')` — bound to IPv4 loopback only. Never `0.0.0.0`, never `::`. Verified at runtime: `Get-NetTCPConnection` shows `127.0.0.1:7788` only; a TCP probe to the machine's LAN address `192.168.1.33:7788` is refused.
-- Port is fixed (7788, configurable via `config.json` → `port`). If the port is busy the app shows an error dialog and exits; it never falls back to another interface (`electron/main.js`, `EADDRINUSE` branch).
+- `server.listen(config.port, '127.0.0.1')` binds to IPv4 loopback only, never to a LAN interface.
+- The port defaults to 7788 and can be changed in `config.json`. If it is busy, the app shows an error dialog and exits (`electron/main.js`, `EADDRINUSE` branch).
 - Every request: `Host` header must be `localhost`, `127.0.0.1` or `[::1]` (with or without `:port`) → otherwise 403 (DNS-rebinding defence).
-- Every `POST/PUT/PATCH/DELETE`: if an `Origin` header is present it must be `http://localhost:7788` / `http://127.0.0.1:7788` / `http://[::1]:7788` → otherwise 403 (CSRF defence). Requests with no `Origin` (curl, the Electron main process) are accepted because they carry no browser ambient authority.
+- Every `POST/PUT/PATCH/DELETE`: if an `Origin` header is present it must match the configured local port on `localhost`, `127.0.0.1` or `[::1]` → otherwise 403 (CSRF defence). Requests with no `Origin` (such as curl or the Electron main process) are accepted.
 - No CORS headers are sent, so a cross-origin page cannot read any response.
 - Headers on every response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: SAMEORIGIN`.
 
-Endpoints (all under `http://127.0.0.1:7788`):
+Selected endpoints (all under `http://127.0.0.1:<configured port>`):
 
 | Path | Method | Who uses it | Data |
 |---|---|---|---|
 | `/` | GET | controller window | app page |
 | `/overlay` | GET | Browser Source | overlay page |
-| `/app.css /app.js /overlay.css /overlay.js /fonts/* /brand/* /legal/*` | GET | both | static, path-traversal guarded (`servePublic`) |
+| `/goal` | GET | Browser Source | standalone goal widget |
+| `/public assets` | GET | both | scripts, styles, bundled fonts, images and legal pages, path-traversal guarded (`servePublic`) |
 | `/media/<basename>` | GET | Browser Source, controller thumbnails | alert media; only the basename is used |
 | `/events?role=overlay` | GET (SSE) | Browser Source | receives **only** `{type:'config', appearance}`, `{type:'play', tip}`, `{type:'stop'}` |
-| `/events?role=preview` | GET (SSE) | controller preview iframe | same as overlay, but preview plays only |
-| `/events?role=admin` | GET (SSE) | controller | state, log lines, rate updates |
-| `/api/config` | GET | controller | full config **without the KickBot secret** (`publicConfig()`), state, in-memory log, paths |
+| `/events?role=preview` | GET (SSE) | controller preview iframe | overlay events for preview |
+| `/events?role=admin` | GET (SSE) | controller | state, log lines, rate and history updates |
+| `/api/config` | GET | controller | public config **without KickBot or StreamElements credentials** (`publicConfig()`), state, in-memory log, paths |
 | `/api/config` | POST | controller | appearance / files / mode / kick / rate / app — each field validated (`sanitizeAppearance`, `sanitizeFile`, enums, numeric bounds) |
 | `/api/file` | PATCH / DELETE | controller | one media entry |
 | `/api/upload` | PUT | controller (browser fallback) | media body ≤ 512 MB, extension + content sniff |
 | `/api/scan` | POST | controller | registers files already in the media folder |
 | `/api/setup` | POST | controller | the KickBot widget URL → parsed, secret kept in memory + encrypted store |
-| StreamElements provider settings | controller | controller | JWT credential stored locally and used by the server for the realtime connection |
+| `/api/se/setup`, `/api/se/disconnect` | POST | controller | verify/store or remove the StreamElements JWT and connection |
 | `/api/disconnect-kickbot` | POST | controller | wipes the secret and streamer id |
 | `/api/reset-settings` | POST | controller | defaults for appearance / rate / kick / mode |
 | `/api/test`, `/api/test-sub`, `/api/preview`, `/api/simulate` | POST / GET | controller | simulated events (see §7) |
-| `/api/rate`, `/api/meld-reload`, `/api/skip`, `/api/clear-queue`, `/api/open-media-folder`, `/api/logs` | POST / GET | controller | actions |
+| `/api/goal`, `/api/goal/reset`, `/api/history`, `/api/top` | GET / POST | controller, goal widget | goal configuration and history/top-donor data |
+| `/api/backup`, `/api/restore` | GET / POST | controller | export/import portable settings, media and history |
+| `/api/control/*` (also `/api/skip`, `/api/replay`, `/api/pause`, `/api/resume`, `/api/mute`, `/api/volume`, `/api/clear`) | POST | controller / Stream Deck | playback control |
+| `/api/refresh-rate`, `/api/open` | POST | controller | refresh exchange rate / open a local folder |
 | `/api/done` | POST | Browser Source | `{id}` — tells the queue the alert finished |
 
 The Browser Source therefore has access to: the overlay page, static assets, media files, the overlay SSE feed and `/api/done`. It can also technically reach the controller endpoints (same origin), which is inherent to a loopback web UI; the controller endpoints are protected against *other* origins, not against the overlay page itself. No secret is retrievable from any endpoint.
@@ -57,39 +61,44 @@ The Browser Source therefore has access to: the overlay page, static assets, med
 | 3.5 | `https://kick.com/api/v2/channels/<slug>` | HTTPS GET | once per configured channel name (cached in config) | channel slug | chatroom id, channel id | `resolveKickChannel()` — **undocumented Kick web endpoint** |
 | 3.6 | `wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679` | WebSocket | while a Kick channel is configured and enabled | `pusher:subscribe` for the public channels `chatrooms.<id>.v2`, `chatroom_<id>`, `channel.<id>` (auth string empty, public channels) and pings | Kick chat events; only `*GiftedSubscriptionsEvent` and `*SubscriptionEvent` are used | `kickConnect()` — **Kick's public chat feed via Pusher; undocumented, not the official Kick API** |
 | 3.7 | `https://apiv2.nobitex.ir/v3/orderbook/USDTIRT` | HTTPS GET (JSON) | **primary**; at start and every N minutes (N ≥ 1, default 2) while auto-rate is on; also on manual refresh | `Accept: application/json`, desktop User-Agent | orderbook with `lastTradePrice` / `bids` / `asks` in Iranian Rials; divided by 10 to obtain Toman | `fetchNobitex()` — public orderbook API, no key |
-| 3.8 | `https://baha24.com/api/v1/price` | HTTPS GET (JSON) | **fallback only** when Nobitex fails | `Accept: application/json`, desktop User-Agent | array of {symbol, sell, last_update}; `USD.sell` is used | `fetchBaha24()` — public API, no key |
-| 3.9 | `wss://realtime.streamelements.com` | WebSocket over TLS | while StreamElements is connected | StreamElements JWT authentication | realtime tip events, including donor, amount, currency and message fields | StreamElements integration |
-| 3.10 | KickBot TTS audio (`audio_url` from the tip event; fallbacks `https://ttsaudio.kickbot.com/…`, `https://tts.kickbotcdn.com/…`) | HTTPS GET | from the **Browser Source**, per tip that has TTS | nothing but the URL | audio | `overlay.js playTts()` |
-| 3.11 | KickBot tip GIF (`gif_url` from the tip event) | HTTPS GET | from the Browser Source, when the tip carries one and no local video/image is used | nothing but the URL | image | `overlay.js addImg()` (https only) |
-| 3.12 | `ws://127.0.0.1:13376` (Meld Studio local API) | WebSocket, loopback | when no Browser Source has been connected for 20 s (at most every 2 min) or on demand | asks Meld to reload the Browser layer whose URL contains `localhost:7788/overlay` | layer list | `meldReloadLayers()` |
-| 3.13 | `https://github.com/B3hnamR/sahne-promax/releases/latest` and release assets | HTTPS via Electron `net` | 30 seconds after startup and every 6 hours when update checks are enabled; installer/checksum fetch only after the user clicks | app version in User-Agent; user-initiated requests fetch the installer and `SHA256SUMS.txt` | latest release version and, after user action, release files | `electron/updater.js`, `electron/update-core.js` |
+| 3.8 | `https://baha24.com/api/v1/price` | HTTPS GET (JSON) | for non-USD currency quotes even when Nobitex supplies USD; also the fallback USD rate when Nobitex fails | `Accept: application/json`, desktop User-Agent | array of {symbol, sell, last_update}; `USD.sell` and supported FX quotes | `fetchBaha24()`, `fetchBaha24Quote()` — public API, no key |
+| 3.9 | `https://www.bonbast.com/` and its data endpoint | HTTPS GET | fallback for supported non-USD quotes when Baha24 quotes fail, rate-limited | public request without account/key | currency quotes | `fetchBonbastFx()` |
+| 3.10 | `https://api.streamelements.com/kappa/v2/channels/me`, `wss://astro.streamelements.com` | HTTPS GET, WebSocket over TLS | credential validation and while StreamElements is connected | StreamElements JWT authentication | channel identity and realtime tip events, including donor, amount, currency and message | StreamElements integration |
+| 3.11 | KickBot TTS audio (`audio_url` from the tip event; fallbacks `https://ttsaudio.kickbot.com/…`, `https://tts.kickbotcdn.com/…`) | HTTPS GET | from the **Browser Source**, per tip that has TTS | nothing but the URL | audio | `overlay.js playTts()` |
+| 3.12 | KickBot tip GIF (`gif_url` from the tip event) | HTTPS GET | from the Browser Source, when the tip carries one and no local video/image is used | nothing but the URL | image | `overlay.js addImg()` (https only) |
+| 3.13 | `ws://127.0.0.1:13376` (Meld Studio local API) | WebSocket, loopback | when enabled and the overlay appears disconnected, or on demand | asks Meld to reload the Browser layer whose URL contains the configured local overlay address | layer list | `meldReloadLayers()` |
+| 3.14 | `https://github.com/B3hnamR/sahne-promax/releases/latest` and release assets | HTTPS via Electron `net` | 30 seconds after startup and every 6 hours when update checks are enabled; installer/checksum fetch only after the user clicks | app version in User-Agent; user-initiated requests fetch the installer and `SHA256SUMS.txt` | latest release version and, after user action, release files | `electron/updater.js`, `electron/update-core.js` |
 | — | optional HTTP CONNECT proxy (`rate.proxy`, user-configured) | HTTP | for configured Kick and rate-source requests | destinations pass through the selected proxy route | — | `httpsRequest()` |
 
 Not present in the code: analytics, telemetry, crash reporting, advertising, or a cloud backend. Update checks contact this fork's GitHub Releases when enabled; they do not contact the upstream Sahne Plus repository. Google Fonts are not used; fonts are bundled locally.
 
-Electron/Chromium platform traffic: the app does not set Google API keys, does not enable the Chromium component updater and does not load remote content in the controller window. Observed established connections of the running 1.0.1 build were exactly two: an AWS host (KickBot) and one other host (Pusher/KickBot). Chromium-level background requests (e.g. certificate revocation checks) were not exhaustively traced and are documented as "not expected, not fully verified".
+Electron/Chromium platform traffic: the app does not set Google API keys, does not enable the Chromium component updater and does not load remote content in the controller window. Chromium-level background requests (such as certificate checks) have not been exhaustively traced.
 
 ## 4. Files
 
 | Path | Read / write | Content | Sensitivity |
 |---|---|---|---|
-| `Documents\Sahne Plus\config.json` | R/W (atomic write via `.tmp` + rename) | settings, file tiers, Kick channel, rate, `secret_id_enc` | contains the **encrypted** KickBot secret (DPAPI); plaintext only if DPAPI is unavailable (`secretStorage:'plain'`, shown in the UI) |
+| `Documents\Sahne Plus\config.json` | R/W (atomic write via temporary file + rename) | settings, file tiers, Kick channel, rate, `secret_id_enc`, `se_token_enc` | credentials use Windows DPAPI via `safeStorage` when available; plaintext fallback is reported in Settings |
 | `Documents\Sahne Plus\config.json.corrupt-<ts>` | W | copy of an unparsable config | same as above |
 | `Documents\Sahne Plus\media\*` | R/W | imported alert media (copied; the source file is never touched) | user content |
 | `Documents\Sahne Plus\played.json` | R/W | last 1000 played tip ids | low |
 | `Documents\Sahne Plus\history.json` | R/W | up to 20,000 displayed-alert records plus persistent daily and per-donor aggregates | viewer names, event details and amounts; included in backups and deleted by Clear application data |
+| `Documents\Sahne Plus\.backup-export-*.zip`, `.backup-upload-*.zip`, `.restore-*` | temporary R/W during backup/restore | streamed ZIP export, uploaded archive and staged restore data; removed after completion | settings, media and alert history; exported credentials are omitted |
 | `Documents\Sahne Plus\sahne-plus.log` (+ `.1`) | W, rotates at 5 MB | log lines: connection state, tip name / amount / message / media, errors. Secrets are redacted by `safe()` | donor names and messages (personal data of third parties, local only) |
-| `%APPDATA%\SahnePlus\` | R/W by Chromium | Electron userData: cache, `Local Storage` (only `sp.page`), GPU cache, single-instance lock | low |
+| `%APPDATA%\SahnePlus\` | R/W by Chromium | Electron userData: cache, local storage, GPU cache, single-instance lock | low |
 | `Documents\KickAlerts\config.json`, `media\` | **R only, once** | legacy import on first run (copy) | — |
-| `%TEMP%` | — | not used by the app (only by the build script) | — |
+| `%TEMP%\SahneProMax-update\` | R/W | downloaded installer pending a user-started verified update | installer executable |
 
-Uninstalling removes the program folder and (by default) `%APPDATA%\SahnePlus`. It does **not** delete `Documents\Sahne Plus` — the user does that via "Clear application data" or manually.
+Uninstalling preserves the data folder, including `Documents\Sahne Plus`, so reinstall keeps the user's settings and media (`deleteAppDataOnUninstall:false`). "Clear application data" or manual deletion removes local data.
+
+Backup ZIPs omit KickBot and StreamElements credentials and proxy passwords for portability. The restore response tells the controller which accounts need reconnection. Played alert IDs are not exported. Restoring keeps the port the app is already listening on and keeps media files that are not present in the backup. Current backup limits are 512 MB per entry, 1 GB total uncompressed content and 1 GB for the ZIP.
 
 ## 5. Credentials and identifiers
 
 | Item | Class | Where | Notes |
 |---|---|---|---|
 | KickBot widget secret (`<32hex>:<32hex>`) | **SECRET / bearer-like** | memory; `config.json` as `secret_id_enc` (DPAPI) | possession lets anyone subscribe to the tipping channel, read the queue and call `capture_tip` for that streamer. Never logged (`safe()` redacts `secret_id`/`authorization`), never returned by any endpoint, masked in the UI, sent only to KickBot (3.1–3.4) |
+| StreamElements JWT | **SECRET / bearer token** | memory; `config.json` as `se_token_enc` when safeStorage is available | sent to StreamElements for validation and realtime authentication; never returned by the local API |
 | `streamer_id` | public identifier | config.json | numeric KickBot id |
 | Kick channel slug / chatroom id / channel id | public identifiers | config.json | public |
 | `rate.proxy` | medium (may embed proxy credentials if the user types them) | config.json plaintext | user-provided |
@@ -98,12 +107,12 @@ Uninstalling removes the program folder and (by default) `%APPDATA%\SahnePlus`. 
 
 ## 6. Data classes
 
-- **LOCAL-ONLY**: appearance settings, file tiers/keywords, media files, played ids, logs, window state.
-- **NETWORK-PROCESSED**: the KickBot secret + streamer id (to KickBot), tip ids (to KickBot), Kick channel slug (to kick.com), nothing to anyone else.
-- **PERSISTENT**: config.json, media, played.json, log, Electron userData.
+- **LOCAL-ONLY**: appearance settings, file tiers/keywords, imported media, played ids, logs, window state and alert history.
+- **NETWORK-PROCESSED**: KickBot secret and tip identifiers (KickBot), StreamElements JWT and event data (StreamElements), Kick channel slug and subscription events (Kick/Pusher), currency quote requests (Nobitex, Baha24, Bonbast), and update checks (GitHub). The Browser Source can fetch remote KickBot TTS and GIF URLs carried by events.
+- **PERSISTENT**: config.json, media, played.json, history.json, log, Electron userData.
 - **TEMPORARY**: in-memory queues (`pending`, `approved`, capped at 500), last-30 recent list, in-memory log (300 lines), 15-second duplicate keys for Kick events.
-- **CREDENTIAL/SENSITIVE**: KickBot secret (encrypted), optional proxy URL.
-- **THIRD-PARTY DATA**: donor names/amounts/messages and TTS/GIF URLs from KickBot; subscriber/gifter usernames from Kick chat; exchange rate from Bonbast.
+- **CREDENTIAL/SENSITIVE**: KickBot secret, StreamElements JWT (encrypted when `safeStorage` is available), optional proxy URL.
+- **THIRD-PARTY DATA**: donor names/amounts/messages and TTS/GIF URLs from KickBot and StreamElements; subscriber/gifter usernames from Kick chat; exchange rates from Nobitex, Baha24 and Bonbast.
 
 ## 7. Simulated events
 
@@ -113,4 +122,4 @@ Uninstalling removes the program folder and (by default) `%APPDATA%\SahnePlus`. 
 
 The sentence "no information leaves the computer" is **false** for this application and must not be used. Verified wording:
 
-> Sahne ProMax has no cloud backend. Alert media, settings, logs and alert history stay on your computer. When enabled, the application connects to KickBot for donations, StreamElements for tips, Kick's public chat feed for subscriptions, Nobitex with Baha24 as its rate fallback, and this fork's GitHub Releases for update checks. It contains no analytics, telemetry, crash reporting or advertising.
+> Sahne ProMax has no cloud backend. Alert media, settings, logs and alert history stay on your computer. When enabled, the application connects to KickBot for donations, StreamElements for tips, Kick's public chat feed for subscriptions, Nobitex for the USD rate, Baha24 and Bonbast for other currency quotes and fallbacks, and this fork's GitHub Releases for update checks. It contains no analytics, telemetry, crash reporting or advertising.

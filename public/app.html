@@ -173,7 +173,7 @@
             <div class="grid">
               <div class="field"><label>فونت</label><select data-a="font"><option value="Vazirmatn">Vazirmatn (وزیرمتن)</option><option value="Estedad">Estedad (استعداد)</option><option value="Lalezar">Lalezar (لاله‌زار)</option><option value="Inter">Inter</option><option value="Poppins">Poppins</option><option value="Segoe UI">Segoe UI (سیستمی ویندوز)</option><option value="Tahoma">Tahoma (سیستمی)</option></select></div>
               <div class="field"><label>اندازه متن: <span id="lblSize"></span>px</label><input type="range" min="18" max="72" data-a="textSize"></div>
-              <div class="field full"><label>قالب متن دونیت ( {name} اسم، {amount} مبلغ، {toman} تومان، {usd} دلار )</label><input type="text" data-a="template"></div>
+              <div class="field full"><label>قالب متن دونیت ( {name} اسم، {amount} مبلغ، {toman} تومان، {usd} دلار، {original} مبلغ با ارز اصلی )</label><input type="text" data-a="template"><p class="hint">{usd} فقط برای حمایت دلاری نمایش داده می‌شود؛ برای همهٔ ارزها از {original} استفاده کنید.</p></div>
               <div class="field full"><label>قالب متن ساب‌گیفت ( {name} گیفت‌دهنده، {count} تعداد، {amount} معادل )</label><input type="text" data-a="giftTemplate"></div>
               <div class="field full"><label>قالب متن ساب جدید ( {name} اسم، {count} ماه، {amount} معادل )</label><input type="text" data-a="subTemplate"></div>
               <div class="field full"><label>قالب متن دستور چت ( {name} اسم بیننده )</label><input type="text" data-a="commandTemplate"></div>
@@ -395,12 +395,13 @@
         </div>
         <div class="card span-6">
           <h3><svg><use href="#i-folder"/></svg>پشتیبان‌گیری و بازیابی (1-Click Backup & Restore)</h3>
-          <p class="hint" style="margin:0 0 14px">از تمامی تنظیمات، فونت‌ها، مبالغ و فایل‌های چندرسانه‌ای خود یک پکیج پشتیبان فشرده (.zip) دریافت کنید یا در سیستم جدید با یک کلیک بازیابی نمایید.</p>
+          <p class="hint" style="margin:0 0 14px">از تنظیمات، فونت‌ها، مبالغ و فایل‌های چندرسانه‌ای خود یک پکیج پشتیبان فشرده (.zip) دریافت کنید یا در سیستم جدید بازیابی نمایید. برای امنیت، کلیدهای اتصال در نسخهٔ پشتیبان ذخیره نمی‌شوند و پس از بازیابی باید دوباره وارد شوند. فایل‌های رسانه‌ای که در نسخهٔ پشتیبان نیستند روی همین سیستم باقی می‌مانند و پورت فعلی برنامه تغییر نمی‌کند.</p>
           <div class="row" style="gap:10px;flex-wrap:wrap">
             <button class="btn primary" id="btnDownloadBackup"><svg><use href="#i-folder"/></svg>دانلود نسخه پشتیبان (.zip)</button>
             <button class="btn" id="btnRestoreBackup"><svg><use href="#i-refresh"/></svg>بازیابی از فایل .zip</button>
             <input type="file" id="restoreFileInput" accept=".zip" hidden>
           </div>
+          <p class="hint" id="restoreNotice" role="status" hidden></p>
           <p class="hint" style="margin-top:14px">موتور فشرده‌سازی کاملاً بومی (Pure Node.js zlib) بوده و نیازی به نرم‌افزارهای جانبی ندارد.</p>
         </div>
         <div class="card span-6">
@@ -495,9 +496,9 @@
           <div class="kv"><b>تماس امنیتی</b><span class="latin" id="abSec">—</span></div>
           <div class="kv"><b>آپدیت</b><span id="abUpd">—</span></div>
           <div class="row" style="margin-top:12px"><button class="btn" id="abCheckUpd"><svg><use href="#i-refresh"/></svg>بررسی آپدیت</button><button class="btn" id="abOpenData"><svg><use href="#i-folder"/></svg>باز کردن پوشه‌ی داده</button><button class="btn" id="abOpenLog"><svg><use href="#i-logs"/></svg>فایل لاگ</button></div>
-          <p class="hint" style="margin-top:14px">Sahne ProMax یک برنامه‌ی مستقل شخص ثالث است و هیچ وابستگی، تأیید یا حمایتی از سوی Kick، KickBot، Nobitex یا Baha24 ندارد. نام‌ها و لوگوها متعلق به صاحبانشان است.</p>
+          <p class="hint" style="margin-top:14px">Sahne ProMax یک برنامه‌ی مستقل شخص ثالث است و هیچ وابستگی، تأیید یا حمایتی از سوی Kick، KickBot، StreamElements، Nobitex، Baha24 یا Bonbast ندارد. نام‌ها و لوگوها متعلق به صاحبانشان است.</p>
           <p class="hint">Sahne ProMax متن‌باز است (لایسنس Apache-2.0)؛ فورکِ Sahne Plus با کد منبع در github.com/B3hnamR/sahne-promax (پروژه‌ی اصلی: github.com/AmirEyZed/sahne-plus).</p>
-          <p class="hint">فایل‌های الرت و تنظیمات فقط روی همین کامپیوتر ذخیره می‌شوند. Sahne ProMax هیچ سرور ابری، آنالیتیکس، تبلیغات یا گزارش خطای خودکار ندارد. اتصال اینترنتی فقط برای کیک‌بات (دونیت‌ها)، چت کیک (ساب‌ها) و baha24 یا نوبیتکس (نرخ دلار) برقرار می‌شود. برای بررسی نسخه‌ی جدید هم به GitHub وصل می‌شود (در «تنظیمات» قابل خاموش کردن است) و آپدیت فقط با کلیک شما نصب می‌شود.</p>
+          <p class="hint">فایل‌های الرت و تنظیمات فقط روی همین کامپیوتر ذخیره می‌شوند. Sahne ProMax هیچ سرور ابری، آنالیتیکس، تبلیغات یا گزارش خطای خودکار ندارد. اتصال اینترنتی برای KickBot (دونیت‌ها)، چت Kick (ساب‌ها)، StreamElements (دونیت‌ها)، Nobitex (نرخ دلار) و Baha24 یا Bonbast (نرخ ارزها) برقرار می‌شود. برای بررسی نسخه‌ی جدید هم به GitHub وصل می‌شود (در «تنظیمات» قابل خاموش کردن است) و آپدیت فقط با کلیک شما نصب می‌شود.</p>
         </div>
         <div class="card span-6">
           <h3><svg><use href="#i-info"/></svg>اسناد</h3>
