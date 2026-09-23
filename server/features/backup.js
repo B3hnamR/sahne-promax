@@ -97,7 +97,10 @@ function createZipArchive(files) {
   return Buffer.concat([...localChunks, ...centralChunks, eocd]);
 }
 
-async function exportBackupToFile(dataDir, configStore = null) {
+async function exportBackupToFile(dataDir, configStore = null, limits = {}) {
+  const maxEntryBytes = limits.maxEntryBytes || MAX_ENTRY_BYTES;
+  const maxTotalBytes = limits.maxTotalBytes || MAX_TOTAL_BYTES;
+  const maxArchiveBytes = limits.maxArchiveBytes || MAX_ARCHIVE_BYTES;
   const cfgPath = path.join(dataDir, 'config.json');
   let config;
   if (configStore && typeof configStore.serializedConfig === 'function') config = configStore.serializedConfig();
@@ -111,7 +114,12 @@ async function exportBackupToFile(dataDir, configStore = null) {
   const mediaDir = path.join(dataDir, 'media');
   try {
     for (const name of await fs.promises.readdir(mediaDir)) {
-      if (name.startsWith('.') || safeMediaName(name) !== name) continue;
+      if (name.startsWith('.')) continue;
+      if (safeMediaName(name) !== name) {
+        if (configStore && typeof configStore.log === 'function')
+          configStore.log('warn', 'فایل رسانه‌ای که نام معتبر ندارد در پشتیبان گذاشته نشد', { name });
+        continue;
+      }
       const file = path.join(mediaDir, name);
       const st = await fs.promises.lstat(file);
       if (st.isFile()) entries.push({ name: 'media/' + name, file, size: st.size });
@@ -132,9 +140,9 @@ async function exportBackupToFile(dataDir, configStore = null) {
     const size = entry.data ? entry.data.length : entry.size;
     if (entry.name === 'config.json' && size > 8 * 1024 * 1024) throw new Error('Backup config is too large');
     if (entry.name === 'history.json' && size > 128 * 1024 * 1024) throw new Error('Backup history is too large');
-    if (size > MAX_ENTRY_BYTES) throw new Error('A backup file exceeds the 512 MB per-file limit');
+    if (size > maxEntryBytes) throw new Error('A backup file exceeds the 512 MB per-file limit');
     totalRaw += size;
-    if (totalRaw > MAX_TOTAL_BYTES) throw new Error('Backup exceeds the 1 GB total size limit');
+    if (totalRaw > maxTotalBytes) throw new Error('Backup exceeds the 1 GB total size limit');
   }
 
   const filePath = path.join(dataDir, '.backup-export-' + crypto.randomUUID() + '.zip');
@@ -142,12 +150,13 @@ async function exportBackupToFile(dataDir, configStore = null) {
   try {
     out = await fs.promises.open(filePath, 'wx');
     let position = 0;
+    let totalRawBytes = 0;
     const central = [];
     const now = new Date();
     const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
     const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
     const append = async chunk => {
-      if (position + chunk.length > MAX_ARCHIVE_BYTES) throw new Error('Backup ZIP exceeds the 1 GB download limit');
+      if (position + chunk.length > maxArchiveBytes) throw new Error('Backup ZIP exceeds the 1 GB download limit');
       let written = 0;
       while (written < chunk.length) {
         const result = await out.write(chunk, written, chunk.length - written, position);
@@ -177,7 +186,9 @@ async function exportBackupToFile(dataDir, configStore = null) {
       const counter = new Transform({
         transform(chunk, _encoding, callback) {
           rawSize += chunk.length;
-          if (rawSize > MAX_ENTRY_BYTES) return callback(new Error('Backup file grew beyond the per-file limit'));
+          totalRawBytes += chunk.length;
+          if (rawSize > maxEntryBytes) return callback(new Error('Backup file grew beyond the per-file limit'));
+          if (totalRawBytes > maxTotalBytes) return callback(new Error('Backup exceeds the 1 GB total size limit'));
           crc = zlib.crc32(chunk, crc);
           callback(null, chunk);
         }

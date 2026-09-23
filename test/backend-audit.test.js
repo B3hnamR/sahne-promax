@@ -537,3 +537,38 @@ test('archives with case-only duplicate media names are rejected', async t => {
   });
   await assert.rejects(importBackup(dir, zip, { configStore: store, logger, sse }), /duplicate/i);
 });
+
+test('export enforces the total-size limit while streaming', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.saveConfig();
+  fs.mkdirSync(path.join(dir, 'media'));
+  fs.writeFileSync(path.join(dir, 'media', 'a.bin'), Buffer.alloc(700, 1));
+  fs.writeFileSync(path.join(dir, 'media', 'b.bin'), Buffer.alloc(700, 2));
+  const originalLstat = fs.promises.lstat;
+  fs.promises.lstat = async function (target) {
+    const stat = await originalLstat.call(fs.promises, target);
+    if (String(target).includes('media')) return { size: 400, isFile: () => true };
+    return stat;
+  };
+  t.after(() => {
+    fs.promises.lstat = originalLstat;
+  });
+  await assert.rejects(exportBackupToFile(dir, store, { maxTotalBytes: 1024 }), /total size/i);
+});
+
+test('export warns about media files it cannot include', async t => {
+  const dir = tempDir(t);
+  const warnings = [];
+  const store = new ConfigStore({
+    dataDir: dir,
+    logger: (level, message, data) => warnings.push({ level, message, data })
+  });
+  store.saveConfig();
+  fs.mkdirSync(path.join(dir, 'media'));
+  const oddName = 'a\u200Bb.mp4'; // zero-width space: legal on NTFS, rewritten by safeMediaName
+  fs.writeFileSync(path.join(dir, 'media', oddName), Buffer.from('x'));
+  const archive = await exportBackupToFile(dir, store);
+  t.after(() => fs.rmSync(archive.filePath, { force: true }));
+  assert.ok(warnings.some(entry => entry.level === 'warn' && entry.data && entry.data.name === oddName));
+});
