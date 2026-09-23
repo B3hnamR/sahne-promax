@@ -432,6 +432,7 @@ async function importBackupFromFile(dataDir, archivePath, { configStore, logger,
   const stage = await fs.promises.mkdtemp(path.join(dataDir, '.restore-'));
   const stageMedia = path.join(stage, 'media');
   const rollback = path.join(stage, 'rollback');
+  let keepStage = false;
   let mediaCount = 0;
   try {
     await fs.promises.mkdir(stageMedia);
@@ -501,8 +502,18 @@ async function importBackupFromFile(dataDir, archivePath, { configStore, logger,
         movedNew.push(target);
       }
     } catch (error) {
-      for (const target of movedNew.reverse()) fs.renameSync(target.live, target.stage);
-      for (const target of movedOld.reverse()) fs.renameSync(path.join(rollback, target.name), target.live);
+      try {
+        for (const target of movedNew.reverse()) fs.renameSync(target.live, target.stage);
+        for (const target of movedOld.reverse()) fs.renameSync(path.join(rollback, target.name), target.live);
+      } catch (rollbackError) {
+        // The previous files are only in the staging directory now: never delete
+        // them. Leave .restore-* in place for manual recovery.
+        keepStage = true;
+        logger.error('بازگردانی فایل‌های قبلی پس از شکست بازیابی ناموفق بود', {
+          error: rollbackError.message,
+          stage
+        });
+      }
       throw error;
     }
     // A restore must not delete media that only exists on this machine: move
@@ -526,7 +537,15 @@ async function importBackupFromFile(dataDir, archivePath, { configStore, logger,
     sse.sendState();
     return { ok: true, success: true, mediaFiles: mediaCount, restoredFiles: mediaCount, reconnectRequired };
   } finally {
-    await fs.promises.rm(stage, { recursive: true, force: true });
+    if (!keepStage) {
+      try {
+        await fs.promises.rm(stage, { recursive: true, force: true });
+      } catch (error) {
+        // The restore is committed; a leftover staging directory must not turn it
+        // into a failure (and must not leave the API reporting an error).
+        logger.warn('پاک‌سازی پوشه‌ی موقت بازیابی ناموفق بود', { stage, error: error.message });
+      }
+    }
   }
 }
 

@@ -461,3 +461,47 @@ test('restore keeps the port the server is currently listening on', async t => {
   assert.equal(result.ok, true);
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8')).port, 29964);
 });
+
+test('a stage-cleanup failure does not turn a committed restore into an error', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.config.mode = 'companion';
+  store.saveConfig();
+  const zip = createZipArchive({ 'config.json': JSON.stringify(store.serializedConfig()) });
+  const originalRm = fs.promises.rm;
+  fs.promises.rm = async function (target, opts) {
+    if (String(target).includes('.restore-')) throw Object.assign(new Error('EBUSY'), { code: 'EBUSY' });
+    return originalRm.call(fs.promises, target, opts);
+  };
+  t.after(() => {
+    fs.promises.rm = originalRm;
+  });
+  const result = await importBackup(dir, zip, { configStore: store, logger, sse });
+  assert.equal(result.ok, true);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8')).mode, 'companion');
+});
+
+test('a failed rollback keeps the staged previous files for recovery', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.config.mode = 'companion';
+  store.saveConfig();
+  const zip = createZipArchive({ 'config.json': JSON.stringify({ mode: 'standalone' }) });
+  const originalRename = fs.renameSync;
+  fs.renameSync = function (from, to) {
+    const f = String(from);
+    if (f.includes('.restore-') && f.endsWith('config.json'))
+      throw Object.assign(new Error('install failed'), { code: 'EACCES' });
+    if (f.includes('rollback') && f.endsWith('config.json'))
+      throw Object.assign(new Error('rollback failed'), { code: 'EACCES' });
+    return originalRename.call(fs, from, to);
+  };
+  t.after(() => {
+    fs.renameSync = originalRename;
+  });
+  await assert.rejects(importBackup(dir, zip, { configStore: store, logger, sse }), /install failed/);
+  const stages = fs.readdirSync(dir).filter(name => name.startsWith('.restore-'));
+  assert.equal(stages.length, 1, 'failed rollback preserves the staging directory');
+  const kept = JSON.parse(fs.readFileSync(path.join(dir, stages[0], 'rollback', 'config.json'), 'utf8'));
+  assert.equal(kept.mode, 'companion');
+});
