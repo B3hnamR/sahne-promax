@@ -4,7 +4,7 @@ Sahne ProMax is an independent fork of Sahne Plus. Security reports for this for
 
 ## Supported versions
 
-Only the latest ProMax release receives security fixes. The current release is **2.5.0**. Please upgrade before reporting an issue against an older build.
+Only the latest ProMax release receives security fixes. The current release is **2.5.1**. Please upgrade before reporting an issue against an older build.
 
 ## Reporting a vulnerability
 

@@ -111,6 +111,26 @@ test('validateRules rejects malformed shapes instead of widening them', () => {
   assert.equal(validateRules({ enabled: true, items: [] }, files).errors.length, 0);
 });
 
+test('validateRules preserves only an existing missing-file reference', () => {
+  const files = [{ id: 'aaaaaaaaaa' }];
+  const orphan = validRule({ id: '1111111111', fileId: 'bbbbbbbbbb' });
+  const previous = [orphan];
+  const unchanged = validateRules({ enabled: false, items: [orphan] }, files, previous);
+  assert.deepEqual(unchanged.errors, []);
+  assert.equal(unchanged.items[0].fileId, 'bbbbbbbbbb');
+
+  const newRule = validateRules({ enabled: true, items: [validRule({ fileId: 'bbbbbbbbbb' })] }, files, previous);
+  assert.ok(newRule.errors.some(error => error.field === 'fileId'));
+  const changed = validateRules(
+    { enabled: true, items: [validRule({ id: '1111111111', fileId: 'cccccccccc' })] },
+    files,
+    previous
+  );
+  assert.ok(changed.errors.some(error => error.field === 'fileId'));
+  const duplicate = validateRules({ enabled: true, items: [orphan, orphan] }, files, previous);
+  assert.ok(duplicate.errors.some(error => error.field === 'id'));
+});
+
 const facts = over => ({
   provider: 'kickbot',
   kind: 'tip',

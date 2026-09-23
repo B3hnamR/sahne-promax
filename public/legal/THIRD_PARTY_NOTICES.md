@@ -1,4 +1,4 @@
-# Third-Party Notices — Sahne ProMax 2.5.0
+# Third-Party Notices — Sahne ProMax 2.5.1
 
 Sahne ProMax is an independent fork of Sahne Plus. The source code is licensed under Apache License 2.0; retained upstream attribution is in `NOTICE` and the license is in `LICENSE`. The code license does not grant rights to third-party names or brand assets; see `BRANDING.md`.
 

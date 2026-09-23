@@ -9,7 +9,7 @@
 [![Zero Dependencies](https://img.shields.io/badge/Runtime%20Dependencies-0-brightgreen?style=flat-square)](#architecture)
 [![Tests](https://img.shields.io/badge/Tests-Node.js%20suite-success?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.5.0-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
+[![Version](https://img.shields.io/badge/Version-2.5.1-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
 
 <p align="center">
   <a href="#key-features">Features</a> •
@@ -28,20 +28,19 @@
 
 **Sahne ProMax** is a modernized, modular fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus) designed for Kick streamers. It plays transparent WebM animations, GIFs, images, and audio alerts for **KickBot donations**, **StreamElements tips**, **Kick subscriptions**, and **Kick gifted subscriptions**. The controller and alert server run locally, with no cloud backend and no runtime npm packages.
 
-ProMax incorporates upstream Sahne+ changes through **1.3.5**. The current **2.5.0** release adds **alert media routing rules** and fixes replay fidelity: ordered conditions choose the alert file, the Rules page explains every decision, and replay keeps its original currency and media. Version 2.4.1 fixed rate timing, stale connection events, portable backup/restore, controller feedback, and update downloads; 2.4.0 brought **StreamElements tip alerts** and **multi-currency conversion** into ProMax. ProMax also includes OBS goal and top-donors widgets, Stream Deck controls, paired media, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, and persistent alert history.
+ProMax incorporates upstream Sahne+ changes through **1.3.5**. The current **2.5.1** release fixes the Alert Rules editor, simulator, and preview. Version 2.5.0 added **alert media routing rules** and replay fidelity: ordered conditions choose the alert file, the Rules page explains decisions, and replay keeps its original currency and media. Version 2.4.1 fixed rate timing, stale connection events, portable backup/restore, controller feedback, and update downloads; 2.4.0 brought **StreamElements tip alerts** and **multi-currency conversion** into ProMax. ProMax also includes OBS goal and top-donors widgets, Stream Deck controls, paired media, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, and persistent alert history.
 
 > **Note:** Sahne ProMax is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Kick, KickBot, StreamElements, Nobitex, Baha24, or Bonbast.
 
 ---
 
-## What's new in 2.5.0
+## What's new in 2.5.1
 
-- **Alert media routing rules:** ordered conditions (provider, alert type, currency, toman range, message text, sub months, gift count) select the alert file. The first matching rule wins; if nothing matches, the existing tier/keyword picker decides exactly as before.
-- **Explainable decisions:** the new Rules page includes an ordered editor and a "Try this event" panel that shows which rule won and why; every displayed alert records its matched rule in history.
-- **Replay fidelity:** replay keeps the original currency, provider and file, falling back to rules and the picker only when that file is gone (previously a foreign-currency replay was re-resolved as USD).
-- **Unchanged safeguards:** version 2.4.1's stability and portable-backup fixes (rate timing, connection generations, credential-free backups, bounded restore) remain in place.
+- **Accurate rule simulation:** the event tester now gives the tier/keyword picker the entered tip, uses full gift-bundle value, and includes subscription months. Its preview keeps the selected alert type and currency.
+- **Lossless rule editing:** choose multiple providers and alert types, set maximum subscription months and gift counts, and keep a missing file reference visible while repairing it.
+- **Safer preview:** changing an input or receiving an older test result cannot play a stale match. A deleted file reference no longer blocks unrelated rule edits; newly selected missing files are still rejected.
 
-See the [2.5.0 release notes](docs/releases/RELEASE_NOTES_2.5.0.md) for the full list.
+See the [2.5.1 release notes](docs/releases/RELEASE_NOTES_2.5.1.md) for the full list.
 
 ---
 

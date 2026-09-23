@@ -2,6 +2,23 @@
 
 All notable changes to the public builds. Versions follow semantic versioning.
 
+## 2.5.1 — 2026-09-23 (Alert Rules corrections)
+
+- Make the rules simulator use the same event facts and fallback picker inputs as live alerts, including full gift values and subscription months.
+- Keep all supported conditions when editing rules: multiple providers and event types, maximum months, and maximum gift counts.
+- Keep deleted-file references visible and allow unrelated edits while still rejecting new references to unregistered files.
+- Clear stale preview matches after input changes, failed or older simulations, and rule saves; preview the chosen event type and original currency.
+
+### How to update
+
+From 2.5.0, click **آپدیت** in the desktop app or download the installer from this repository's 2.5.1 release. The updater checks the installer against `SHA256SUMS.txt`. Existing settings, rules and media remain in the local data folder.
+
+### Files in this release
+
+- `Sahne-ProMax-Setup-2.5.1.exe` — Windows installer (per-user)
+- `SHA256SUMS.txt` — SHA-256 checksum manifest
+- `README-FA.md` — راهنمای فارسی
+
 ## 2.5.0 — 2026-09-23 (alert media routing rules)
 
 - **Alert media routing rules:** an ordered list of conditions (provider, alert type, currency, toman range, message text, sub months, gift count) selects the alert file; the first matching rule wins and everything else falls back to the existing tier/keyword picker. Rules are edited on a new Rules page, explained by a side-effect-free event simulator, and recorded in alert history.

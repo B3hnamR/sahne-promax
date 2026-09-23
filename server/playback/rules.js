@@ -1,7 +1,29 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { normFa } = require('../utils/validation');
 const { pickMedia } = require('./picker');
+
+function tipToman(t, rateManager) {
+  if (t.toman_override != null) return Number(t.toman_override);
+  const amount = (t.amount_total || 0) / 100;
+  return rateManager.tomanFor ? rateManager.tomanFor(amount, t.currency || 'USD') : rateManager.tomanOf(amount);
+}
+
+function factsFromTip(t, toman) {
+  return {
+    provider: t.source || (t.is_local ? 'kick' : 'kickbot'),
+    kind: t.kind || 'tip',
+    currency: String(t.currency || 'USD').toUpperCase(),
+    amount: (t.amount_total || 0) / 100,
+    toman,
+    message: normFa(t.tip_message),
+    months: t.months != null ? Number(t.months) : null,
+    count: t.count != null ? Number(t.count) : null,
+    isTest: !!t.is_test,
+    isReplay: !!t.is_replay
+  };
+}
 
 function isFileUsable(file, mediaDir) {
   return !!(file && file.enabled !== false && file.file && fs.existsSync(path.join(mediaDir, file.file)));
@@ -94,4 +116,4 @@ function availabilityFor(config, mediaDir) {
   return out;
 }
 
-module.exports = { isFileUsable, evaluateRules, resolveMedia, availabilityFor };
+module.exports = { tipToman, factsFromTip, isFileUsable, evaluateRules, resolveMedia, availabilityFor };

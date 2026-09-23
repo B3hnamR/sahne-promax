@@ -197,18 +197,23 @@ function ruleEnumList(value, allowed) {
 }
 
 // Validates one rule. Non-strict (load/sanitize) clamps and coerces; strict (PUT) rejects
-// invalid edits with field errors and requires the file to be registered.
-function validateRule(item, { strict = false, files = [] } = {}) {
+// invalid shapes and bounds. An existing missing-file reference may be kept for repair.
+function validateRule(item, { strict = false, files = [], existingFileId = null } = {}) {
   const errors = [];
-  if (!item || typeof item !== 'object')
+  if (!item || typeof item !== 'object' || Array.isArray(item))
     return { rule: null, errors: [{ field: 'rule', message: 'قاعده نامعتبر است' }] };
+  const id = item.id == null || item.id === '' ? null : String(item.id);
+  if (strict && id != null && !/^[0-9a-f]{10}$/.test(id))
+    errors.push({ field: 'id', message: 'شناسه قاعده نامعتبر است' });
+  if (strict && item.enabled !== undefined && typeof item.enabled !== 'boolean')
+    errors.push({ field: 'enabled', message: 'وضعیت قاعده نامعتبر است' });
   const c = item.conditions && typeof item.conditions === 'object' ? item.conditions : {};
   if (strict && (item.conditions == null || typeof item.conditions !== 'object' || Array.isArray(item.conditions)))
     errors.push({ field: 'conditions', message: 'شرایط قاعده نامعتبر است' });
   const fileId = String(item.fileId == null ? '' : item.fileId);
   if (!/^[0-9a-f]{10}$/.test(fileId)) {
     errors.push({ field: 'fileId', message: 'شناسه فایل نامعتبر است' });
-  } else if (strict && !(Array.isArray(files) ? files : []).some(f => f.id === fileId)) {
+  } else if (strict && !(Array.isArray(files) ? files : []).some(f => f.id === fileId) && fileId !== existingFileId) {
     errors.push({ field: 'fileId', message: 'فایل انتخابی وجود ندارد' });
   }
   const enumField = (value, allowed, field) => {
@@ -259,7 +264,7 @@ function validateRule(item, { strict = false, files = [] } = {}) {
   if (errors.length) return { rule: null, errors };
   return {
     rule: {
-      id: /^[0-9a-f]{10}$/.test(String(item.id || '')) ? item.id : crypto.randomBytes(5).toString('hex'),
+      id: id && /^[0-9a-f]{10}$/.test(id) ? id : crypto.randomBytes(5).toString('hex'),
       name: cleanText(item.name, LIMITS.ruleName).trim(),
       enabled: item.enabled !== false,
       conditions: {
@@ -285,8 +290,8 @@ function sanitizeRule(item) {
   return validateRule(item).rule;
 }
 
-// Strict validation for PUT /api/rules: every invalid field is reported, nothing is coerced away.
-function validateRules(input, files = []) {
+// Strict validation for PUT /api/rules: reject invalid edits before writing the whole list.
+function validateRules(input, files = [], previousItems = []) {
   const errors = [];
   if (input != null && input.enabled !== undefined && typeof input.enabled !== 'boolean')
     errors.push({ index: -1, field: 'enabled', message: 'وضعیت فعال نامعتبر است' });
@@ -295,11 +300,22 @@ function validateRules(input, files = []) {
   const enabled = !!(input && input.enabled);
   const rawItems = input && Array.isArray(input.items) ? input.items : [];
   const items = [];
+  const previousById = new Map((Array.isArray(previousItems) ? previousItems : []).map(rule => [rule.id, rule]));
+  const seenIds = new Set();
   if (rawItems.length > LIMITS.rules) errors.push({ index: -1, field: 'items', message: 'حداکثر ۵۰ قاعده مجاز است' });
   rawItems.slice(0, LIMITS.rules).forEach((item, index) => {
-    const { rule, errors: itemErrors } = validateRule(item, { strict: true, files });
+    const existing = item && previousById.get(item.id);
+    const { rule, errors: itemErrors } = validateRule(item, {
+      strict: true,
+      files,
+      existingFileId: existing && existing.fileId
+    });
     if (itemErrors.length) for (const error of itemErrors) errors.push({ index, ...error });
-    else items.push(rule);
+    else if (seenIds.has(rule.id)) errors.push({ index, field: 'id', message: 'شناسه قاعده تکراری است' });
+    else {
+      seenIds.add(rule.id);
+      items.push(rule);
+    }
   });
   return { enabled, items, errors };
 }

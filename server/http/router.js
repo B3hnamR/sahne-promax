@@ -5,14 +5,14 @@ const fs = require('fs');
 const { Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const { LIMITS, ENUMS, FONTS, CSP_APP, CSP_OVERLAY, CSP_GOAL, CSP_TOP, DEFAULT_CONFIG } = require('../constants');
-const { cleanText, finite, intOrNull, normFa } = require('../utils/validation');
+const { cleanText, finite, intOrNull } = require('../utils/validation');
 const { localDayKey } = require('../utils/time');
 const { sanitizeFile, sanitizeAppearance, sanitizeChatCommands, validateRules } = require('../utils/sanitizers');
 const { serveFile, servePublic } = require('./streaming');
 const { handleStreamUpload } = require('../media/upload');
 const { exportBackupToFile, importBackupFromFile, MAX_ARCHIVE_BYTES } = require('../features/backup');
 const { buildPayload, pickMedia } = require('../playback/picker');
-const { resolveMedia, evaluateRules, availabilityFor } = require('../playback/rules');
+const { tipToman, factsFromTip, resolveMedia, evaluateRules, availabilityFor } = require('../playback/rules');
 
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -88,6 +88,48 @@ function createHttpRouter(context) {
     appVersion,
     openPathFn
   } = context;
+
+  // Use the same event shape for the rules simulator and preview. Local sub/gift events
+  // carry their real tags and toman override, including the total for a gift bundle.
+  const simulationTip = body => {
+    const kind = ['tip', 'sub', 'gift'].includes(body.kind) ? body.kind : 'tip';
+    const name = cleanText(body.name, LIMITS.name) || 'Tester';
+    const message = cleanText(body.message, LIMITS.message);
+    if (kind === 'sub') {
+      const months = intOrNull(body.months, 1, 240) || 1;
+      const tip = kickChatClient.localEvent(
+        'sub',
+        name,
+        kickChatClient.subValueToman('sub'),
+        message || (months > 1 ? `${months} ماه` : ''),
+        1,
+        ['sub', 'newsub'],
+        months
+      );
+      tip.is_test = true;
+      return tip;
+    }
+    if (kind === 'gift') {
+      const count = intOrNull(body.count, 1, 1000) || 1;
+      const tip = kickChatClient.localEvent(
+        'gift',
+        name,
+        count * kickChatClient.subValueToman('gift'),
+        message,
+        count,
+        ['giftsub', 'gift', 'sub']
+      );
+      tip.is_test = true;
+      return tip;
+    }
+    const tip = playbackQueue.makeTestTip({ name, amount: body.amount, message });
+    // A live tip is not limited by the controller's /api/test amount cap.
+    tip.amount_total = Math.round(finite(body.amount, 0, 1e9, 5) * 100);
+    tip.currency = /^[A-Za-z]{3}$/.test(String(body.currency || '')) ? String(body.currency).toUpperCase() : 'USD';
+    tip.source = ['kickbot', 'streamelements', 'kick'].includes(body.provider) ? body.provider : 'kickbot';
+    tip.is_local = tip.source === 'kick';
+    return tip;
+  };
 
   const hostAllowed = req => {
     const h = String(req.headers.host || '').toLowerCase();
@@ -386,7 +428,11 @@ function createHttpRouter(context) {
 
       if (p === '/api/rules' && req.method === 'PUT') {
         const body = await readJson(req);
-        const { enabled, items, errors } = validateRules(body, configStore.config.files);
+        const { enabled, items, errors } = validateRules(
+          body,
+          configStore.config.files,
+          configStore.config.alertRules.items
+        );
         if (errors.length) {
           return json(res, 400, { error: errors[0].message, errors });
         }
@@ -402,29 +448,15 @@ function createHttpRouter(context) {
 
       if (p === '/api/rules/test' && req.method === 'POST') {
         const body = await readJson(req);
-        const kind = ['tip', 'sub', 'gift'].includes(body.kind) ? body.kind : 'tip';
-        const currency = /^[A-Za-z]{3}$/.test(String(body.currency || ''))
-          ? String(body.currency).toUpperCase()
-          : 'USD';
-        const amount = finite(body.amount, 0, 1e9, 0);
-        const toman =
-          kind === 'tip' ? rateManager.tomanFor(amount, currency) : kickChatClient.subValueToman(kind) || null;
-        const facts = {
-          provider: ['kickbot', 'streamelements', 'kick'].includes(body.provider) ? body.provider : 'kickbot',
-          kind,
-          currency,
-          amount,
-          toman,
-          message: normFa(cleanText(body.message, LIMITS.message)),
-          months: intOrNull(body.months, 1, 240),
-          count: intOrNull(body.count, 1, 1000),
-          isTest: true,
-          isReplay: false
-        };
-        const evaluations = evaluateRules({}, facts, { config: configStore.config, mediaDir });
+        const tip = simulationTip(body);
+        const facts = factsFromTip(tip, tipToman(tip, rateManager));
+        const evaluations = evaluateRules(tip, facts, { config: configStore.config, mediaDir });
         const currentRate = () => rateManager.currentRate();
-        const resolved = resolveMedia({}, facts, { config: configStore.config, mediaDir, currentRate });
-        const pickerMedia = pickMedia({}, { config: configStore.config, mediaDir, currentRate });
+        const resolved = resolveMedia(tip, facts, { config: configStore.config, mediaDir, currentRate });
+        const pickerMedia =
+          resolved.source === 'picker' || resolved.source === 'command'
+            ? resolved.media
+            : pickMedia(tip, { config: configStore.config, mediaDir, currentRate });
         return json(res, 200, {
           ok: true,
           match: resolved.media
@@ -594,38 +626,13 @@ function createHttpRouter(context) {
 
       if (p === '/api/preview' && req.method === 'POST') {
         const body = await readJson(req);
-        let t;
-        if (body.kind === 'gift') {
-          const n = Math.max(1, Math.min(100, finite(body.count, 1, 100, 3)));
-          t = kickChatClient.localEvent(
-            'gift',
-            cleanText(body.name, LIMITS.name) || 'Tester',
-            n * kickChatClient.subValueToman('gift'),
-            Array.from({ length: n }, (_, i) => 'viewer' + (i + 1)).join('، '),
-            n,
-            ['giftsub', 'gift', 'sub']
-          );
-          t.is_test = true;
-        } else if (body.kind === 'sub') {
-          t = kickChatClient.localEvent(
-            'sub',
-            cleanText(body.name, LIMITS.name) || 'Tester',
-            kickChatClient.subValueToman('sub'),
-            '',
-            1,
-            ['sub', 'newsub'],
-            body.months || 1
-          );
-          t.is_test = true;
-        } else {
-          t = playbackQueue.makeTestTip(body);
-        }
-
+        const t = simulationTip(body);
         const media = body.fileId ? configStore.config.files.find(f => f.id === body.fileId) : null;
         const payload = buildPayload(t, media, {
           mediaDir,
           currentRate: () => rateManager.currentRate(),
-          tomanOf: usd => rateManager.tomanOf(usd)
+          tomanOf: usd => rateManager.tomanOf(usd),
+          tomanFor: (amount, currency) => rateManager.tomanFor(amount, currency)
         });
         sse.broadcast('preview', { type: 'play', tip: payload });
         return json(res, 200, { ok: true });
@@ -649,34 +656,34 @@ function createHttpRouter(context) {
       if (p === '/api/simulate' && req.method === 'GET') {
         const per = kickChatClient.subValueToman('sub');
         const perGift = kickChatClient.subValueToman('gift');
-        const sim = (toman, tags, kind = 'tip', count = null) => {
-          const t = { amount_total: 0, tip_message: '', tags, toman_override: toman };
-          const resolved = resolveMedia(
-            t,
-            {
-              provider: kind === 'tip' ? 'kickbot' : 'kick',
-              kind,
-              currency: 'USD',
-              amount: 0,
-              toman,
-              message: '',
-              months: null,
-              count,
-              isTest: false,
-              isReplay: false
-            },
-            { config: configStore.config, mediaDir, currentRate: () => rateManager.currentRate() }
-          );
+        const sim = (kind, count = null) => {
+          const toman = kind === 'sub' ? per : count * perGift;
+          const t = {
+            amount_total: 0,
+            tip_message: '',
+            tags: kind === 'sub' ? ['sub', 'newsub'] : ['giftsub', 'gift', 'sub'],
+            toman_override: toman,
+            kind,
+            count,
+            months: kind === 'sub' ? 1 : null,
+            is_local: true,
+            currency: 'USD'
+          };
+          const resolved = resolveMedia(t, factsFromTip(t, tipToman(t, rateManager)), {
+            config: configStore.config,
+            mediaDir,
+            currentRate: () => rateManager.currentRate()
+          });
           const m = resolved.media;
           return m ? { id: m.id, name: m.name, file: m.file } : null;
         };
-        const rows = [{ label: 'sub', toman: per, media: sim(per, ['sub', 'newsub'], 'sub') }];
+        const rows = [{ label: 'sub', toman: per, media: sim('sub') }];
         for (const n of [1, 2, 3, 5, 10, 20]) {
           rows.push({
             label: 'gift',
             count: n,
             toman: n * perGift,
-            media: sim(n * perGift, ['giftsub', 'gift', 'sub'], 'gift', n)
+            media: sim('gift', n)
           });
         }
         return json(res, 200, { ok: true, rate: rateManager.currentRate(), rows });

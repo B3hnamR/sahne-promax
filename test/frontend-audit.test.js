@@ -447,19 +447,50 @@ test('rules page builds a PUT payload from the rendered rows', () => {
   const rows = [
     {
       dataset: { id: 'a1b2c3d4e5' },
+      querySelectorAll: sel =>
+        ({
+          '.rule-provider': [
+            { value: 'kickbot', checked: true },
+            { value: 'streamelements', checked: true },
+            { value: 'kick', checked: false }
+          ],
+          '.rule-kind': [{ value: 'sub', checked: true }]
+        })[sel] || [],
       querySelector: sel =>
         ({
           '.rule-enabled': { checked: true },
           '.rule-name': { value: 'SE tips' },
-          '.rule-provider': { value: 'streamelements' },
-          '.rule-kind': { value: 'tip' },
           '.rule-currency': { value: 'EUR' },
           '.rule-min-toman': { value: '500000' },
           '.rule-max-toman': { value: '' },
           '.rule-message': { value: '' },
-          '.rule-months': { value: '' },
+          '.rule-months': { value: '3' },
+          '.rule-max-months': { value: '12' },
           '.rule-count': { value: '' },
+          '.rule-max-count': { value: '' },
           '.rule-file': { value: 'aaaaaaaaaa' }
+        })[sel]
+    },
+    {
+      dataset: { id: 'b1b2c3d4e5' },
+      querySelectorAll: sel =>
+        ({
+          '.rule-provider': [{ value: 'kick', checked: true }],
+          '.rule-kind': [{ value: 'gift', checked: true }]
+        })[sel] || [],
+      querySelector: sel =>
+        ({
+          '.rule-enabled': { checked: true },
+          '.rule-name': { value: 'Gifts' },
+          '.rule-currency': { value: '' },
+          '.rule-min-toman': { value: '' },
+          '.rule-max-toman': { value: '' },
+          '.rule-message': { value: '' },
+          '.rule-months': { value: '' },
+          '.rule-max-months': { value: '' },
+          '.rule-count': { value: '2' },
+          '.rule-max-count': { value: '5' },
+          '.rule-file': { value: 'bbbbbbbbbb' }
         })[sel]
     }
   ];
@@ -476,21 +507,139 @@ test('rules page builds a PUT payload from the rendered rows', () => {
         name: 'SE tips',
         enabled: true,
         conditions: {
-          providers: ['streamelements'],
-          kinds: ['tip'],
+          providers: ['kickbot', 'streamelements'],
+          kinds: ['sub'],
           currency: 'EUR',
           minToman: 500000,
           maxToman: null,
           messageContains: '',
-          minMonths: null,
-          maxMonths: null,
+          minMonths: 3,
+          maxMonths: 12,
           minCount: null,
           maxCount: null
         },
         fileId: 'aaaaaaaaaa'
+      },
+      {
+        id: 'b1b2c3d4e5',
+        name: 'Gifts',
+        enabled: true,
+        conditions: {
+          providers: ['kick'],
+          kinds: ['gift'],
+          currency: null,
+          minToman: null,
+          maxToman: null,
+          messageContains: '',
+          minMonths: null,
+          maxMonths: null,
+          minCount: 2,
+          maxCount: 5
+        },
+        fileId: 'bbbbbbbbbb'
       }
     ]
   });
+});
+
+test('rules page keeps an unavailable file selected for repair', () => {
+  const source = read('js/rules.js');
+  const snippet = source.slice(source.indexOf('let availability'), source.indexOf('function renderRules()'));
+  const context = vm.createContext({
+    state: { cfg: { files: [] } },
+    document: { createElement: () => ({ dataset: {}, innerHTML: '' }) },
+    esc: value => String(value)
+  });
+  vm.runInContext(
+    withoutModules(snippet) +
+      ';globalThis.row = ruleRow({id:"1111111111",name:"Old",enabled:true,fileId:"aaaaaaaaaa",conditions:{providers:[],kinds:[],currency:null,minToman:null,maxToman:null,messageContains:"",minMonths:null,maxMonths:null,minCount:null,maxCount:null}});',
+    context
+  );
+  assert.match(context.row.innerHTML, /value="aaaaaaaaaa" selected>فایل حذف‌شده/);
+});
+
+test('rules preview uses the latest successful simulation and clears stale matches', async () => {
+  const elements = new Map();
+  const requests = [];
+  const responses = [
+    { ok: true, match: { fileId: 'aaaaaaaaaa', fileName: 'Matched', source: 'rule' }, evaluations: [] },
+    { ok: true, match: null, evaluations: [] }
+  ];
+  const $ = selector => {
+    if (!elements.has(selector))
+      elements.set(selector, {
+        value: '',
+        dataset: {},
+        disabled: false,
+        listeners: {},
+        addEventListener(name, handler) {
+          this.listeners[name] = handler;
+        },
+        appendChild() {},
+        closest() {
+          return null;
+        }
+      });
+    return elements.get(selector);
+  };
+  $('#rtKind').value = 'tip';
+  $('#rtProvider').value = 'streamelements';
+  $('#rtCurrency').value = 'EUR';
+  $('#rtAmount').value = '5';
+  $('#rtName').value = 'Viewer';
+  $('#rtMessage').value = 'hello';
+  const context = vm.createContext({
+    $,
+    $$: () => [],
+    state: { cfg: null },
+    document: { createElement: () => ({ textContent: '', className: '' }) },
+    post: async (path, body) => {
+      requests.push({ path, body });
+      return path === '/api/rules/test' ? responses.shift() : { ok: true };
+    },
+    put: async () => ({ ok: false }),
+    toast() {},
+    esc: value => String(value),
+    fetch: async () => ({ json: async () => ({ availability: {} }) })
+  });
+  vm.runInContext(withoutModules(read('js/rules.js')), context);
+  vm.runInContext('initRules()', context);
+  await $('#btnRuleTest').onclick();
+  assert.equal($('#btnRulePreview').disabled, false);
+  $('#btnRulePreview').onclick();
+  assert.deepEqual(JSON.parse(JSON.stringify(requests[1].body)), {
+    provider: 'streamelements',
+    kind: 'tip',
+    currency: 'EUR',
+    amount: 5,
+    name: 'Viewer',
+    message: 'hello',
+    months: null,
+    count: null,
+    fileId: 'aaaaaaaaaa'
+  });
+  await $('#btnRuleTest').onclick();
+  assert.equal($('#btnRulePreview').disabled, true);
+  assert.equal($('#btnRulePreview').dataset.fileId, undefined);
+  $('#rtAmount').listeners.input();
+  assert.equal($('#btnRulePreview').disabled, true);
+
+  let releaseOld;
+  responses.push(new Promise(resolve => (releaseOld = resolve)));
+  responses.push({ ok: true, match: { fileId: 'bbbbbbbbbb', fileName: 'New', source: 'rule' }, evaluations: [] });
+  const oldRequest = $('#btnRuleTest').onclick();
+  await $('#btnRuleTest').onclick();
+  releaseOld({ ok: true, match: { fileId: 'cccccccccc', fileName: 'Old', source: 'rule' }, evaluations: [] });
+  await oldRequest;
+  assert.equal($('#btnRulePreview').dataset.fileId, 'bbbbbbbbbb', 'late replies cannot restore an older result');
+  $('#rtKind').value = 'gift';
+  $('#rtKind').listeners.change();
+  assert.equal($('#rtProvider').value, 'kick');
+  assert.equal($('#rtCurrency').value, 'USD');
+  $('#rtKind').value = 'tip';
+  $('#rtKind').listeners.change();
+  assert.equal($('#rtProvider').value, 'streamelements');
+  assert.equal($('#rtCurrency').value, 'EUR');
 });
 
 test('rules page refuses to save before the first render', async () => {

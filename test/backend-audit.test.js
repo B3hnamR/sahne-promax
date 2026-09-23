@@ -865,6 +865,97 @@ test('rules endpoints round-trip, reject invalid edits and never mutate on failu
     before,
     'the simulator mutates nothing'
   );
+
+  app.configStore.config.files = [];
+  const orphanEdit = await put({ enabled: false, items: [{ ...saved.items[0], name: 'Renamed orphan' }] });
+  assert.equal(orphanEdit.status, 200, 'an unchanged missing-file reference does not block other edits');
+  assert.equal(app.configStore.config.alertRules.items[0].fileId, 'aaaaaaaaaa');
+  const invalidNew = await put({
+    enabled: true,
+    items: [...app.configStore.config.alertRules.items, { name: 'New orphan', conditions: {}, fileId: 'bbbbbbbbbb' }]
+  });
+  assert.equal(invalidNew.status, 400, 'new missing-file references remain invalid');
+  assert.equal(app.configStore.config.alertRules.enabled, false, 'failed PUT did not change the master switch');
+});
+
+test('rules simulator matches live picker facts and preview keeps event fields', async t => {
+  const probe = net.createServer();
+  await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve));
+  const port = probe.address().port;
+  await new Promise(resolve => probe.close(resolve));
+  const dir = tempDir(t);
+  fs.mkdirSync(path.join(dir, 'media'));
+  fs.writeFileSync(path.join(dir, 'media', 'tier.webm'), 'x');
+  fs.writeFileSync(path.join(dir, 'media', 'gift.webm'), 'x');
+  const app = createServer({ dataDir: dir, testHooks: { offline: true } });
+  app.configStore.config.port = port;
+  app.configStore.config.rate.manual = 100000;
+  app.configStore.config.rate.fx.EUR = 110000;
+  app.configStore.config.kick.giftValueToman = 100000;
+  app.configStore.config.files = [
+    { id: 'aaaaaaaaaa', file: 'tier.webm', name: 'Tier', type: 'video', size: 1, enabled: true, minToman: 100000 },
+    { id: 'bbbbbbbbbb', file: 'gift.webm', name: 'Gift', type: 'video', size: 1, enabled: true, minToman: 1000000 }
+  ];
+  app.saveConfig();
+  await app.start();
+  t.after(() => app.stop());
+  const origin = `http://127.0.0.1:${port}`;
+  const post = (route, body) =>
+    fetch(origin + route, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: origin },
+      body: JSON.stringify(body)
+    });
+
+  const tip = await (await post('/api/rules/test', { provider: 'kickbot', kind: 'tip', amount: 5 })).json();
+  assert.equal(tip.match.fileId, 'aaaaaaaaaa', 'the fallback picker receives the entered amount');
+  assert.equal(tip.picker.fileId, 'aaaaaaaaaa');
+
+  const put = await fetch(origin + '/api/rules', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Origin: origin },
+    body: JSON.stringify({
+      enabled: true,
+      items: [
+        { name: 'Three gifts', conditions: { kinds: ['gift'], minToman: 300000, minCount: 3 }, fileId: 'bbbbbbbbbb' }
+      ]
+    })
+  });
+  assert.equal(put.status, 200);
+  const two = await (await post('/api/rules/test', { kind: 'gift', count: 2 })).json();
+  const three = await (await post('/api/rules/test', { kind: 'gift', count: 3 })).json();
+  assert.equal(two.match.fileId, 'aaaaaaaaaa');
+  assert.equal(three.match.fileId, 'bbbbbbbbbb', 'gift value multiplies by count');
+
+  const broadcasts = [];
+  const hub = app.playbackQueue.sse;
+  const originalBroadcast = hub.broadcast.bind(hub);
+  hub.broadcast = (role, payload) => {
+    broadcasts.push({ role, payload });
+    return originalBroadcast(role, payload);
+  };
+  const historyBefore = app.historyStore.entries.length;
+  const preview = await post('/api/preview', {
+    provider: 'streamelements',
+    kind: 'tip',
+    currency: 'EUR',
+    amount: 5,
+    name: 'Viewer',
+    message: 'hello',
+    fileId: 'aaaaaaaaaa'
+  });
+  assert.equal(preview.status, 200);
+  const eur = broadcasts.at(-1);
+  assert.equal(eur.role, 'preview');
+  assert.equal(eur.payload.tip.currency, 'EUR');
+  assert.equal(eur.payload.tip.toman, 550000);
+  assert.equal(eur.payload.tip.kind, 'tip');
+  await post('/api/preview', { kind: 'gift', count: 3, fileId: 'bbbbbbbbbb' });
+  const gift = broadcasts.at(-1);
+  assert.equal(gift.payload.tip.kind, 'gift');
+  assert.equal(gift.payload.tip.count, 3);
+  assert.equal(gift.payload.tip.toman, 300000);
+  assert.equal(app.historyStore.entries.length, historyBefore, 'previews do not enter history');
 });
 
 test('/api/simulate resolves sub and gift rows with their own alert kind', async t => {
@@ -891,7 +982,7 @@ test('/api/simulate resolves sub and gift rows with their own alert kind', async
     headers: { 'Content-Type': 'application/json', Origin: origin },
     body: JSON.stringify({
       enabled: true,
-      items: [{ name: 'subs', conditions: { kinds: ['sub'] }, fileId: 'bbbbbbbbbb' }]
+      items: [{ name: 'subs', conditions: { kinds: ['sub'], minMonths: 1 }, fileId: 'bbbbbbbbbb' }]
     })
   });
   assert.equal(put.status, 200);

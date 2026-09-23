@@ -1,9 +1,9 @@
 'use strict';
 const crypto = require('crypto');
 const { LIMITS } = require('../constants');
-const { cleanText, finite, intOrNull, normFa } = require('../utils/validation');
+const { cleanText, finite, intOrNull } = require('../utils/validation');
 const { buildPayload } = require('./picker');
-const { resolveMedia } = require('./rules');
+const { tipToman, factsFromTip, resolveMedia } = require('./rules');
 
 class PlaybackQueue {
   constructor({
@@ -178,35 +178,14 @@ class PlaybackQueue {
 
   showTip(t) {
     const config = this.configStore.config;
-    const toman =
-      t.toman_override != null
-        ? Number(t.toman_override)
-        : this.rateManager.tomanFor
-          ? this.rateManager.tomanFor((t.amount_total || 0) / 100, t.currency || 'USD')
-          : this.rateManager.tomanOf((t.amount_total || 0) / 100);
-    const summary = this.tipSummary(t);
-    const resolved = resolveMedia(
-      t,
-      {
-        provider: summary.source,
-        kind: summary.kind,
-        currency: String(summary.currency || 'USD').toUpperCase(),
-        amount: summary.amount,
-        toman,
-        message: normFa(t.tip_message),
-        months: t.months != null ? Number(t.months) : null,
-        count: t.count != null ? Number(t.count) : null,
-        isTest: !!t.is_test,
-        isReplay: !!t.is_replay
-      },
-      {
-        config,
-        mediaDir: this.mediaDir,
-        currentRate: () => this.rateManager.currentRate(),
-        replayFileId: t.replay_media_id || null,
-        logger: this.logger
-      }
-    );
+    const toman = tipToman(t, this.rateManager);
+    const resolved = resolveMedia(t, factsFromTip(t, toman), {
+      config,
+      mediaDir: this.mediaDir,
+      currentRate: () => this.rateManager.currentRate(),
+      replayFileId: t.replay_media_id || null,
+      logger: this.logger
+    });
     const media = resolved.media;
 
     if (!media && config.showAlertWithoutMedia === false) {
