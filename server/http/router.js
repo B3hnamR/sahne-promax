@@ -296,6 +296,14 @@ function createHttpRouter(context) {
 
       // ProMax 1-Click Backup & Restore Endpoints
       if (p === '/api/backup' && req.method === 'GET') {
+        // A page on another site can issue this GET without reading the response;
+        // it must not be able to drive CPU/disk-heavy exports.
+        if (!originAllowed(req) || String(req.headers['sec-fetch-site'] || '').toLowerCase() === 'cross-site') {
+          logger.warn('درخواست پشتیبان‌گیری از یک صفحه‌ی خارجی رد شد', {
+            origin: String(req.headers.origin || '').slice(0, 100)
+          });
+          return json(res, 403, { error: 'forbidden origin' });
+        }
         try {
           const backup = await exportBackupToFile(dataDir, configStore);
           const filename = `sahne-promax-backup-${new Date().toISOString().slice(0, 10)}.zip`;

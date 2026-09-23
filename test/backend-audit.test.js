@@ -606,3 +606,29 @@ test('history clear discards an in-flight async save', async t => {
   await pending;
   assert.equal(fs.existsSync(path.join(dir, 'history.json')), false);
 });
+
+test('cross-site pages cannot trigger a backup export, and exports clean up after themselves', async t => {
+  const probe = net.createServer();
+  await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve));
+  const port = probe.address().port;
+  await new Promise(resolve => probe.close(resolve));
+  const dir = tempDir(t);
+  const app = createServer({ dataDir: dir, testHooks: { offline: true } });
+  app.configStore.config.port = port;
+  app.saveConfig();
+  await app.start();
+  t.after(() => app.stop());
+  const origin = `http://127.0.0.1:${port}`;
+
+  const blocked = await fetch(origin + '/api/backup', { headers: { Origin: 'https://evil.example' } });
+  assert.equal(blocked.status, 403);
+  const blockedFetchSite = await fetch(origin + '/api/backup', { headers: { 'Sec-Fetch-Site': 'cross-site' } });
+  assert.equal(blockedFetchSite.status, 403);
+
+  const ok = await fetch(origin + '/api/backup');
+  assert.equal(ok.status, 200);
+  await ok.arrayBuffer();
+  const leftovers = () => fs.readdirSync(dir).filter(name => name.startsWith('.backup-export-'));
+  for (let i = 0; i < 50 && leftovers().length; i++) await new Promise(resolve => setTimeout(resolve, 20));
+  assert.deepEqual(leftovers(), []);
+});
