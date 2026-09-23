@@ -2,6 +2,14 @@
 
 All notable changes to the public builds. Versions follow semantic versioning.
 
+## Unreleased — follow-up fixes under review
+
+- Commit the USD quote as soon as Nobitex responds, even if optional currency quote services are slow.
+- Keep replacement StreamElements and Kick chat sockets from being marked disconnected by older socket close events.
+- Preserve the newest settings during overlapping sync and async saves; validate backups before installing them, restore runtime integrations, and make credential re-entry explicit.
+- Correct foreign currency labels and template placeholders, confirmation keyboard behavior, media editor save timing, and upload status messages.
+- Handle updater disk errors throughout the download, and verify uploaded checksum manifests inside the tagged release job before publishing (a separate `release-checksums` workflow covers releases published outside that job).
+
 ## 2.4.0 — 2026-09-23 (StreamElements and multi-currency tips)
 
 Upstream ancestry from Sahne+ 1.3.4–1.3.5 is merged into ProMax's modular architecture. The newly ported user-facing features are:
@@ -18,7 +26,7 @@ Any 2.3.x install shows the update notice inside the app: click **آپدیت**. 
 ### Files in this release
 
 - `Sahne-ProMax-Setup-2.4.0.exe` — Windows installer (per-user, no admin rights needed)
-- `SHA256SUMS.txt` — SHA-256 checksum of the installer (generated in the release workflow)
+- `SHA256SUMS.txt` — SHA-256 checksum of the published installer
 - `README-FA.md` — راهنمای فارسی
 
 ### Notice

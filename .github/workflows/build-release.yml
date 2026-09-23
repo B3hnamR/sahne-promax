@@ -50,6 +50,10 @@ jobs:
           [IO.File]::WriteAllText("$PWD\dist\SHA256SUMS.txt", (($lines -join "`n") + "`n"))
           Get-Content dist\SHA256SUMS.txt
 
+      - name: Verify local release assets
+        shell: pwsh
+        run: ./scripts/verify-release-checksums.ps1 -Directory dist
+
       - name: Attest build provenance (public repositories only; GitHub offers no attestations for private ones)
         if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@v2
@@ -65,11 +69,36 @@ jobs:
           Copy-Item $notes dist\NOTES.md
           Copy-Item docs\README-FA.md dist\README-FA.md
 
-      - name: Publish GitHub Release
+      - name: Create draft GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
           $files = @((Get-ChildItem dist\*.exe).FullName) + "dist\SHA256SUMS.txt" + "dist\README-FA.md"
-          gh release create $tag --repo "${{ github.repository }}" --title "Sahne ProMax $($tag.TrimStart('v'))" --notes-file dist\NOTES.md --latest @files
+          gh release create $tag --repo "${{ github.repository }}" --title "Sahne ProMax $($tag.TrimStart('v'))" --notes-file dist\NOTES.md --verify-tag --draft @files
+
+      # A release created with GITHUB_TOKEN does not trigger release:published workflows.
+      # Verify the uploaded draft assets in this same job before publishing.
+      - name: Verify uploaded release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $downloadDir = Join-Path $env:RUNNER_TEMP 'published-release-assets'
+          New-Item -ItemType Directory -Force -Path $downloadDir | Out-Null
+          gh release download "${{ github.ref_name }}" --repo "${{ github.repository }}" --pattern '*.exe' --pattern 'SHA256SUMS.txt' --dir $downloadDir
+          ./scripts/verify-release-checksums.ps1 -Directory $downloadDir
+
+      - name: Publish verified GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false --latest
+
+      - name: Delete the draft release after a failed run
+        if: failure()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete "${{ github.ref_name }}" --repo "${{ github.repository }}" --yes --cleanup-tag=false --verbose || true
