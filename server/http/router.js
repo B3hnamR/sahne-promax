@@ -1,13 +1,16 @@
 'use strict';
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
+const { Transform } = require('stream');
+const { pipeline } = require('stream/promises');
 const { LIMITS, ENUMS, FONTS, CSP_APP, CSP_OVERLAY, CSP_GOAL, CSP_TOP, DEFAULT_CONFIG } = require('../constants');
 const { cleanText, finite, intOrNull } = require('../utils/validation');
 const { localDayKey } = require('../utils/time');
 const { sanitizeFile, sanitizeAppearance, sanitizeChatCommands } = require('../utils/sanitizers');
 const { serveFile, servePublic } = require('./streaming');
 const { handleStreamUpload } = require('../media/upload');
-const { exportBackup, importBackup } = require('../features/backup');
+const { exportBackupToFile, importBackupFromFile, MAX_ARCHIVE_BYTES } = require('../features/backup');
 const { buildPayload, pickMedia } = require('../playback/picker');
 
 function json(res, code, obj) {
@@ -31,6 +34,25 @@ function readBody(req, limit = 4 * 1024 * 1024) {
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
+}
+
+async function readBodyToFile(req, dataDir, limit) {
+  if (Number(req.headers['content-length']) > limit) throw new Error('Backup ZIP exceeds the 1 GB upload limit');
+  const filePath = path.join(dataDir, '.backup-upload-' + crypto.randomUUID() + '.zip');
+  let bytes = 0;
+  const bound = new Transform({
+    transform(chunk, _encoding, callback) {
+      bytes += chunk.length;
+      callback(bytes <= limit ? null : new Error('Backup ZIP exceeds the 1 GB upload limit'), chunk);
+    }
+  });
+  try {
+    await pipeline(req, bound, fs.createWriteStream(filePath, { flags: 'wx' }));
+    return filePath;
+  } catch (error) {
+    await fs.promises.rm(filePath, { force: true });
+    throw error;
+  }
 }
 
 async function readJson(req) {
@@ -275,14 +297,21 @@ function createHttpRouter(context) {
       // ProMax 1-Click Backup & Restore Endpoints
       if (p === '/api/backup' && req.method === 'GET') {
         try {
-          const zipBuffer = await exportBackup(dataDir, configStore);
+          const backup = await exportBackupToFile(dataDir, configStore);
           const filename = `sahne-promax-backup-${new Date().toISOString().slice(0, 10)}.zip`;
           res.writeHead(200, {
             'Content-Type': 'application/zip',
             'Content-Disposition': `attachment; filename="${filename}"`,
-            'Content-Length': zipBuffer.length
+            'Content-Length': backup.size
           });
-          return res.end(zipBuffer);
+          const stream = fs.createReadStream(backup.filePath);
+          res.once('close', () => stream.destroy());
+          stream.once('close', () => fs.promises.rm(backup.filePath, { force: true }).catch(() => {}));
+          stream.once('error', error => {
+            logger.error('خواندن فایل پشتیبان ناموفق بود', error.message);
+            res.destroy(error);
+          });
+          return stream.pipe(res);
         } catch (e) {
           logger.error('تهیه نسخه پشتیبان ناموفق بود', e.message);
           return json(res, 500, { error: 'تهیه نسخه پشتیبان با خطا مواجه شد' });
@@ -290,14 +319,48 @@ function createHttpRouter(context) {
       }
 
       if (p === '/api/restore' && req.method === 'POST') {
+        let archivePath;
         try {
-          const zipBuffer = await readBody(req, 512 * 1024 * 1024);
-          const result = await importBackup(dataDir, zipBuffer, { configStore, logger, sse, historyStore });
-          streamElementsClient.reloadAfterRestore();
+          archivePath = await readBodyToFile(req, dataDir, MAX_ARCHIVE_BYTES);
+          const result = await importBackupFromFile(dataDir, archivePath, { configStore, logger, sse, historyStore });
+          playbackQueue.clearQueue();
+          // The archive is already committed. A connection failure must not
+          // turn a successful restore into a misleading HTTP 400 response.
+          const restart = (name, action) => {
+            try {
+              action();
+            } catch (error) {
+              logger.warn(name + ' restart after restore failed', error.message);
+            }
+          };
+          restart('KickBot', () => {
+            kickBotClient.resetConnection();
+            kickBotClient.connect();
+          });
+          restart('Kick chat', () => {
+            kickChatClient.resetConnection();
+            if (configStore.config.kick.enabled && configStore.config.kick.channel) {
+              kickChatClient.startKeepAlive();
+              kickChatClient
+                .resolveKickChannel()
+                .then(ok => {
+                  if (ok) kickChatClient.connect();
+                })
+                .catch(error => logger.warn('Kick chat restart after restore failed', error.message));
+            }
+          });
+          restart('Rate scheduler', () => {
+            rateManager.resetForRestore();
+            rateManager.scheduleRate();
+            if (configStore.config.rate.auto) rateManager.refreshRate(false);
+          });
+          restart('StreamElements', () => streamElementsClient.reloadAfterRestore());
           return json(res, 200, { ok: true, ...result });
         } catch (e) {
           logger.error('بازیابی نسخه پشتیبان ناموفق بود', e.message);
           return json(res, 400, { error: e.message || 'فایل پشتیبان نامعتبر است' });
+        } finally {
+          if (archivePath) await fs.promises.rm(archivePath, { force: true }).catch(() => {});
         }
       }
 
@@ -371,13 +434,9 @@ function createHttpRouter(context) {
             config.kick.resolvedFor = null;
           }
           configStore.saveConfig();
-          if (kickChatClient.kws) {
-            try {
-              kickChatClient.kws.close();
-            } catch {}
-            kickChatClient.kws = null;
-          }
+          kickChatClient.resetConnection();
           if (config.kick.enabled) {
+            kickChatClient.startKeepAlive();
             kickChatClient.resolveKickChannel().then(ok => {
               if (ok) kickChatClient.connect();
             });

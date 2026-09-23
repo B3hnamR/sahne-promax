@@ -6,9 +6,9 @@
 const { app, net } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const { spawn } = require('child_process');
 const core = require('./update-core');
+const { readLimitedText, streamDownload } = require('./download-core');
 
 function createUpdater({ version, canInstall, dryRun, log, onChange }) {
   let st = {
@@ -94,9 +94,7 @@ function createUpdater({ version, canInstall, dryRun, log, onChange }) {
   async function fetchText(url) {
     const r = await net.fetch(url, { headers, cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + path.basename(url));
-    const text = await r.text();
-    if (text.length > core.MAX_SUMS_BYTES) throw new Error('checksum file too large');
-    return text;
+    return readLimitedText(r.body, core.MAX_SUMS_BYTES);
   }
 
   async function download(latest) {
@@ -109,36 +107,16 @@ function createUpdater({ version, canInstall, dryRun, log, onChange }) {
     const r = await net.fetch(core.assetUrl(latest, file), { headers, cache: 'no-store' });
     if (!r.ok || !r.body) throw new Error('HTTP ' + r.status + ' for ' + file);
     const total = Number(r.headers.get('content-length')) || 0;
-    if (total > core.MAX_INSTALLER_BYTES) throw new Error('installer too large');
-    const hash = crypto.createHash('sha256');
-    const out = fs.createWriteStream(dest);
-    let got = 0,
-      lastPct = -1;
-    try {
-      const reader = r.body.getReader();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        got += value.length;
-        if (got > core.MAX_INSTALLER_BYTES) throw new Error('installer too large');
-        hash.update(value);
-        if (!out.write(value)) await new Promise(res => out.once('drain', res));
-        const pct = total ? Math.min(99, Math.floor((got / total) * 100)) : 0;
-        if (pct !== lastPct) {
-          lastPct = pct;
-          set({ progress: pct });
-        }
-      }
-      await new Promise((res, rej) => {
-        out.once('error', rej);
-        out.end(res);
-      });
-    } catch (e) {
-      out.destroy();
-      throw e;
+    if (total > core.MAX_INSTALLER_BYTES) {
+      await r.body.cancel().catch(() => {});
+      throw new Error('installer too large');
     }
-    if (hash.digest('hex') !== expected)
-      throw new Error('checksum: SHA-256 of the download does not match SHA256SUMS.txt');
+    const { sha256 } = await streamDownload(r.body, fs.createWriteStream(dest), {
+      maxBytes: core.MAX_INSTALLER_BYTES,
+      total,
+      onProgress: progress => set({ progress })
+    });
+    if (sha256 !== expected) throw new Error('checksum: SHA-256 of the download does not match SHA256SUMS.txt');
     const head = Buffer.alloc(2);
     const fd = fs.openSync(dest, 'r');
     try {
