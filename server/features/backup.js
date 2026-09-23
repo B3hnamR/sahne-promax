@@ -158,11 +158,13 @@ async function exportBackupToFile(dataDir, configStore = null) {
     };
     for (const entry of entries) {
       const name = Buffer.from(entry.name, 'utf8');
+      const utf8Name = name.some(byte => byte >= 0x80);
+      const nameFlags = utf8Name ? 0x0808 : 0x0008; // bit 3 (descriptor) + bit 11 (UTF-8 name)
       const localOffset = position;
       const local = Buffer.alloc(30);
       local.writeUInt32LE(0x04034b50, 0);
       local.writeUInt16LE(20, 4);
-      local.writeUInt16LE(8, 6); // sizes and CRC follow the data in a descriptor
+      local.writeUInt16LE(nameFlags, 6); // sizes and CRC follow the data in a descriptor
       local.writeUInt16LE(8, 8);
       local.writeUInt16LE(dosTime, 10);
       local.writeUInt16LE(dosDate, 12);
@@ -198,7 +200,7 @@ async function exportBackupToFile(dataDir, configStore = null) {
       record.writeUInt32LE(0x02014b50, 0);
       record.writeUInt16LE(20, 4);
       record.writeUInt16LE(20, 6);
-      record.writeUInt16LE(8, 8);
+      record.writeUInt16LE(nameFlags, 8);
       record.writeUInt16LE(8, 10);
       record.writeUInt16LE(dosTime, 12);
       record.writeUInt16LE(dosDate, 14);
@@ -376,8 +378,9 @@ async function archiveEntries(filePath) {
       if (cursor + 46 + nameLength + extraLength + commentLength > endOffset)
         throw new Error('Corrupted archive: truncated file name');
       const name = (await readExact(handle, nameLength, cursor + 46)).toString('utf8');
-      if (names.has(name)) throw new Error('Archive has duplicate names');
-      names.add(name);
+      const key = name.toLowerCase();
+      if (names.has(key)) throw new Error('Archive has duplicate names');
+      names.add(key);
       if (name !== 'config.json' && name !== 'history.json' && !/^media\/[^/\\]+$/.test(name))
         throw new Error('Backup contains an unexpected path');
       if (name === 'config.json' && rawSize > 8 * 1024 * 1024) throw new Error('Backup config is too large');

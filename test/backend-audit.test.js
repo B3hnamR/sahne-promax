@@ -505,3 +505,35 @@ test('a failed rollback keeps the staged previous files for recovery', async t =
   const kept = JSON.parse(fs.readFileSync(path.join(dir, stages[0], 'rollback', 'config.json'), 'utf8'));
   assert.equal(kept.mode, 'companion');
 });
+
+function localHeaderFlags(zip, entryName) {
+  const name = Buffer.from(entryName, 'utf8');
+  const index = zip.indexOf(name);
+  assert.notEqual(index, -1, 'entry name present in archive');
+  assert.equal(zip.readUInt32LE(index - 30), 0x04034b50);
+  return zip.readUInt16LE(index - 24);
+}
+
+test('zip entries with non-ASCII names set the UTF-8 name flag', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.saveConfig();
+  fs.mkdirSync(path.join(dir, 'media'));
+  fs.writeFileSync(path.join(dir, 'media', 'فارسی.mp4'), Buffer.from('x'));
+  const archive = await exportBackupToFile(dir, store);
+  t.after(() => fs.rmSync(archive.filePath, { force: true }));
+  const zip = fs.readFileSync(archive.filePath);
+  assert.equal(localHeaderFlags(zip, 'media/فارسی.mp4') & 0x0800, 0x0800);
+});
+
+test('archives with case-only duplicate media names are rejected', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.saveConfig();
+  const zip = createZipArchive({
+    'config.json': JSON.stringify(store.serializedConfig()),
+    'media/A.bin': Buffer.from('a'),
+    'media/a.bin': Buffer.from('b')
+  });
+  await assert.rejects(importBackup(dir, zip, { configStore: store, logger, sse }), /duplicate/i);
+});
