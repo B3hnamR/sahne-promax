@@ -6,7 +6,8 @@ const os = require('os');
 const path = require('path');
 const { sanitizeRules } = require('../server/utils/sanitizers');
 const { ConfigStore } = require('../server/config/store');
-const { resolveMedia, evaluateRules } = require('../server/playback/rules');
+const { resolveMedia, evaluateRules, availabilityFor } = require('../server/playback/rules');
+const { exportBackup, importBackup } = require('../server/features/backup');
 
 const validRule = (over = {}) => ({
   id: 'a1b2c3d4e5',
@@ -88,6 +89,12 @@ test('config load sanitizes alertRules through the store', t => {
   const store = new ConfigStore({ dataDir: dir, logger: () => {} });
   assert.equal(store.config.alertRules.enabled, true);
   assert.deepEqual(store.config.alertRules.items, []);
+});
+
+test('sanitizeRules caps the rule list at 50', () => {
+  const items = Array.from({ length: 60 }, (_, i) => validRule({ fileId: String(i).padStart(10, '0') }));
+  const out = sanitizeRules({ enabled: true, items }, { v: 1, enabled: false, items: [] }, []);
+  assert.equal(out.items.length, 50);
 });
 
 const facts = over => ({
@@ -241,4 +248,28 @@ test('evaluateRules explains matches and failures', t => {
   const out = evaluateRules({}, facts({ currency: 'USD' }), { config, mediaDir });
   assert.equal(out[0].matched, false);
   assert.deepEqual(out[0].reasons, ['currency']);
+});
+
+test('backups carry rules and availability flags a missing file', async t => {
+  const dir = tempMedia(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.config.files = [
+    { id: 'aaaaaaaaaa', file: 'tier.webm', name: 'Tier', type: 'video', size: 1, enabled: true, minToman: 0 }
+  ];
+  store.config.alertRules = {
+    v: 1,
+    enabled: true,
+    items: [{ id: 'a1b2c3d4e5', name: 'r', conditions: {}, fileId: 'aaaaaaaaaa' }]
+  };
+  store.saveConfig();
+  const backup = await exportBackup(dir, store);
+  await importBackup(dir, backup, {
+    configStore: store,
+    logger: { info() {}, warn() {}, error() {} },
+    sse: { broadcast() {}, sendState() {} }
+  });
+  assert.equal(store.config.alertRules.items.length, 1, 'rules survive a backup round-trip');
+  assert.equal(availabilityFor(store.config, dir).aaaaaaaaaa, 'ok');
+  fs.rmSync(path.join(dir, 'tier.webm'));
+  assert.equal(availabilityFor(store.config, dir).aaaaaaaaaa, 'missing');
 });

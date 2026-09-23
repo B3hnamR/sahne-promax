@@ -2,6 +2,11 @@
 
 All notable changes to the public builds. Versions follow semantic versioning.
 
+## Unreleased
+
+- **Alert media routing rules:** an ordered list of conditions (provider, alert type, currency, toman range, message text, sub months, gift count) selects the alert file; the first matching rule wins and everything else falls back to the existing tier/keyword picker. Rules are edited on a new Rules page, explained by a side-effect-free event simulator, and recorded in alert history.
+- Replay remembers its original currency, provider and file, and falls back to the rules and picker only when that file is gone.
+
 ## 2.4.1 — 2026-09-23 (stability and portability fixes)
 
 - Commit the USD quote as soon as Nobitex responds, even if optional currency quote services are slow.

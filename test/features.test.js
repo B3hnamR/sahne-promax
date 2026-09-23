@@ -552,6 +552,11 @@ test('an enabled rule chooses the media for a matching alert; disabled rules kee
     assert.equal(withRule.recent[0].ruleId, 'a1b2c3d4e5');
     withRule.stop();
 
+    const testFlag = makeQueue([rule]);
+    testFlag.showTip({ ...tip, stripe_pi_id: 'test_1', is_test: true });
+    assert.equal(testFlag.recent[0].mediaId, 'rule000001', 'test alerts follow the same rules');
+    testFlag.stop();
+
     const disabled = makeQueue([{ ...rule }]);
     disabled.configStore.config.alertRules.enabled = false;
     disabled.showTip(tip);
