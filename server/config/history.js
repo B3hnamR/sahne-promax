@@ -34,6 +34,7 @@ class HistoryStore {
     this.days = safeMap();
     this.donors = safeMap();
     this.saveTimer = null;
+    this.saveGeneration = 0;
     this.load();
   }
 
@@ -53,6 +54,7 @@ class HistoryStore {
   }
 
   reload() {
+    ++this.saveGeneration;
     this.load();
   }
 
@@ -172,6 +174,7 @@ class HistoryStore {
   }
 
   clear() {
+    ++this.saveGeneration;
     this.entries = [];
     this.days = safeMap();
     this.donors = safeMap();
@@ -191,6 +194,7 @@ class HistoryStore {
   }
 
   saveSync() {
+    ++this.saveGeneration;
     try {
       const tmp = this.file + '.tmp';
       fs.writeFileSync(tmp, JSON.stringify(this.toJSON()));
@@ -201,12 +205,17 @@ class HistoryStore {
   }
 
   async saveAsync() {
+    const generation = ++this.saveGeneration;
+    const tmp = this.file + '.' + generation + '.tmp';
     try {
-      const tmp = this.file + '.tmp';
       await fs.promises.writeFile(tmp, JSON.stringify(this.toJSON()), 'utf8');
-      await fs.promises.rename(tmp, this.file);
+      if (generation === this.saveGeneration) fs.renameSync(tmp, this.file);
+      else await fs.promises.unlink(tmp);
     } catch (e) {
       this.log('error', 'ذخیره‌ی async history.json ناموفق بود', e.message);
+      try {
+        await fs.promises.unlink(tmp);
+      } catch {}
     }
   }
 

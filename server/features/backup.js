@@ -20,6 +20,10 @@ function portableConfig(config) {
   delete copy.secret_id_enc;
   delete copy.se_token;
   delete copy.se_token_enc;
+  if (copy.rate && typeof copy.rate.proxy === 'string') {
+    // A proxy URL can embed user:pass; keep the route, drop the credentials.
+    copy.rate = { ...copy.rate, proxy: copy.rate.proxy.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/@]*@/i, '$1') };
+  }
   return copy;
 }
 

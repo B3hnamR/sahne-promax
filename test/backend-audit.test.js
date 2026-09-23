@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const net = require('net');
 const { createServer } = require('../server/server');
 const { ConfigStore } = require('../server/config/store');
+const { HistoryStore } = require('../server/config/history');
 const { RateManager } = require('../server/rates/manager');
 const { StreamElementsClient } = require('../server/integrations/streamelements');
 const { KickChatClient } = require('../server/integrations/kick-chat');
@@ -571,4 +572,37 @@ test('export warns about media files it cannot include', async t => {
   const archive = await exportBackupToFile(dir, store);
   t.after(() => fs.rmSync(archive.filePath, { force: true }));
   assert.ok(warnings.some(entry => entry.level === 'warn' && entry.data && entry.data.name === oddName));
+});
+
+test('portable backups strip proxy credentials', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.config.rate.proxy = 'http://user:pass@127.0.0.1:8080';
+  store.saveConfig();
+  const backup = await exportBackup(dir, store);
+  await importBackup(dir, backup, { configStore: store, logger, sse });
+  assert.equal(store.config.rate.proxy, 'http://127.0.0.1:8080');
+});
+
+test('history clear discards an in-flight async save', async t => {
+  const dir = tempDir(t);
+  const store = new HistoryStore(dir, { logger: () => {} });
+  store.entries = [{ id: 'old', at: Date.now(), name: 'Ali', toman: 1 }];
+  const originalWrite = fs.promises.writeFile;
+  let release;
+  const hold = new Promise(resolve => {
+    release = resolve;
+  });
+  fs.promises.writeFile = async function (...args) {
+    if (String(args[0]).endsWith('history.json.1.tmp')) await hold;
+    return originalWrite.apply(this, args);
+  };
+  t.after(() => {
+    fs.promises.writeFile = originalWrite;
+  });
+  const pending = store.saveAsync();
+  store.clear();
+  release();
+  await pending;
+  assert.equal(fs.existsSync(path.join(dir, 'history.json')), false);
 });
