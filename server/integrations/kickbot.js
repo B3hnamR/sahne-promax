@@ -16,6 +16,8 @@ class KickBotClient {
     this.syncTimer = null;
     this.keepAliveCheck = null;
     this.stopped = false;
+    this.connectionGeneration = 0;
+    this.connTimer = null;
   }
 
   status() {
@@ -45,25 +47,31 @@ class KickBotClient {
       return this.scheduleReconnect();
     }
 
+    const socket = this.ws;
+
     const connTimeout = setTimeout(() => {
-      if (this.ws && this.ws.readyState === 0) {
+      if (this.ws === socket && socket.readyState === 0) {
         try {
-          this.ws.close();
+          socket.close();
         } catch {}
       }
     }, 10000);
+    this.connTimer = connTimeout;
 
-    this.ws.onopen = () => {
+    socket.onopen = () => {
+      if (this.ws !== socket) return;
       clearTimeout(connTimeout);
+      this.connTimer = null;
       this.logger.info('به کیک‌بات وصل شد', { channel: 'tipping_' + streamerId });
-      this.ws.send(JSON.stringify({ type: 'subscribe', channel: 'tipping_' + streamerId, authorization: secret }));
+      socket.send(JSON.stringify({ type: 'subscribe', channel: 'tipping_' + streamerId, authorization: secret }));
       clearInterval(this.pulseTimer);
       this.pulseTimer = setInterval(() => this.publish('pulse', {}), 3000);
       this.sse.sendState();
       this.syncQueue();
     };
 
-    this.ws.onmessage = ev => {
+    socket.onmessage = ev => {
+      if (this.ws !== socket) return;
       let m;
       try {
         m = JSON.parse(ev.data);
@@ -75,10 +83,13 @@ class KickBotClient {
       this.handleEvent(String(d.event_type || ''), d.payload && typeof d.payload === 'object' ? d.payload : {});
     };
 
-    this.ws.onerror = () => {};
+    socket.onerror = () => {};
 
-    this.ws.onclose = ev => {
+    socket.onclose = ev => {
+      if (this.ws !== socket) return;
+      this.ws = null;
       clearTimeout(connTimeout);
+      this.connTimer = null;
       clearInterval(this.pulseTimer);
       this.logger.warn('اتصال کیک‌بات قطع شد، تلاش مجدد تا ۵ ثانیه دیگر', { code: ev.code });
       this.sse.sendState();
@@ -94,6 +105,8 @@ class KickBotClient {
   }
 
   startKeepAlive() {
+    clearInterval(this.keepAliveCheck);
+    clearInterval(this.syncTimer);
     this.keepAliveCheck = setInterval(() => {
       if (!this.ws || this.ws.readyState === 3) this.connect();
     }, 10000);
@@ -201,12 +214,16 @@ class KickBotClient {
   async syncQueue() {
     const secret = this.configStore.getSecret();
     if (!secret) return;
+    const generation = this.connectionGeneration;
     try {
       const r = await fetch(`${KB_API}/api/tip_queue_sync?secret_id=${encodeURIComponent(secret)}`, {
         signal: AbortSignal.timeout(15000)
       });
       if (!r.ok) return;
       const j = await r.json();
+      // A restore/disconnect that happened while this request was in flight must
+      // win: never repopulate the queue with the previous account's tips.
+      if (generation !== this.connectionGeneration) return;
       const list = (Array.isArray(j.tip_transactions) ? j.tip_transactions : [])
         .map(t => this.normalizeTip(t))
         .filter(t => t.stripe_pi_id);
@@ -236,20 +253,34 @@ class KickBotClient {
     this.configStore.setSecret('');
     this.configStore.config.streamer_id = null;
     this.configStore.saveConfig();
-    if (this.ws) {
-      try {
-        this.ws.close();
-      } catch {}
-      this.ws = null;
-    }
-    clearTimeout(this.reconnectTimer);
-    clearInterval(this.pulseTimer);
+    this.resetConnection();
     this.logger.info('اتصال کیک‌بات حذف شد');
+    this.sse.sendState();
+  }
+
+  resetConnection() {
+    ++this.connectionGeneration;
+    clearTimeout(this.connTimer);
+    this.connTimer = null;
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    clearInterval(this.pulseTimer);
+    this.pulseTimer = null;
+    const socket = this.ws;
+    this.ws = null;
+    if (socket) {
+      try {
+        socket.close();
+      } catch {}
+    }
     this.sse.sendState();
   }
 
   stop() {
     this.stopped = true;
+    ++this.connectionGeneration;
+    clearTimeout(this.connTimer);
+    this.connTimer = null;
     clearTimeout(this.reconnectTimer);
     clearInterval(this.pulseTimer);
     clearInterval(this.syncTimer);
