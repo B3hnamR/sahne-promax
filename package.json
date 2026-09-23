@@ -9,7 +9,7 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/server.test.js test/update.test.js test/promax.test.js test/features.test.js test/stats.test.js test/frontend-dropdown.test.js test/frontend-history.test.js test/port.test.js && node test/overlay-xss.test.js",
+    "test": "node --test test/server.test.js test/update.test.js test/promax.test.js test/features.test.js test/stats.test.js test/frontend-dropdown.test.js test/frontend-history.test.js test/port.test.js test/backend-audit.test.js test/frontend-audit.test.js test/verify-checksums.ps1.test.js test/updater-audit.test.js && node test/overlay-xss.test.js",
     "icons": "electron scripts/render-icons.js",
     "screenshots": "electron scripts/capture-pages.js",
     "dist": "electron-builder --win --x64 --publish never",
