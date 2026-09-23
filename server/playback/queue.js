@@ -280,6 +280,8 @@ class PlaybackQueue {
         months: payload.months,
         message: payload.message,
         media: media ? media.file : null,
+        rule: resolved.ruleId,
+        ruleName: resolved.ruleName,
         test: !!t.is_test,
         replay: !!t.is_replay,
         at: Date.now()
