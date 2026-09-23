@@ -345,3 +345,78 @@ test('a stale KickBot socket cannot deliver a tip', t => {
   stale.onmessage({ data: JSON.stringify({ data: { event_type: 'tip_initiated', payload: {} } }) });
   assert.deepEqual(handled, []);
 });
+
+test('Baha24 fallback publishes USD before a slow Bonbast FX lookup', async () => {
+  let releaseFx;
+  const bonbast = new Promise(resolve => {
+    releaseFx = resolve;
+  });
+  const configStore = {
+    config: { rate: { auto: true, manual: null, value: 0, source: null, proxy: '', fx: {} } },
+    debouncedSave() {}
+  };
+  const rate = new RateManager({
+    configStore,
+    logger,
+    sse,
+    fetchNobitexFn: async () => {
+      throw new Error('nobitex down');
+    },
+    fetchBaha24QuoteFn: async () => ({ usd: 92000, fx: {} }),
+    fetchBonbastFxFn: () => bonbast,
+    bonbastMinIntervalMs: 0
+  });
+  const pending = rate.refreshRate();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(configStore.config.rate.value, 92000);
+  assert.equal(configStore.config.rate.source, 'baha24');
+  releaseFx({});
+  await pending;
+});
+
+test('stopping the rate manager discards an in-flight refresh', async () => {
+  let releaseQuote;
+  const quote = new Promise(resolve => {
+    releaseQuote = resolve;
+  });
+  let saves = 0;
+  const configStore = {
+    config: { rate: { auto: true, manual: null, value: 0, source: null, proxy: '', fx: {} } },
+    debouncedSave() {
+      saves++;
+    }
+  };
+  const rate = new RateManager({ configStore, logger, sse, fetchNobitexFn: () => quote });
+  const pending = rate.refreshRate();
+  rate.stop();
+  releaseQuote(91000);
+  await pending;
+  assert.equal(configStore.config.rate.value, 0);
+  assert.equal(saves, 0);
+});
+
+test('a refresh without new FX emits a single admin rate event', async () => {
+  const events = [];
+  const configStore = {
+    config: { rate: { auto: true, manual: null, value: 0, source: null, proxy: '', fx: {} } },
+    debouncedSave() {}
+  };
+  const rate = new RateManager({
+    configStore,
+    logger,
+    sse: {
+      sendState() {},
+      broadcast(role, message) {
+        events.push(message.type);
+      }
+    },
+    fetchNobitexFn: async () => 91000,
+    fetchBaha24QuoteFn: async () => ({ usd: 92000, fx: {} }),
+    fetchBonbastFxFn: async () => {
+      throw new Error('bonbast down');
+    },
+    bonbastMinIntervalMs: 0
+  });
+  await rate.refreshRate();
+  assert.equal(events.filter(type => type === 'rate').length, 1);
+});

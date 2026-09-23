@@ -33,6 +33,7 @@ class RateManager {
     this.rateError = null;
     this.rateTimer = null;
     this.rateBusy = false;
+    this.refreshGeneration = 0;
   }
 
   // ---------- Windows system proxy (a VPN app in "system proxy" mode). Node ignores it, so the Electron shell
@@ -101,9 +102,11 @@ class RateManager {
     const config = this.configStore.config;
     if (!config.rate.auto && !force) return null;
     this.rateBusy = true;
+    const generation = this.refreshGeneration;
     try {
       let v;
       let source = 'nobitex';
+      let usdPublished = false;
       let fx = null;
       let fxSource = null;
       const errs = [];
@@ -111,6 +114,10 @@ class RateManager {
       // Main source: Nobitex USDTIRT orderbook (domestic: direct first, proxies as retries)
       try {
         v = await this.fetchNobitex(await this.routesFor(NOBITEX, true));
+        if (generation !== this.refreshGeneration) return null;
+        // A slow optional FX source must never delay the usable USD rate.
+        this.publishRate(v, source);
+        usdPublished = true;
         // Baha24 is still queried on the normal Nobitex path: its quote table supplies non-USD SE currency rates.
         try {
           const quote = await this.fetchBahaQuote();
@@ -130,12 +137,20 @@ class RateManager {
           }
         }
       } catch (e1) {
+        if (generation !== this.refreshGeneration) return null;
         errs.push('nobitex: ' + e1.message);
         // Fallback source: Baha24 public API (direct first, proxies as retries)
         try {
           const quote = await this.fetchBahaQuote();
           v = quote && typeof quote === 'object' ? quote.usd : quote;
           fx = quote && typeof quote === 'object' ? quote.fx : null;
+          source = 'baha24';
+          // Same rule as the Nobitex path: a slow optional FX lookup must not
+          // delay a usable USD quote.
+          if (v != null) {
+            this.publishRate(v, source);
+            usdPublished = true;
+          }
           if (fx && Object.keys(sanitizeFx(fx)).length) fxSource = 'baha24';
           if (!fx || !Object.keys(sanitizeFx(fx)).length) {
             try {
@@ -148,38 +163,45 @@ class RateManager {
               );
             }
           }
-          source = 'baha24';
         } catch (e2) {
           errs.push('baha24: ' + e2.message);
           throw new Error(errs.join(' | '));
         }
       }
 
-      const changed = v !== config.rate.value || source !== config.rate.source;
-      config.rate.value = v;
-      config.rate.updatedAt = new Date().toISOString();
-      config.rate.source = source;
+      if (generation !== this.refreshGeneration) return null;
+      if (!usdPublished) this.publishRate(v, source);
       if (fx && Object.keys(sanitizeFx(fx)).length) {
         config.rate.fx = sanitizeFx(fx);
         config.rate.fxSource = fxSource;
+        this.configStore.debouncedSave();
+        this.sse.broadcast('admin', { type: 'rate', rate: config.rate, effective: this.currentRate() });
+        this.sse.sendState();
       }
       this.rateError = null;
-      this.configStore.debouncedSave();
-
-      if (changed) {
-        this.logger.info('نرخ دلار به‌روز شد (' + source + ')', { toman: v });
-      }
-      this.sse.broadcast('admin', { type: 'rate', rate: config.rate, effective: this.currentRate() });
-      this.sse.sendState();
       return v;
     } catch (e) {
+      if (generation !== this.refreshGeneration) return null;
       this.rateError = e.message;
       this.logger.warn('دریافت نرخ دلار ناموفق بود؛ نرخ قبلی استفاده می‌شود', e.message);
       this.sse.sendState();
       return null;
     } finally {
-      this.rateBusy = false;
+      if (generation === this.refreshGeneration) this.rateBusy = false;
     }
+  }
+
+  publishRate(value, source) {
+    const rate = this.configStore.config.rate;
+    const changed = value !== rate.value || source !== rate.source;
+    rate.value = value;
+    rate.updatedAt = new Date().toISOString();
+    rate.source = source;
+    this.rateError = null;
+    this.configStore.debouncedSave();
+    if (changed) this.logger.info('نرخ دلار به‌روز شد (' + source + ')', { toman: value });
+    this.sse.broadcast('admin', { type: 'rate', rate, effective: this.currentRate() });
+    this.sse.sendState();
   }
 
   scheduleRate() {
@@ -190,10 +212,19 @@ class RateManager {
   }
 
   stop() {
+    // Invalidate any refresh still awaiting the network: it must not publish or
+    // schedule a config write after shutdown.
+    this.refreshGeneration++;
+    this.rateBusy = false;
     if (this.rateTimer) {
       clearInterval(this.rateTimer);
       this.rateTimer = null;
     }
+  }
+
+  resetForRestore() {
+    this.rateError = null;
+    this.stop();
   }
 }
 
