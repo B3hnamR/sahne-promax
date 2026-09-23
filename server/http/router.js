@@ -12,6 +12,7 @@ const { serveFile, servePublic } = require('./streaming');
 const { handleStreamUpload } = require('../media/upload');
 const { exportBackupToFile, importBackupFromFile, MAX_ARCHIVE_BYTES } = require('../features/backup');
 const { buildPayload, pickMedia } = require('../playback/picker');
+const { resolveMedia } = require('../playback/rules');
 
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -580,14 +581,24 @@ function createHttpRouter(context) {
         const per = kickChatClient.subValueToman('sub');
         const perGift = kickChatClient.subValueToman('gift');
         const sim = (toman, tags) => {
-          const m = pickMedia(
-            { amount_total: 0, tip_message: '', tags, toman_override: toman },
+          const t = { amount_total: 0, tip_message: '', tags, toman_override: toman };
+          const resolved = resolveMedia(
+            t,
             {
-              config: configStore.config,
-              mediaDir,
-              currentRate: () => rateManager.currentRate()
-            }
+              provider: 'kickbot',
+              kind: 'tip',
+              currency: 'USD',
+              amount: 0,
+              toman,
+              message: '',
+              months: null,
+              count: null,
+              isTest: false,
+              isReplay: false
+            },
+            { config: configStore.config, mediaDir, currentRate: () => rateManager.currentRate() }
           );
+          const m = resolved.media;
           return m ? { id: m.id, name: m.name, file: m.file } : null;
         };
         const rows = [{ label: 'sub', toman: per, media: sim(per, ['sub', 'newsub']) }];

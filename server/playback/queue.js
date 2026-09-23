@@ -1,8 +1,9 @@
 'use strict';
 const crypto = require('crypto');
 const { LIMITS } = require('../constants');
-const { cleanText, finite, intOrNull } = require('../utils/validation');
-const { pickMedia, buildPayload } = require('./picker');
+const { cleanText, finite, intOrNull, normFa } = require('../utils/validation');
+const { buildPayload } = require('./picker');
+const { resolveMedia } = require('./rules');
 
 class PlaybackQueue {
   constructor({
@@ -183,11 +184,30 @@ class PlaybackQueue {
         : this.rateManager.tomanFor
           ? this.rateManager.tomanFor((t.amount_total || 0) / 100, t.currency || 'USD')
           : this.rateManager.tomanOf((t.amount_total || 0) / 100);
-    const media = pickMedia(t, {
-      config,
-      mediaDir: this.mediaDir,
-      currentRate: () => this.rateManager.currentRate()
-    });
+    const summary = this.tipSummary(t);
+    const resolved = resolveMedia(
+      t,
+      {
+        provider: summary.source,
+        kind: summary.kind,
+        currency: String(summary.currency || 'USD').toUpperCase(),
+        amount: summary.amount,
+        toman,
+        message: normFa(t.tip_message),
+        months: t.months != null ? Number(t.months) : null,
+        count: t.count != null ? Number(t.count) : null,
+        isTest: !!t.is_test,
+        isReplay: !!t.is_replay
+      },
+      {
+        config,
+        mediaDir: this.mediaDir,
+        currentRate: () => this.rateManager.currentRate(),
+        replayFileId: t.replay_media_id || null,
+        logger: this.logger
+      }
+    );
+    const media = resolved.media;
 
     if (!media && config.showAlertWithoutMedia === false) {
       this.logger.info('آلرت بدون فایل نمایش داده نشد (طبق تنظیمات)', this.tipSummary(t));
@@ -197,6 +217,8 @@ class PlaybackQueue {
         media: null,
         mediaId: null,
         file: null,
+        ruleId: resolved.ruleId,
+        ruleName: resolved.ruleName,
         skipped: true,
         at: Date.now()
       });
@@ -238,6 +260,8 @@ class PlaybackQueue {
       media: media ? media.name : null,
       mediaId: media ? media.id : null,
       file: media ? media.file : null,
+      ruleId: resolved.ruleId,
+      ruleName: resolved.ruleName,
       at: Date.now()
     });
     if (this.recent.length > 30) this.recent.pop();
