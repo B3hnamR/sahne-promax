@@ -2,7 +2,7 @@
 
 _Last updated: 2026-09-23 · Applies to Sahne ProMax 2.4.0_
 
-**خلاصه‌ی فارسی:** Sahne ProMax سرور ابری ندارد. تنظیمات، فایل‌های رسانه، گزارش‌ها و سابقه‌ی الرت‌ها روی رایانه‌ی شما می‌مانند. برای دریافت الرت، برنامه به KickBot و در صورت اتصال StreamElements وصل می‌شود؛ رویداد ساب‌های کیک را از فید عمومی کیک دریافت می‌کند و نرخ ارز را از نوبیتکس (با بهاء۲۴ به‌عنوان پشتیبان) می‌گیرد. برای بررسی نسخه‌ی جدید نیز به گیت‌هاب این مخزن وصل می‌شود. این ارتباط‌ها برای قابلیت‌های برنامه لازم‌اند؛ هیچ تحلیل‌گر، تبلیغ یا گزارش خطای خودکاری وجود ندارد و نصب به‌روزرسانی فقط پس از کلیک شما انجام می‌شود.
+**خلاصه‌ی فارسی:** Sahne ProMax سرور ابری ندارد. تنظیمات، فایل‌های رسانه، گزارش‌ها و سابقه‌ی الرت‌ها روی رایانه‌ی شما می‌مانند. برای دریافت الرت، برنامه به KickBot و در صورت اتصال StreamElements وصل می‌شود؛ رویداد ساب‌های کیک را از فید عمومی کیک دریافت می‌کند، نرخ دلار را از نوبیتکس (با پشتیبانی بهاء۲۴) و نرخ ارزهای دیگر را از بهاء۲۴ و در صورت نیاز بن‌بست می‌گیرد. برای بررسی نسخه‌ی جدید نیز به گیت‌هاب این مخزن وصل می‌شود. این ارتباط‌ها برای قابلیت‌های برنامه لازم‌اند؛ هیچ تحلیل‌گر، تبلیغ یا گزارش خطای خودکاری وجود ندارد و نصب به‌روزرسانی فقط پس از کلیک شما انجام می‌شود.
 
 ## 1. Who we are
 
@@ -28,6 +28,8 @@ Application files and settings live in `Documents\\Sahne Plus` for compatibility
 | Diagnostic log | `sahne-plus.log` | Local connection status and errors, and alert details such as donor name, amount, message and selected media. The log rotates at 5 MB. Provider credentials are redacted. |
 
 The app's **Clear application data** action removes settings, played IDs, alert history, media and logs after confirmation. Uninstalling preserves the data folder so media and settings survive reinstall; delete `Documents\\Sahne Plus` manually if you want to remove it.
+
+Backup exports contain settings, alert history and media, but omit KickBot and StreamElements credentials. After restoring a backup, reconnect those providers in Settings. Recently played alert IDs are local to each installation and are not transferred.
 
 ## 4. Network connections and why they exist
 

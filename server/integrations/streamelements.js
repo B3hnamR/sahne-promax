@@ -170,18 +170,21 @@ class StreamElementsClient {
     }
     this.socket = socket;
     this.connectionTimer = setTimeout(() => {
-      if (socket.readyState === 0) {
+      if (this.socket === socket && socket.readyState === 0) {
         try {
           socket.close();
         } catch {}
       }
     }, 15000);
-    socket.onopen = () => clearTimeout(this.connectionTimer);
+    socket.onopen = () => {
+      if (this.socket === socket) clearTimeout(this.connectionTimer);
+    };
     socket.onmessage = event => this.handleSocketMessage(socket, event && event.data);
     socket.onerror = () => {};
     socket.onclose = event => {
+      if (this.socket !== socket) return;
       clearTimeout(this.connectionTimer);
-      if (this.socket === socket) this.socket = null;
+      this.socket = null;
       const wasSubscribed = this.subscribed;
       this.subscribed = false;
       if (wasSubscribed && this.configured() && !this.stopped) {

@@ -49,20 +49,30 @@ export function spConfirm({
     }
     if (cancelBtn) cancelBtn.textContent = cancelText;
 
+    const previousFocus = document.activeElement;
     m.classList.add('show');
+    // Put keyboard focus on the safe choice. Native button keyboard handling then
+    // gives Enter the same result as clicking the focused button.
+    if (cancelBtn) cancelBtn.focus();
 
+    let settled = false;
     function cleanup(res) {
+      if (settled) return;
+      settled = true;
       m.classList.remove('show');
       if (okBtn) okBtn.onclick = null;
       if (cancelBtn) cancelBtn.onclick = null;
       m.onclick = null;
       window.removeEventListener('keydown', onKey);
+      if (previousFocus && typeof previousFocus.focus === 'function') previousFocus.focus();
       resolve(res);
     }
 
     function onKey(e) {
-      if (e.key === 'Escape') cleanup(false);
-      else if (e.key === 'Enter') cleanup(true);
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cleanup(false);
+      }
     }
 
     if (okBtn) okBtn.onclick = () => cleanup(true);

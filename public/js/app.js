@@ -294,7 +294,7 @@ function renderState() {
 
   if ($('#sPlaying')) {
     $('#sPlaying').innerHTML = s.playing
-      ? `<span class="chip on">${esc(s.playing.name)} · $${s.playing.amount}</span>`
+      ? `<span class="chip on">${esc(s.playing.name)} · ${esc(originalAmount(s.playing))}</span>`
       : '—';
   }
   if ($('#sApproved')) $('#sApproved').textContent = s.approved;

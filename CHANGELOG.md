@@ -9,6 +9,10 @@ All notable changes to the public builds. Versions follow semantic versioning.
 - Preserve the newest settings during overlapping sync and async saves; validate backups before installing them, restore runtime integrations, and make credential re-entry explicit.
 - Correct foreign currency labels and template placeholders, confirmation keyboard behavior, media editor save timing, and upload status messages.
 - Handle updater disk errors throughout the download, and verify uploaded checksum manifests inside the tagged release job before publishing (a separate `release-checksums` workflow covers releases published outside that job).
+- Keep in-flight queue syncs and rate refresh work from leaking across a restore or shutdown.
+- Preserve local-only media, the current port and provider reconnection guidance during restore; keep staged files when rollback fails.
+- Publish Baha24 USD quotes before optional FX lookups and mark non-ASCII backup names as UTF-8.
+- Verify release checksum manifests with GNU-style manifests and clean up failed draft releases.
 
 ## 2.4.0 — 2026-09-23 (StreamElements and multi-currency tips)
 

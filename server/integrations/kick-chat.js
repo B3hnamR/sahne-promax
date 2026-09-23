@@ -140,6 +140,7 @@ class KickChatClient {
 
     const sock = this.kws;
     sock.onmessage = ev => {
+      if (this.kws !== sock) return;
       let m;
       try {
         m = JSON.parse(ev.data);
@@ -161,7 +162,7 @@ class KickChatClient {
         clearInterval(this.kickPing);
         this.kickPing = setInterval(() => {
           try {
-            sock.send(JSON.stringify({ event: 'pusher:ping', data: {} }));
+            if (this.kws === sock) sock.send(JSON.stringify({ event: 'pusher:ping', data: {} }));
           } catch {}
         }, 60000);
         this.sse.sendState();
@@ -197,6 +198,8 @@ class KickChatClient {
 
     sock.onerror = () => {};
     sock.onclose = () => {
+      if (this.kws !== sock) return;
+      this.kws = null;
       clearInterval(this.kickPing);
       if (this.kickState.connected) this.logger.warn('اتصال چت کیک قطع شد؛ تلاش مجدد');
       this.kickState.connected = false;
@@ -213,12 +216,31 @@ class KickChatClient {
   }
 
   startKeepAlive() {
+    clearInterval(this.checkTimer);
     this.checkTimer = setInterval(() => {
       const config = this.configStore.config;
       if (config.kick.enabled && config.kick.chatroomId && (!this.kws || this.kws.readyState === 3)) {
         this.connect();
       }
     }, 15000);
+  }
+
+  resetConnection() {
+    clearInterval(this.checkTimer);
+    this.checkTimer = null;
+    clearTimeout(this.kickCloseTimer);
+    this.kickCloseTimer = null;
+    clearInterval(this.kickPing);
+    this.kickPing = null;
+    const socket = this.kws;
+    this.kws = null;
+    this.kickState = { connected: false, error: null, hint: null };
+    if (socket) {
+      try {
+        socket.close();
+      } catch {}
+    }
+    this.sse.sendState();
   }
 
   subValueToman(kind) {

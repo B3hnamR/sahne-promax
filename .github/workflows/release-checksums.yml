@@ -1,5 +1,8 @@
 # Verifies (and, if missing, generates) SHA-256 checksums for the assets of a published release.
 # It does NOT build ProMax. It requires the uploaded checksum manifest to cover exactly all installer/archive assets.
+# This separately checks releases published outside build-release. Releases created
+# with GITHUB_TOKEN do not emit workflow-triggering release:published events; the
+# build-release job verifies its own published assets after upload.
 name: release-checksums
 
 on:
