@@ -255,7 +255,6 @@ class KickBotClient {
     this.configStore.saveConfig();
     this.resetConnection();
     this.logger.info('اتصال کیک‌بات حذف شد');
-    this.sse.sendState();
   }
 
   resetConnection() {

@@ -180,6 +180,7 @@ test('upload reports partial success and clears progress after request failures'
   assert.equal(notices.length, 1);
   assert.equal(notices[0].kind, 'err');
   assert.match(notices[0].message, /1 فایل اضافه شد؛ 2 فایل ناموفق بود/);
+  assert.match(notices[0].message, /\(\+1 مورد دیگر\)/);
 });
 
 test('upload with no successful files never announces success or refreshes the grid', async () => {
@@ -240,6 +241,12 @@ test('backup restore keeps credential reconnection guidance visible', async () =
   assert.equal($('#restoreNotice').hidden, false);
   assert.match($('#restoreNotice').textContent, /KickBot/);
   assert.match($('#restoreNotice').textContent, /StreamElements/);
+
+  context.spConfirm = async () => false;
+  $('#restoreFileInput').files = [{ name: 'backup-2.zip' }];
+  await $('#restoreFileInput').onchange();
+  assert.equal($('#restoreNotice').hidden, false);
+  assert.match($('#restoreNotice').textContent, /KickBot/);
 });
 
 test('template placeholders keep USD semantics and respect hidden amounts', () => {

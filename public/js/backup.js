@@ -23,6 +23,7 @@ export function initBackup({ onRestoreComplete }) {
     restoreInput.onchange = async () => {
       const file = restoreInput.files[0];
       if (!file) return;
+      const notice = $('#restoreNotice');
 
       if (!file.name.endsWith('.zip')) {
         toast('لطفاً یک فایل فشرده معتبر با فرمت .zip انتخاب کنید', 'err');
@@ -56,7 +57,19 @@ export function initBackup({ onRestoreComplete }) {
 
         const r = await res.json();
         if (r.ok) {
+          if (notice) {
+            notice.textContent = '';
+            notice.hidden = true;
+          }
           toast(`بازیابی با موفقیت انجام شد (${r.restoredFiles || 0} فایل)`, 'ok');
+          const reconnect = r.reconnectRequired || {};
+          const providers = [reconnect.kickbot && 'KickBot', reconnect.streamelements && 'StreamElements'].filter(
+            Boolean
+          );
+          if (notice && providers.length) {
+            notice.textContent = `بازیابی انجام شد. برای دریافت دوبارهٔ دونیت‌ها، اتصال ${providers.join(' و ')} را در تنظیمات دوباره برقرار کنید.`;
+            notice.hidden = false;
+          }
           if (typeof onRestoreComplete === 'function') {
             onRestoreComplete();
           }

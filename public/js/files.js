@@ -164,17 +164,36 @@ export function initFiles({ onLoadNeeded }) {
 
 async function uploadHttp(files, onLoadNeeded) {
   const st = $('#upStatus');
-  for (let i = 0; i < files.length; i++) {
-    st.textContent = `در حال آپلود ${i + 1}/${files.length}: ${files[i].name}`;
-    const r = await fetch('/api/upload?name=' + encodeURIComponent(files[i].name), {
-      method: 'PUT',
-      body: files[i]
-    }).then(res => res.json());
-    if (r.error) toast(r.error, 'err');
+  let added = 0;
+  const failures = [];
+  try {
+    for (let i = 0; i < files.length; i++) {
+      if (st) st.textContent = `در حال آپلود ${i + 1}/${files.length}: ${files[i].name}`;
+      try {
+        const response = await fetch('/api/upload?name=' + encodeURIComponent(files[i].name), {
+          method: 'PUT',
+          body: files[i]
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) {
+          failures.push(`${files[i].name}: ${result.error || 'آپلود ناموفق بود'}`);
+        } else {
+          added++;
+        }
+      } catch {
+        failures.push(`${files[i].name}: خطای اتصال یا پاسخ سرور`);
+      }
+    }
+  } finally {
+    if (st) st.textContent = '';
   }
-  st.textContent = '';
-  toast('فایل‌ها اضافه شدند', 'ok');
-  if (typeof onLoadNeeded === 'function') onLoadNeeded();
+  if (added && typeof onLoadNeeded === 'function') onLoadNeeded();
+  if (failures.length) {
+    const more = failures.length > 1 ? ` (+${faNum(failures.length - 1)} مورد دیگر)` : '';
+    toast(`${faNum(added)} فایل اضافه شد؛ ${faNum(failures.length)} فایل ناموفق بود. ${failures[0]}${more}`, 'err');
+  } else if (added) {
+    toast(faNum(added) + ' فایل اضافه شد', 'ok');
+  }
 }
 
 function initDragDrop(onLoadNeeded) {
