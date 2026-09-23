@@ -1,7 +1,7 @@
 {
   "name": "sahne-promax",
   "productName": "Sahne ProMax",
-  "version": "2.4.1",
+  "version": "2.5.0",
   "description": "Sahne ProMax — modular KickBot and StreamElements tip alerts, Kick sub alerts, goal widgets, paired media, and Stream Deck control",
   "author": "Behnam & Contributors",
   "license": "Apache-2.0",

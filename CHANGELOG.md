@@ -2,10 +2,20 @@
 
 All notable changes to the public builds. Versions follow semantic versioning.
 
-## Unreleased
+## 2.5.0 — 2026-09-23 (alert media routing rules)
 
 - **Alert media routing rules:** an ordered list of conditions (provider, alert type, currency, toman range, message text, sub months, gift count) selects the alert file; the first matching rule wins and everything else falls back to the existing tier/keyword picker. Rules are edited on a new Rules page, explained by a side-effect-free event simulator, and recorded in alert history.
 - Replay remembers its original currency, provider and file, and falls back to the rules and picker only when that file is gone.
+
+### How to update
+
+From 2.4.x, click **آپدیت** in the desktop app or download the installer from this repository's 2.5.0 release. The updater checks the installer against the published `SHA256SUMS.txt` before running it. Existing settings and media stay in the local data folder; rules travel in the same configuration.
+
+### Files in this release
+
+- `Sahne-ProMax-Setup-2.5.0.exe` — Windows installer (per-user)
+- `SHA256SUMS.txt` — SHA-256 checksum manifest
+- `README-FA.md` — راهنمای فارسی
 
 ## 2.4.1 — 2026-09-23 (stability and portability fixes)
 

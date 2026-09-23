@@ -1,6 +1,6 @@
 # Sahne ProMax — Data-flow overview
 
-Version: Sahne ProMax 2.4.1 source. This is a code-based inventory; network behavior can also depend on Windows, Electron, proxies and the providers.
+Version: Sahne ProMax 2.5.0 source. This is a code-based inventory; network behavior can also depend on Windows, Electron, proxies and the providers.
 
 ## 1. Process model
 
