@@ -29,7 +29,10 @@ const LIMITS = {
   goalTitle: 100,
   commands: 50,
   command: 32,
-  cmdQueue: 20
+  cmdQueue: 20,
+  rules: 50,
+  ruleName: 40,
+  ruleMessage: 100
 };
 
 const DEFAULT_APPEARANCE = {
@@ -130,6 +133,11 @@ const DEFAULT_CONFIG = {
     userCooldownSec: 30,
     maxPerMinute: 10,
     entries: []
+  },
+  alertRules: {
+    v: 1,
+    enabled: false,
+    items: []
   },
   files: [],
   showAlertWithoutMedia: true,

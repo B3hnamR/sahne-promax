@@ -2,7 +2,7 @@
 const path = require('path');
 const crypto = require('crypto');
 const { LIMITS, ENUMS, FONTS, TYPES } = require('../constants');
-const { typeOf, cleanText, parseThreshold, finite, intOrNull, isHex } = require('./validation');
+const { typeOf, cleanText, parseThreshold, finite, intOrNull, isHex, normFa } = require('./validation');
 
 function sanitizeFile(f) {
   if (!f || typeof f !== 'object') return null;
@@ -188,9 +188,78 @@ function sanitizeChatCommands(c, current = {}, files = []) {
   return out;
 }
 
+const RULE_PROVIDERS = new Set(['kickbot', 'streamelements', 'kick']);
+const RULE_KINDS = new Set(['tip', 'sub', 'gift']);
+
+function ruleEnumList(value, allowed) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map(v => String(v == null ? '' : v).toLowerCase()).filter(v => allowed.has(v)))];
+}
+
+function ruleNumber(value, lo, hi) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(hi, Math.max(lo, Math.round(n)));
+}
+
+// Returns a sanitized rule, or null when the rule is malformed or self-contradictory.
+function sanitizeRule(item) {
+  if (!item || typeof item !== 'object') return null;
+  const c = item.conditions && typeof item.conditions === 'object' ? item.conditions : {};
+  const fileId = String(item.fileId == null ? '' : item.fileId);
+  if (!/^[0-9a-f]{10}$/.test(fileId)) return null;
+  const providers = ruleEnumList(c.providers, RULE_PROVIDERS);
+  const kinds = ruleEnumList(c.kinds, RULE_KINDS);
+  const currency = /^[A-Za-z]{3}$/.test(String(c.currency || '')) ? String(c.currency).toUpperCase() : null;
+  const minToman = ruleNumber(c.minToman, 0, 1e12);
+  const maxToman = ruleNumber(c.maxToman, 0, 1e12);
+  const minMonths = ruleNumber(c.minMonths, 1, 240);
+  const maxMonths = ruleNumber(c.maxMonths, 1, 240);
+  const minCount = ruleNumber(c.minCount, 1, 1000);
+  const maxCount = ruleNumber(c.maxCount, 1, 1000);
+  if (minToman != null && maxToman != null && minToman > maxToman) return null;
+  if (minMonths != null && maxMonths != null && minMonths > maxMonths) return null;
+  if (minCount != null && maxCount != null && minCount > maxCount) return null;
+  if ((minMonths != null || maxMonths != null) && (minCount != null || maxCount != null)) return null;
+  return {
+    id: /^[0-9a-f]{10}$/.test(String(item.id || '')) ? item.id : crypto.randomBytes(5).toString('hex'),
+    name: cleanText(item.name, LIMITS.ruleName).trim(),
+    enabled: item.enabled !== false,
+    conditions: {
+      providers,
+      kinds,
+      currency,
+      minToman,
+      maxToman,
+      messageContains: normFa(cleanText(c.messageContains, LIMITS.ruleMessage)).slice(0, LIMITS.ruleMessage),
+      minMonths,
+      maxMonths,
+      minCount,
+      maxCount
+    },
+    fileId
+  };
+}
+
+// Alert routing rules: fixed condition fields only (no regex/JS), capped and bounded.
+// Unknown but well-formed fileIds are kept so deleted files stay visible and flagged.
+function sanitizeRules(r, current = {}, files = []) {
+  const cur = current || {};
+  const out = { ...cur };
+  if (!r || typeof r !== 'object') return out;
+  if ('enabled' in r) out.enabled = !!r.enabled;
+  out.v = 1;
+  if (!Array.isArray(r.items)) return out;
+  out.items = r.items.map(sanitizeRule).filter(Boolean).slice(0, LIMITS.rules);
+  return out;
+}
+
 module.exports = {
   sanitizeFile,
   sanitizeAppearance,
   sanitizeGoal,
-  sanitizeChatCommands
+  sanitizeChatCommands,
+  sanitizeRule,
+  sanitizeRules
 };

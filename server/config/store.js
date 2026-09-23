@@ -2,7 +2,13 @@
 const fs = require('fs');
 const path = require('path');
 const { DEFAULT_CONFIG, DEFAULT_APPEARANCE, LIMITS, ENUMS } = require('../constants');
-const { sanitizeFile, sanitizeAppearance, sanitizeGoal, sanitizeChatCommands } = require('../utils/sanitizers');
+const {
+  sanitizeFile,
+  sanitizeAppearance,
+  sanitizeGoal,
+  sanitizeChatCommands,
+  sanitizeRules
+} = require('../utils/sanitizers');
 const { finite } = require('../utils/validation');
 const { sanitizeFx } = require('../rates/baha24');
 
@@ -101,6 +107,7 @@ class ConfigStore {
     if (!Array.isArray(merged.files)) merged.files = [];
     merged.files = merged.files.map(sanitizeFile).filter(Boolean).slice(0, LIMITS.files);
     merged.chatCommands = sanitizeChatCommands(merged.chatCommands, DEFAULT_CONFIG.chatCommands, merged.files);
+    merged.alertRules = sanitizeRules(merged.alertRules, DEFAULT_CONFIG.alertRules, merged.files);
 
     // Goals that are already complete when the milestone feature appears must not throw a retro confetti on the
     // next donation: mark them celebrated once, unless the config already carries the flag.
