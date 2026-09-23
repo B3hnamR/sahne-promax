@@ -631,3 +631,62 @@ test('cross-site pages cannot trigger a backup export, and exports clean up afte
   for (let i = 0; i < 50 && leftovers().length; i++) await new Promise(resolve => setTimeout(resolve, 20));
   assert.deepEqual(leftovers(), []);
 });
+
+test('replacing the KickBot widget URL reconnects immediately', async t => {
+  const originalWebSocket = globalThis.WebSocket;
+  const originalFetch = globalThis.fetch;
+  const sockets = [];
+  globalThis.WebSocket = class {
+    constructor() {
+      this.readyState = 0;
+      this.sent = [];
+      sockets.push(this);
+    }
+    close() {
+      this.readyState = 3;
+    }
+    send(data) {
+      this.sent.push(data);
+    }
+  };
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    if (String(url).startsWith('https://widgets.kickbot.com/')) {
+      return { json: async () => ({ nodes: [{ data: [{ streamer_db_id: 1 }, 98765] }] }) };
+    }
+    return realFetch(url, options);
+  };
+  t.after(() => {
+    globalThis.WebSocket = originalWebSocket;
+    globalThis.fetch = originalFetch;
+  });
+  const probe = net.createServer();
+  await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve));
+  const port = probe.address().port;
+  await new Promise(resolve => probe.close(resolve));
+  const dir = tempDir(t);
+  const app = createServer({ dataDir: dir, testHooks: { offline: true } });
+  app.configStore.config.port = port;
+  app.saveConfig();
+  await app.start();
+  t.after(() => app.stop());
+  const origin = `http://127.0.0.1:${port}`;
+  const secretA = 'a'.repeat(32) + '%3A' + 'b'.repeat(32);
+  const secretB = 'c'.repeat(32) + '%3A' + 'd'.repeat(32);
+
+  const first = await fetch(origin + '/api/setup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: origin },
+    body: JSON.stringify({ url: 'https://widgets.kickbot.com/external/tipping/' + secretA })
+  });
+  assert.equal(first.status, 200);
+  assert.equal(sockets.length, 1);
+
+  const second = await fetch(origin + '/api/setup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: origin },
+    body: JSON.stringify({ url: 'https://widgets.kickbot.com/external/tipping/' + secretB })
+  });
+  assert.equal(second.status, 200);
+  assert.equal(sockets.length, 2, 'a replacement socket is created without waiting for the reconnect timer');
+});

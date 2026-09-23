@@ -696,13 +696,8 @@ function createHttpRouter(context) {
           streamer_id: configStore.config.streamer_id,
           secretStorage: configStore.secretStorage
         });
-        if (kickBotClient.ws) {
-          try {
-            kickBotClient.ws.close();
-          } catch {}
-        } else {
-          kickBotClient.connect();
-        }
+        kickBotClient.resetConnection();
+        kickBotClient.connect();
         sse.sendState();
         return json(res, 200, {
           ok: true,
