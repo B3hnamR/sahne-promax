@@ -9,7 +9,7 @@ const { parseSeActivity, StreamElementsClient } = require('../server/integration
 const { parseBaha24, FX_CODES } = require('../server/rates/baha24');
 const { parseBonbastFx } = require('../server/rates/bonbast');
 const { ConfigStore } = require('../server/config/store');
-const { createZipArchive, extractZipArchive } = require('../server/features/backup');
+const { createZipArchive, importBackupFromFile } = require('../server/features/backup');
 const { parseRange } = require('../server/utils/validation');
 const { createServer } = require('../server');
 
@@ -127,10 +127,16 @@ test('secret storage reports providers separately and reload clears removed cred
   }
 });
 
-test('backup extraction bounds decompressed size and reversed byte ranges are rejected', () => {
-  const archive = createZipArchive({ 'config.json': Buffer.alloc(256, 65) });
-  assert.throws(() => extractZipArchive(archive, { maxEntryBytes: 128 }), /limit/);
-  assert.equal(parseRange('bytes=5-4', 20), null);
+test('backup import bounds the declared uncompressed config size; reversed byte ranges are rejected', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-backup-bound-'));
+  try {
+    const archivePath = path.join(dir, 'archive.zip');
+    fs.writeFileSync(archivePath, createZipArchive({ 'config.json': Buffer.alloc(9 * 1024 * 1024, 65) }));
+    await assert.rejects(importBackupFromFile(dir, archivePath, { configStore: {}, logger: {}, sse: {} }), /too large/);
+    assert.equal(parseRange('bytes=5-4', 20), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('StreamElements setup and disconnect keep the JWT out of public API responses', async () => {

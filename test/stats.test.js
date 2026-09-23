@@ -8,7 +8,8 @@ const os = require('os');
 const path = require('path');
 const { createServer } = require('../server/server');
 const { HistoryStore } = require('../server/config/history');
-const { extractZipArchive } = require('../server/features/backup');
+const { ConfigStore } = require('../server/config/store');
+const { importBackupFromFile } = require('../server/features/backup');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -321,10 +322,16 @@ test('backup and restore carry the history ledger (2.3.0)', async t => {
 
   const backup = await rawReq('GET', '/api/backup', Buffer.alloc(0));
   assert.equal(backup.status, 200);
-  const zip = extractZipArchive(backup.buffer);
-  assert.ok(zip['config.json'], 'config.json in the backup');
-  assert.ok(zip['history.json'], 'history.json in the backup');
-  const parsed = JSON.parse(zip['history.json'].toString('utf8'));
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-backup-inspect-'));
+  t.after(() => fs.rmSync(scratch, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(scratch, 'archive.zip'), backup.buffer);
+  const scratchStore = new ConfigStore({ dataDir: scratch, logger: () => {} });
+  await importBackupFromFile(scratch, path.join(scratch, 'archive.zip'), {
+    configStore: scratchStore,
+    logger: { info() {}, warn() {}, error() {} },
+    sse: { broadcast() {}, sendState() {} }
+  });
+  const parsed = JSON.parse(fs.readFileSync(path.join(scratch, 'history.json'), 'utf8'));
   assert.equal(parsed.entries.length, 1);
   assert.equal(parsed.days[key].toman, 123456);
 

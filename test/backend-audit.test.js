@@ -15,7 +15,6 @@ const { KickChatClient } = require('../server/integrations/kick-chat');
 const { KickBotClient } = require('../server/integrations/kickbot');
 const {
   createZipArchive,
-  extractZipArchive,
   exportBackup,
   exportBackupToFile,
   importBackup,
@@ -171,12 +170,12 @@ test('backup omits credentials and restore reports connections requiring re-entr
   store.config.se = { channelId: 'abc123', username: 'demo' };
   store.saveConfig();
   const backup = await exportBackup(dir, store);
-  const saved = JSON.parse(extractZipArchive(backup)['config.json'].toString('utf8'));
+  const result = await importBackup(dir, backup, { configStore: store, logger, sse });
+  const saved = JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
   assert.equal(saved.secret_id, undefined);
   assert.equal(saved.secret_id_enc, undefined);
   assert.equal(saved.se_token, undefined);
   assert.equal(saved.se_token_enc, undefined);
-  const result = await importBackup(dir, backup, { configStore: store, logger, sse });
   assert.deepEqual(result.reconnectRequired, { kickbot: true, streamelements: true });
   assert.equal(store.getSecret(), '');
   assert.equal(store.seToken, '');
