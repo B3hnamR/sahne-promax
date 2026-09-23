@@ -203,6 +203,8 @@ function validateRule(item, { strict = false, files = [] } = {}) {
   if (!item || typeof item !== 'object')
     return { rule: null, errors: [{ field: 'rule', message: 'قاعده نامعتبر است' }] };
   const c = item.conditions && typeof item.conditions === 'object' ? item.conditions : {};
+  if (strict && (item.conditions == null || typeof item.conditions !== 'object' || Array.isArray(item.conditions)))
+    errors.push({ field: 'conditions', message: 'شرایط قاعده نامعتبر است' });
   const fileId = String(item.fileId == null ? '' : item.fileId);
   if (!/^[0-9a-f]{10}$/.test(fileId)) {
     errors.push({ field: 'fileId', message: 'شناسه فایل نامعتبر است' });
@@ -210,7 +212,11 @@ function validateRule(item, { strict = false, files = [] } = {}) {
     errors.push({ field: 'fileId', message: 'فایل انتخابی وجود ندارد' });
   }
   const enumField = (value, allowed, field) => {
-    if (strict && Array.isArray(value)) {
+    if (strict && value != null) {
+      if (!Array.isArray(value)) {
+        errors.push({ field, message: 'فهرست مقادیر نامعتبر است' });
+        return [];
+      }
       const bad = value.map(v => String(v == null ? '' : v).toLowerCase()).find(v => !allowed.has(v));
       if (bad !== undefined) errors.push({ field, message: 'مقدار نامعتبر: ' + bad });
     }
@@ -281,9 +287,13 @@ function sanitizeRule(item) {
 
 // Strict validation for PUT /api/rules: every invalid field is reported, nothing is coerced away.
 function validateRules(input, files = []) {
+  const errors = [];
+  if (input != null && input.enabled !== undefined && typeof input.enabled !== 'boolean')
+    errors.push({ index: -1, field: 'enabled', message: 'وضعیت فعال نامعتبر است' });
+  if (!input || !Array.isArray(input.items))
+    errors.push({ index: -1, field: 'items', message: 'فهرست قواعد نامعتبر است' });
   const enabled = !!(input && input.enabled);
   const rawItems = input && Array.isArray(input.items) ? input.items : [];
-  const errors = [];
   const items = [];
   if (rawItems.length > LIMITS.rules) errors.push({ index: -1, field: 'items', message: 'حداکثر ۵۰ قاعده مجاز است' });
   rawItems.slice(0, LIMITS.rules).forEach((item, index) => {

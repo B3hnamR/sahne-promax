@@ -649,19 +649,19 @@ function createHttpRouter(context) {
       if (p === '/api/simulate' && req.method === 'GET') {
         const per = kickChatClient.subValueToman('sub');
         const perGift = kickChatClient.subValueToman('gift');
-        const sim = (toman, tags) => {
+        const sim = (toman, tags, kind = 'tip', count = null) => {
           const t = { amount_total: 0, tip_message: '', tags, toman_override: toman };
           const resolved = resolveMedia(
             t,
             {
-              provider: 'kickbot',
-              kind: 'tip',
+              provider: kind === 'tip' ? 'kickbot' : 'kick',
+              kind,
               currency: 'USD',
               amount: 0,
               toman,
               message: '',
               months: null,
-              count: null,
+              count,
               isTest: false,
               isReplay: false
             },
@@ -670,13 +670,13 @@ function createHttpRouter(context) {
           const m = resolved.media;
           return m ? { id: m.id, name: m.name, file: m.file } : null;
         };
-        const rows = [{ label: 'sub', toman: per, media: sim(per, ['sub', 'newsub']) }];
+        const rows = [{ label: 'sub', toman: per, media: sim(per, ['sub', 'newsub'], 'sub') }];
         for (const n of [1, 2, 3, 5, 10, 20]) {
           rows.push({
             label: 'gift',
             count: n,
             toman: n * perGift,
-            media: sim(n * perGift, ['giftsub', 'gift', 'sub'])
+            media: sim(n * perGift, ['giftsub', 'gift', 'sub'], 'gift', n)
           });
         }
         return json(res, 200, { ok: true, rate: rateManager.currentRate(), rows });

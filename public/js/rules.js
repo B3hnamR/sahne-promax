@@ -6,6 +6,27 @@ import { state } from './state.js';
 
 let availability = {};
 
+const REASON_LABELS = {
+  disabled: 'قاعده غیرفعال است',
+  provider: 'ارائه‌دهنده متفاوت است',
+  kind: 'نوع رویداد متفاوت است',
+  currency: 'ارز متفاوت است',
+  'amount-missing': 'نرخ تبدیل در دسترس نیست',
+  'amount-range': 'مبلغ خارج از محدوده است',
+  message: 'متن پیام تطابق ندارد',
+  months: 'شرط ماه ساب برقرار نیست',
+  count: 'شرط تعداد گیفت برقرار نیست',
+  'file-missing': 'فایل پیدا نشد',
+  'file-disabled': 'فایل غیرفعال است',
+  matched: 'منطبق'
+};
+
+function reasonLabel(reasons) {
+  return (Array.isArray(reasons) ? reasons : []).map(r => REASON_LABELS[r] || r).join('، ');
+}
+
+let rendered = false;
+
 const num = v => (v === '' || v == null ? null : Number(v));
 const text = v => String(v == null ? '' : v).trim();
 
@@ -91,6 +112,7 @@ function renderRules() {
   box.innerHTML = '';
   const rules = (state.cfg && state.cfg.alertRules) || { items: [] };
   for (const rule of rules.items || []) box.appendChild(ruleRow(rule));
+  rendered = true;
 }
 
 async function refreshAvailability() {
@@ -109,11 +131,12 @@ function updateCount() {
 }
 
 export async function fillRules() {
-  await refreshAvailability();
   if ($('#rulesEnabled'))
     $('#rulesEnabled').checked = !!(state.cfg && state.cfg.alertRules && state.cfg.alertRules.enabled);
   renderRules();
   updateCount();
+  await refreshAvailability();
+  renderRules();
 }
 
 export function initRules() {
@@ -137,6 +160,10 @@ export function initRules() {
     });
   if ($('#btnSaveRules'))
     $('#btnSaveRules').onclick = async () => {
+      if (!rendered || !state.cfg) {
+        toast('قواعد هنوز بارگذاری نشده‌اند؛ دوباره تلاش کنید', 'err');
+        return;
+      }
       const r = await put('/api/rules', collectRules());
       if (r && r.ok) {
         if (state.cfg) state.cfg.alertRules = { v: 1, enabled: r.rules.enabled, items: r.rules.items };
@@ -164,10 +191,22 @@ export function initRules() {
         return;
       }
       const match = r.match;
-      if (out)
-        out.textContent = match
+      if (out) {
+        out.textContent = '';
+        const verdict = document.createElement('div');
+        verdict.textContent = match
           ? `نتیجه: ${match.source === 'rule' ? 'قاعده' : 'انتخابگر پیش‌فرض'} — ${match.fileName || match.file}${match.ruleName ? ' (' + match.ruleName + ')' : ''}`
           : 'فایلی برای پخش پیدا نشد';
+        out.appendChild(verdict);
+        for (const ev of r.evaluations || []) {
+          const line = document.createElement('div');
+          line.className = 'hint';
+          const fileBlocked = ev.reasons.includes('file-missing') || ev.reasons.includes('file-disabled');
+          const stateText = ev.matched ? (fileBlocked ? 'منطبق، ولی فایل در دسترس نیست' : 'منطبق') : 'نامنطبق';
+          line.textContent = `${ev.name || ev.ruleId}: ${stateText} — ${reasonLabel(ev.reasons)}`;
+          out.appendChild(line);
+        }
+      }
       if (match && $('#btnRulePreview')) $('#btnRulePreview').dataset.fileId = match.fileId;
     };
   if ($('#btnRulePreview'))

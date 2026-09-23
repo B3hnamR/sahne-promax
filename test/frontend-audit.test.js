@@ -492,3 +492,55 @@ test('rules page builds a PUT payload from the rendered rows', () => {
     ]
   });
 });
+
+test('rules page refuses to save before the first render', async () => {
+  const elements = new Map();
+  let puts = 0;
+  const $ = sel => {
+    if (!elements.has(sel))
+      elements.set(sel, {
+        value: '',
+        checked: true,
+        hidden: true,
+        classList: { add() {}, remove() {} },
+        addEventListener() {},
+        dataset: {},
+        appendChild() {},
+        children: []
+      });
+    return elements.get(sel);
+  };
+  const context = vm.createContext({
+    $,
+    $$: () => [],
+    state: { cfg: null },
+    document: { createElement: () => ({ classList: {}, dataset: {}, appendChild() {}, remove() {}, style: {} }) },
+    fetch: async () => ({ json: async () => ({ availability: {} }) }),
+    post: async () => ({ ok: true }),
+    put: async () => {
+      puts++;
+      return { ok: true, rules: { enabled: false, items: [] } };
+    },
+    toast() {},
+    esc: s => String(s),
+    setTimeout,
+    clearTimeout
+  });
+  vm.runInContext(withoutModules(read('js/rules.js')), context);
+  vm.runInContext('initRules()', context);
+  await elements.get('#btnSaveRules').onclick();
+  assert.equal(puts, 0, 'no PUT before the rules are rendered');
+});
+
+test('rules page explains evaluation reasons in Persian', () => {
+  const source = read('js/rules.js');
+  const snippet = source.slice(source.indexOf('const REASON_LABELS'), source.indexOf('function collectRules()'));
+  const context = vm.createContext({});
+  vm.runInContext(
+    withoutModules(snippet) +
+      ';globalThis.label = reasonLabel(["amount-missing"]);globalThis.unknown = reasonLabel(["zzz"]);',
+    context
+  );
+  assert.match(context.label, /نرخ تبدیل/);
+  assert.equal(context.unknown, 'zzz');
+});

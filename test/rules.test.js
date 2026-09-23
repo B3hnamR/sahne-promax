@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { sanitizeRules } = require('../server/utils/sanitizers');
+const { validateRules } = require('../server/utils/sanitizers');
 const { ConfigStore } = require('../server/config/store');
 const { resolveMedia, evaluateRules, availabilityFor } = require('../server/playback/rules');
 const { exportBackup, importBackup } = require('../server/features/backup');
@@ -95,6 +96,19 @@ test('sanitizeRules caps the rule list at 50', () => {
   const items = Array.from({ length: 60 }, (_, i) => validRule({ fileId: String(i).padStart(10, '0') }));
   const out = sanitizeRules({ enabled: true, items }, { v: 1, enabled: false, items: [] }, []);
   assert.equal(out.items.length, 50);
+});
+
+test('validateRules rejects malformed shapes instead of widening them', () => {
+  const files = [{ id: 'aaaaaaaaaa' }];
+  const cases = [
+    { enabled: true, items: { fileId: 'aaaaaaaaaa' } },
+    { enabled: 'yes', items: [] },
+    { enabled: true, items: [{ fileId: 'aaaaaaaaaa', conditions: 'nonsense' }] },
+    { enabled: true, items: [{ fileId: 'aaaaaaaaaa', conditions: { providers: 'streamelements' } }] },
+    { enabled: true, items: [{ fileId: 'aaaaaaaaaa', conditions: { kinds: 'tip' } }] }
+  ];
+  for (const body of cases) assert.ok(validateRules(body, files).errors.length, JSON.stringify(body));
+  assert.equal(validateRules({ enabled: true, items: [] }, files).errors.length, 0);
 });
 
 const facts = over => ({

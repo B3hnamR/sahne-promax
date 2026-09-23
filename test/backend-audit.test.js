@@ -866,3 +866,38 @@ test('rules endpoints round-trip, reject invalid edits and never mutate on failu
     'the simulator mutates nothing'
   );
 });
+
+test('/api/simulate resolves sub and gift rows with their own alert kind', async t => {
+  const probe = net.createServer();
+  await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve));
+  const port = probe.address().port;
+  await new Promise(resolve => probe.close(resolve));
+  const dir = tempDir(t);
+  fs.mkdirSync(path.join(dir, 'media'));
+  fs.writeFileSync(path.join(dir, 'media', 'tier.webm'), 'x');
+  fs.writeFileSync(path.join(dir, 'media', 'sub.webm'), 'x');
+  const app = createServer({ dataDir: dir, testHooks: { offline: true } });
+  app.configStore.config.port = port;
+  app.configStore.config.files = [
+    { id: 'aaaaaaaaaa', file: 'tier.webm', name: 'Tier', type: 'video', size: 1, enabled: true, minToman: 0 },
+    { id: 'bbbbbbbbbb', file: 'sub.webm', name: 'Sub', type: 'video', size: 1, enabled: true, minToman: 1000000 }
+  ];
+  app.saveConfig();
+  await app.start();
+  t.after(() => app.stop());
+  const origin = `http://127.0.0.1:${port}`;
+  const put = await fetch(origin + '/api/rules', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Origin: origin },
+    body: JSON.stringify({
+      enabled: true,
+      items: [{ name: 'subs', conditions: { kinds: ['sub'] }, fileId: 'bbbbbbbbbb' }]
+    })
+  });
+  assert.equal(put.status, 200);
+  const sim = await (await fetch(origin + '/api/simulate')).json();
+  const sub = sim.rows.find(r => r.label === 'sub');
+  assert.equal(sub.media.id, 'bbbbbbbbbb', 'the sub row follows sub rules');
+  const gift = sim.rows.find(r => r.label === 'gift' && r.count === 2);
+  assert.equal(gift.media.id, 'aaaaaaaaaa', 'gift rows do not match sub rules');
+});
