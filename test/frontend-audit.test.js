@@ -262,6 +262,12 @@ test('template placeholders keep USD semantics and respect hidden amounts', () =
   assert.doesNotMatch(eur, /\$5/);
   A.showAmount = false;
   assert.equal(render({ name: 'Donor', amount: 5, currency: 'EUR', toman: 600000 }), '|||');
+  A.showAmount = true;
+  A.persianDigits = true;
+  A.template = '{original}';
+  assert.match(render({ name: 'Donor', amount: 5, currency: 'EUR', toman: 600000 }), /۵ EUR/);
+  A.persianDigits = false;
+  assert.doesNotMatch(source, /usdEquivalent/);
 });
 
 test('live playing label uses the tip currency', () => {

@@ -138,19 +138,22 @@
     if (tip.kind === 'gift') tpl = A.giftTemplate || '{name} {count} تا ساب گیفت داد 🎁 {amount}';
     else if (tip.kind === 'sub') tpl = A.subTemplate || '{name} ساب شد ⭐ {amount}';
     else if (tip.kind === 'command') tpl = A.commandTemplate || '{name} دستور چت داد 🎮';
-    const isCmd = tip.kind === 'command'; // chat commands never carry money: no amount/usd placeholders
+    const isCmd = tip.kind === 'command'; // chat commands never carry money
+    const showMoney = A.showAmount && !isCmd;
+    const isUsd = String(tip.currency || 'USD').toUpperCase() === 'USD';
     const pill = txt =>
       `<span class="amt${['plain', 'inherit', 'soft'].includes(A.amountStyle) ? ' ' + A.amountStyle : ''}" dir="auto">${esc(txt)}</span>`;
     // every placeholder is resolved in ONE pass over the (escaped) template, so a donor name that itself
     // contains "{amount}" or "$&" can never be re-interpreted; values are always escaped text.
     const parts = {
       name: `<b dir="auto">${esc(tip.name)}</b>`,
-      amount: A.showAmount && !isCmd ? pill(fmtAmount(tip)) : '',
-      toman: !isCmd && tip.toman != null ? pill(fmtToman(tip.toman)) : '',
-      usd: isCmd ? '' : pill(fmtOrig(tip)),
+      amount: showMoney ? pill(fmtAmount(tip)) : '',
+      toman: showMoney && tip.toman != null ? pill(fmtToman(tip.toman)) : '',
+      usd: showMoney && isUsd && Number.isFinite(Number(tip.amount)) ? pill(fmtUsd(Number(tip.amount))) : '',
+      original: showMoney ? pill(fmtOrig(tip, A.persianDigits)) : '',
       count: pill(A.persianDigits ? faDigits(String(tip.count || 1)) : String(tip.count || 1))
     };
-    return esc(tpl).replace(/\{(name|amount|toman|usd|count)\}/g, (m, k) => parts[k]);
+    return esc(tpl).replace(/\{(name|amount|toman|usd|original|count)\}/g, (m, k) => parts[k]);
   }
   function buildCard(tip) {
     const card = document.createElement('div');
