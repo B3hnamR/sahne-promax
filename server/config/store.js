@@ -18,6 +18,7 @@ class ConfigStore {
     this.seSecretStorage = 'none';
     this.config = this.loadConfig();
     this.saveDebounceTimer = null;
+    this.saveGeneration = 0;
   }
 
   loadConfig() {
@@ -154,6 +155,8 @@ class ConfigStore {
 
   // Sync and async saves must not share a tmp filename, or a concurrent save can clobber the other's temp file
   saveConfig() {
+    // Invalidates any asynchronous snapshot that has not been committed yet.
+    ++this.saveGeneration;
     try {
       const tmp = this.cfgPath + '.sync.tmp';
       fs.writeFileSync(tmp, JSON.stringify(this.serializedConfig(), null, 2));
@@ -164,12 +167,19 @@ class ConfigStore {
   }
 
   async saveConfigAsync() {
+    const generation = ++this.saveGeneration;
+    const tmp = this.cfgPath + '.' + generation + '.tmp';
     try {
-      const tmp = this.cfgPath + '.tmp';
       await fs.promises.writeFile(tmp, JSON.stringify(this.serializedConfig(), null, 2), 'utf8');
-      await fs.promises.rename(tmp, this.cfgPath);
+      // The generation check and synchronous rename run in one JS turn. A later
+      // synchronous save cannot be overtaken by this older async write.
+      if (generation === this.saveGeneration) fs.renameSync(tmp, this.cfgPath);
+      else await fs.promises.unlink(tmp);
     } catch (e) {
       this.log('error', 'ذخیره‌ی async config.json ناموفق بود', e.message);
+      try {
+        await fs.promises.unlink(tmp);
+      } catch {}
     }
   }
 
@@ -241,6 +251,11 @@ class ConfigStore {
       clearTimeout(this.saveDebounceTimer);
       this.saveDebounceTimer = null;
     }
+  }
+
+  invalidatePendingSaves() {
+    this.stop();
+    ++this.saveGeneration;
   }
 }
 

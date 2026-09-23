@@ -420,3 +420,44 @@ test('a refresh without new FX emits a single admin rate event', async () => {
   await rate.refreshRate();
   assert.equal(events.filter(type => type === 'rate').length, 1);
 });
+
+test('restore asks to reconnect providers that existed only on this installation', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.setSecret('live-secret');
+  store.config.streamer_id = 99;
+  store.saveConfig();
+  const zip = createZipArchive({ 'config.json': JSON.stringify({ mode: 'standalone' }) });
+  const result = await importBackup(dir, zip, { configStore: store, logger, sse });
+  assert.deepEqual(result.reconnectRequired, { kickbot: true, streamelements: false });
+  assert.equal(store.getSecret(), '');
+});
+
+test('restore keeps media files that are not in the backup', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.saveConfig();
+  fs.mkdirSync(path.join(dir, 'media'));
+  fs.writeFileSync(path.join(dir, 'media', 'keep.mp4'), Buffer.from('local-only'));
+  fs.writeFileSync(path.join(dir, 'media', 'shared.mp4'), Buffer.from('old-version'));
+  const zip = createZipArchive({
+    'config.json': JSON.stringify(store.serializedConfig()),
+    'media/shared.mp4': Buffer.from('backup-version')
+  });
+  await importBackup(dir, zip, { configStore: store, logger, sse });
+  assert.equal(fs.readFileSync(path.join(dir, 'media', 'keep.mp4'), 'utf8'), 'local-only');
+  assert.equal(fs.readFileSync(path.join(dir, 'media', 'shared.mp4'), 'utf8'), 'backup-version');
+});
+
+test('restore keeps the port the server is currently listening on', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir, logger: () => {} });
+  store.config.port = 29964;
+  store.saveConfig();
+  const zip = createZipArchive({
+    'config.json': JSON.stringify({ ...store.serializedConfig(), port: 29965 })
+  });
+  const result = await importBackup(dir, zip, { configStore: store, logger, sse });
+  assert.equal(result.ok, true);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8')).port, 29964);
+});
