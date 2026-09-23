@@ -64,6 +64,7 @@
       <button data-page="goal"><svg><use href="#i-chart"/></svg>هدف دونیت</button>
       <button data-page="history"><svg><use href="#i-queue"/></svg>تاریخچه و آمار</button>
       <button data-page="settings"><svg><use href="#i-settings"/></svg>تنظیمات</button>
+<button data-page="rules"><svg><use href="#i-queue"/></svg>قواعد رسانه</button>
       <button data-page="logs"><svg><use href="#i-logs"/></svg>لاگ</button>
       <button data-page="about"><svg><use href="#i-info"/></svg>درباره</button>
     </nav>
@@ -479,6 +480,39 @@
             <button class="btn danger" id="btnClearData"><svg><use href="#i-trash"/></svg>پاک کردن همه‌ی داده‌های برنامه</button>
           </div>
           <p class="hint">بازگردانی تنظیمات: ظاهر، نرخ، حالت کار و تنظیمات ساب به پیش‌فرض برمی‌گردند؛ فایل‌ها و اتصال کیک‌بات می‌مانند. پاک کردن داده‌ها: همه چیز داخل پوشه‌ی داده حذف می‌شود و برنامه دوباره اجرا می‌شود. فایل‌های اصلی شما در جاهای دیگر دست نمی‌خورند.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- RULES -->
+    <section class="page" data-page="rules">
+      <div class="page-head"><div><h2>قواعد رسانه</h2><p>اولین قاعده‌ی منطبق، فایل هشدار را انتخاب می‌کند؛ اگر هیچ قاعده‌ای منطبق نشود، انتخابگر فعلی (پله و کلمه کلیدی) تصمیم می‌گیرد.</p></div></div>
+      <div class="bento">
+        <div class="card span-12">
+          <h3><svg><use href="#i-queue"/></svg>قواعد مسیردهی<span class="chip" id="rulesCount" style="margin-inline-start:auto">—</span></h3>
+          <div class="grid">
+            <div class="field"><div class="switch-row"><label class="lbl" style="margin:0">فعال</label><label class="switch"><input type="checkbox" id="rulesEnabled"><span></span></label></div></div>
+          </div>
+          <div id="rulesList" style="margin-top:14px"></div>
+          <div class="row" style="margin-top:6px;gap:8px">
+            <button class="btn" id="btnAddRule"><svg><use href="#i-plus"/></svg>افزودن قاعده</button>
+            <button class="btn primary" id="btnSaveRules">ذخیره</button>
+          </div>
+        </div>
+        <div class="card span-12">
+          <h3><svg><use href="#i-refresh"/></svg>آزمایش یک رویداد</h3>
+          <div class="grid">
+            <div class="field"><label>ارائه‌دهنده</label><select id="rtProvider"><option value="kickbot">KickBot</option><option value="streamelements">StreamElements</option><option value="kick">Kick</option></select></div>
+            <div class="field"><label>نوع</label><select id="rtKind"><option value="tip">دونیت</option><option value="sub">ساب</option><option value="gift">ساب‌گیفت</option></select></div>
+            <div class="field"><label>ارز</label><input type="text" id="rtCurrency" class="ltr" maxlength="3" value="USD"></div>
+            <div class="field"><label>مبلغ</label><input type="number" id="rtAmount" class="ltr" min="0" value="5"></div>
+            <div class="field"><label>نام</label><input type="text" id="rtName" value="Tester"></div>
+            <div class="field"><label>پیام</label><input type="text" id="rtMessage"></div>
+            <div class="field"><label>ماه ساب</label><input type="number" id="rtMonths" class="ltr" min="1" max="240"></div>
+            <div class="field"><label>تعداد گیفت</label><input type="number" id="rtCount" class="ltr" min="1" max="1000"></div>
+          </div>
+          <div class="row" style="margin-top:12px"><button class="btn" id="btnRuleTest">توضیح بده</button><button class="btn" id="btnRulePreview">پیش‌نمایش</button></div>
+          <div class="hint" id="rtResult">هنوز آزمایش نشده.</div>
         </div>
       </div>
     </section>

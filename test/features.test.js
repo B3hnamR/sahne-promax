@@ -453,3 +453,122 @@ test('goal countdown: timed mode fields, expiry, clearing (2.2)', async t => {
   assert.equal(page.status, 200);
   assert.ok(page.body.includes('goal-timer'), 'widget html has the countdown element');
 });
+
+test('replay preserves the original currency, source and media id', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-replay-'));
+  const q = new PlaybackQueue({
+    configStore: {
+      config: {
+        mode: 'standalone',
+        appearance: { maxDuration: 10 },
+        rate: { value: 100000, fx: { EUR: 110000 } },
+        files: [{ id: 'file000001', file: 'celebration.webm', name: 'Celebration', enabled: true, minToman: 0 }]
+      }
+    },
+    playedStore: { isPlayed: () => false, markPlayed: () => {} },
+    mediaDir: dir,
+    logger: { info() {}, warn() {}, error() {} },
+    sse: { broadcast() {}, sendState() {}, clientCount: () => 0 },
+    rateManager: {
+      currentRate: () => 100000,
+      tomanOf: usd => usd * 100000,
+      tomanFor: (amount, currency) => amount * (currency === 'EUR' ? 110000 : 100000)
+    },
+    captureFn: async () => 'ok',
+    publishFn: () => {}
+  });
+  try {
+    fs.writeFileSync(path.join(dir, 'celebration.webm'), 'x');
+    q.showTip({
+      stripe_pi_id: 'se_1',
+      tipper_name: 'Donor',
+      amount_total: 500,
+      currency: 'EUR',
+      source: 'streamelements',
+      tip_message: 'hi',
+      kind: 'tip'
+    });
+    assert.equal(q.recent[0].mediaId, 'file000001');
+    assert.equal(q.recent[0].file, 'celebration.webm');
+    assert.equal(q.recent[0].currency, 'EUR');
+    assert.equal(q.recent[0].source, 'streamelements');
+
+    q.replayLast();
+    assert.equal(q.approved[0].currency, 'EUR', 'replay keeps the original currency');
+    assert.equal(q.approved[0].source, 'streamelements', 'replay keeps the provider');
+    assert.equal(q.approved[0].replay_media_id, 'file000001', 'replay remembers the played file');
+  } finally {
+    q.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an enabled rule chooses the media for a matching alert; disabled rules keep the picker', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-ruleplay-'));
+  const makeQueue = rules => {
+    const config = {
+      mode: 'standalone',
+      appearance: { maxDuration: 10 },
+      files: [
+        { id: 'tier000001', file: 'tier.webm', name: 'Tier', enabled: true, minToman: 0 },
+        { id: 'rule000001', file: 'rule.webm', name: 'Rule', enabled: true, minToman: 1000000 }
+      ],
+      alertRules: { v: 1, enabled: true, items: rules }
+    };
+    return new PlaybackQueue({
+      configStore: { config },
+      playedStore: { isPlayed: () => false, markPlayed: () => {} },
+      mediaDir: dir,
+      logger: { info() {}, warn() {}, error() {} },
+      sse: { broadcast() {}, sendState() {}, clientCount: () => 0 },
+      rateManager: { currentRate: () => 100000, tomanOf: usd => usd * 100000, tomanFor: a => a * 100000 },
+      captureFn: async () => 'ok',
+      publishFn: () => {}
+    });
+  };
+  try {
+    fs.writeFileSync(path.join(dir, 'tier.webm'), 'x');
+    fs.writeFileSync(path.join(dir, 'rule.webm'), 'x');
+    const tip = {
+      stripe_pi_id: 'se_2',
+      tipper_name: 'Donor',
+      amount_total: 500,
+      currency: 'USD',
+      source: 'streamelements',
+      tip_message: 'hello',
+      kind: 'tip'
+    };
+    const rule = {
+      id: 'a1b2c3d4e5',
+      name: 'SE tips',
+      enabled: true,
+      conditions: { providers: ['streamelements'] },
+      fileId: 'rule000001'
+    };
+
+    const withRule = makeQueue([rule]);
+    withRule.showTip(tip);
+    assert.equal(withRule.recent[0].mediaId, 'rule000001');
+    assert.equal(withRule.recent[0].ruleId, 'a1b2c3d4e5');
+    withRule.stop();
+
+    const testFlag = makeQueue([rule]);
+    testFlag.showTip({ ...tip, stripe_pi_id: 'test_1', is_test: true });
+    assert.equal(testFlag.recent[0].mediaId, 'rule000001', 'test alerts follow the same rules');
+    testFlag.stop();
+
+    const disabled = makeQueue([{ ...rule }]);
+    disabled.configStore.config.alertRules.enabled = false;
+    disabled.showTip(tip);
+    assert.equal(disabled.recent[0].mediaId, 'tier000001', 'disabled rules are picker-identical');
+    assert.equal(disabled.recent[0].ruleId, null);
+    disabled.stop();
+
+    const replay = makeQueue([rule]);
+    replay.showTip({ ...tip, is_replay: true, replay_media_id: 'tier000001' });
+    assert.equal(replay.recent[0].mediaId, 'tier000001', 'replay keeps its original file over the rule');
+    replay.stop();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

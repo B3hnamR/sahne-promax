@@ -440,3 +440,107 @@ test('a failed save does not block later saves for the same file', async () => {
   await new Promise(resolve => setTimeout(resolve, 420));
   assert.equal(patches.length, 2);
 });
+
+test('rules page builds a PUT payload from the rendered rows', () => {
+  const source = read('js/rules.js');
+  const snippet = source.slice(source.indexOf('const num ='), source.indexOf('export function initRules()'));
+  const rows = [
+    {
+      dataset: { id: 'a1b2c3d4e5' },
+      querySelector: sel =>
+        ({
+          '.rule-enabled': { checked: true },
+          '.rule-name': { value: 'SE tips' },
+          '.rule-provider': { value: 'streamelements' },
+          '.rule-kind': { value: 'tip' },
+          '.rule-currency': { value: 'EUR' },
+          '.rule-min-toman': { value: '500000' },
+          '.rule-max-toman': { value: '' },
+          '.rule-message': { value: '' },
+          '.rule-months': { value: '' },
+          '.rule-count': { value: '' },
+          '.rule-file': { value: 'aaaaaaaaaa' }
+        })[sel]
+    }
+  ];
+  const context = vm.createContext({
+    $$: sel => (sel === '.rule-row' ? rows : []),
+    $: () => ({ checked: true })
+  });
+  vm.runInContext(withoutModules(snippet) + ';globalThis.out = collectRules();', context);
+  assert.deepEqual(JSON.parse(JSON.stringify(context.out)), {
+    enabled: true,
+    items: [
+      {
+        id: 'a1b2c3d4e5',
+        name: 'SE tips',
+        enabled: true,
+        conditions: {
+          providers: ['streamelements'],
+          kinds: ['tip'],
+          currency: 'EUR',
+          minToman: 500000,
+          maxToman: null,
+          messageContains: '',
+          minMonths: null,
+          maxMonths: null,
+          minCount: null,
+          maxCount: null
+        },
+        fileId: 'aaaaaaaaaa'
+      }
+    ]
+  });
+});
+
+test('rules page refuses to save before the first render', async () => {
+  const elements = new Map();
+  let puts = 0;
+  const $ = sel => {
+    if (!elements.has(sel))
+      elements.set(sel, {
+        value: '',
+        checked: true,
+        hidden: true,
+        classList: { add() {}, remove() {} },
+        addEventListener() {},
+        dataset: {},
+        appendChild() {},
+        children: []
+      });
+    return elements.get(sel);
+  };
+  const context = vm.createContext({
+    $,
+    $$: () => [],
+    state: { cfg: null },
+    document: { createElement: () => ({ classList: {}, dataset: {}, appendChild() {}, remove() {}, style: {} }) },
+    fetch: async () => ({ json: async () => ({ availability: {} }) }),
+    post: async () => ({ ok: true }),
+    put: async () => {
+      puts++;
+      return { ok: true, rules: { enabled: false, items: [] } };
+    },
+    toast() {},
+    esc: s => String(s),
+    setTimeout,
+    clearTimeout
+  });
+  vm.runInContext(withoutModules(read('js/rules.js')), context);
+  vm.runInContext('initRules()', context);
+  await elements.get('#btnSaveRules').onclick();
+  assert.equal(puts, 0, 'no PUT before the rules are rendered');
+});
+
+test('rules page explains evaluation reasons in Persian', () => {
+  const source = read('js/rules.js');
+  const snippet = source.slice(source.indexOf('const REASON_LABELS'), source.indexOf('function collectRules()'));
+  const context = vm.createContext({});
+  vm.runInContext(
+    withoutModules(snippet) +
+      ';globalThis.label = reasonLabel(["amount-missing"]);globalThis.unknown = reasonLabel(["zzz"]);',
+    context
+  );
+  assert.match(context.label, /نرخ تبدیل/);
+  assert.equal(context.unknown, 'zzz');
+});

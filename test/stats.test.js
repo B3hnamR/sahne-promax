@@ -343,3 +343,12 @@ test('backup and restore carry the history ledger (2.3.0)', async t => {
   assert.equal(srv.historyStore.entries.length, 1, 'history restored from the backup');
   assert.equal(srv.historyStore.totals().toman, 123456);
 });
+
+test('history records the matched routing rule and keeps aggregates rule-agnostic', t => {
+  const store = tmpStore(t);
+  store.add({ id: 'r1', name: 'Ali', kind: 'tip', toman: 5000, rule: 'a1b2c3d4e5', ruleName: 'SE tips' });
+  assert.equal(store.entries[0].rule, 'a1b2c3d4e5');
+  assert.equal(store.entries[0].ruleName, 'SE tips');
+  assert.equal(store.totals().toman, 5000);
+  assert.equal(store.getTop('all')[0].toman, 5000);
+});

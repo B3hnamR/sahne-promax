@@ -148,6 +148,7 @@ function renderEntries() {
       chip(k.label, k.cls),
       source ? chip(source) : null,
       e.test ? chip('تست', 'warn') : e.replay ? chip('ریپلی') : null,
+      e.ruleName ? chip(e.ruleName, 'acc') : null,
       span('m', e.message || ''),
       span('a', amount)
     ]);

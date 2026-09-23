@@ -2,7 +2,7 @@
 const path = require('path');
 const crypto = require('crypto');
 const { LIMITS, ENUMS, FONTS, TYPES } = require('../constants');
-const { typeOf, cleanText, parseThreshold, finite, intOrNull, isHex } = require('./validation');
+const { typeOf, cleanText, parseThreshold, finite, intOrNull, isHex, normFa } = require('./validation');
 
 function sanitizeFile(f) {
   if (!f || typeof f !== 'object') return null;
@@ -188,9 +188,142 @@ function sanitizeChatCommands(c, current = {}, files = []) {
   return out;
 }
 
+const RULE_PROVIDERS = new Set(['kickbot', 'streamelements', 'kick']);
+const RULE_KINDS = new Set(['tip', 'sub', 'gift']);
+
+function ruleEnumList(value, allowed) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map(v => String(v == null ? '' : v).toLowerCase()).filter(v => allowed.has(v)))];
+}
+
+// Validates one rule. Non-strict (load/sanitize) clamps and coerces; strict (PUT) rejects
+// invalid edits with field errors and requires the file to be registered.
+function validateRule(item, { strict = false, files = [] } = {}) {
+  const errors = [];
+  if (!item || typeof item !== 'object')
+    return { rule: null, errors: [{ field: 'rule', message: 'قاعده نامعتبر است' }] };
+  const c = item.conditions && typeof item.conditions === 'object' ? item.conditions : {};
+  if (strict && (item.conditions == null || typeof item.conditions !== 'object' || Array.isArray(item.conditions)))
+    errors.push({ field: 'conditions', message: 'شرایط قاعده نامعتبر است' });
+  const fileId = String(item.fileId == null ? '' : item.fileId);
+  if (!/^[0-9a-f]{10}$/.test(fileId)) {
+    errors.push({ field: 'fileId', message: 'شناسه فایل نامعتبر است' });
+  } else if (strict && !(Array.isArray(files) ? files : []).some(f => f.id === fileId)) {
+    errors.push({ field: 'fileId', message: 'فایل انتخابی وجود ندارد' });
+  }
+  const enumField = (value, allowed, field) => {
+    if (strict && value != null) {
+      if (!Array.isArray(value)) {
+        errors.push({ field, message: 'فهرست مقادیر نامعتبر است' });
+        return [];
+      }
+      const bad = value.map(v => String(v == null ? '' : v).toLowerCase()).find(v => !allowed.has(v));
+      if (bad !== undefined) errors.push({ field, message: 'مقدار نامعتبر: ' + bad });
+    }
+    return ruleEnumList(value, allowed);
+  };
+  const providers = enumField(c.providers, RULE_PROVIDERS, 'providers');
+  const kinds = enumField(c.kinds, RULE_KINDS, 'kinds');
+  let currency = null;
+  if (c.currency != null && c.currency !== '') {
+    if (/^[A-Za-z]{3}$/.test(String(c.currency))) currency = String(c.currency).toUpperCase();
+    else if (strict) errors.push({ field: 'currency', message: 'کد ارز باید سه حرف انگلیسی باشد' });
+  }
+  const numberField = (value, lo, hi, field) => {
+    if (value == null || value === '') return null;
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+      if (strict) errors.push({ field, message: 'عدد نامعتبر است' });
+      return null;
+    }
+    if (strict && (n < lo || n > hi)) {
+      errors.push({ field, message: 'عدد خارج از محدوده مجاز است' });
+      return null;
+    }
+    return Math.min(hi, Math.max(lo, Math.round(n)));
+  };
+  const minToman = numberField(c.minToman, 0, 1e12, 'minToman');
+  const maxToman = numberField(c.maxToman, 0, 1e12, 'maxToman');
+  const minMonths = numberField(c.minMonths, 1, 240, 'minMonths');
+  const maxMonths = numberField(c.maxMonths, 1, 240, 'maxMonths');
+  const minCount = numberField(c.minCount, 1, 1000, 'minCount');
+  const maxCount = numberField(c.maxCount, 1, 1000, 'maxCount');
+  if (minToman != null && maxToman != null && minToman > maxToman)
+    errors.push({ field: 'minToman', message: 'حداقل مبلغ از حداکثر بیشتر است' });
+  if (minMonths != null && maxMonths != null && minMonths > maxMonths)
+    errors.push({ field: 'minMonths', message: 'حداقل ماه از حداکثر بیشتر است' });
+  if (minCount != null && maxCount != null && minCount > maxCount)
+    errors.push({ field: 'minCount', message: 'حداقل تعداد از حداکثر بیشتر است' });
+  if ((minMonths != null || maxMonths != null) && (minCount != null || maxCount != null))
+    errors.push({ field: 'conditions', message: 'شرط ماه ساب و تعداد گیفت هم‌زمان ممکن نیست' });
+  if (errors.length) return { rule: null, errors };
+  return {
+    rule: {
+      id: /^[0-9a-f]{10}$/.test(String(item.id || '')) ? item.id : crypto.randomBytes(5).toString('hex'),
+      name: cleanText(item.name, LIMITS.ruleName).trim(),
+      enabled: item.enabled !== false,
+      conditions: {
+        providers,
+        kinds,
+        currency,
+        minToman,
+        maxToman,
+        messageContains: normFa(cleanText(c.messageContains, LIMITS.ruleMessage)).slice(0, LIMITS.ruleMessage),
+        minMonths,
+        maxMonths,
+        minCount,
+        maxCount
+      },
+      fileId
+    },
+    errors: []
+  };
+}
+
+// Returns a sanitized rule, or null when the rule is malformed or self-contradictory.
+function sanitizeRule(item) {
+  return validateRule(item).rule;
+}
+
+// Strict validation for PUT /api/rules: every invalid field is reported, nothing is coerced away.
+function validateRules(input, files = []) {
+  const errors = [];
+  if (input != null && input.enabled !== undefined && typeof input.enabled !== 'boolean')
+    errors.push({ index: -1, field: 'enabled', message: 'وضعیت فعال نامعتبر است' });
+  if (!input || !Array.isArray(input.items))
+    errors.push({ index: -1, field: 'items', message: 'فهرست قواعد نامعتبر است' });
+  const enabled = !!(input && input.enabled);
+  const rawItems = input && Array.isArray(input.items) ? input.items : [];
+  const items = [];
+  if (rawItems.length > LIMITS.rules) errors.push({ index: -1, field: 'items', message: 'حداکثر ۵۰ قاعده مجاز است' });
+  rawItems.slice(0, LIMITS.rules).forEach((item, index) => {
+    const { rule, errors: itemErrors } = validateRule(item, { strict: true, files });
+    if (itemErrors.length) for (const error of itemErrors) errors.push({ index, ...error });
+    else items.push(rule);
+  });
+  return { enabled, items, errors };
+}
+
+// Alert routing rules: fixed condition fields only (no regex/JS), capped and bounded.
+// Unknown but well-formed fileIds are kept so deleted files stay visible and flagged.
+function sanitizeRules(r, current = {}, files = []) {
+  const cur = current || {};
+  const out = { ...cur };
+  if (!r || typeof r !== 'object') return out;
+  if ('enabled' in r) out.enabled = !!r.enabled;
+  out.v = 1;
+  if (!Array.isArray(r.items)) return out;
+  out.items = r.items.map(sanitizeRule).filter(Boolean).slice(0, LIMITS.rules);
+  return out;
+}
+
 module.exports = {
   sanitizeFile,
   sanitizeAppearance,
   sanitizeGoal,
-  sanitizeChatCommands
+  sanitizeChatCommands,
+  sanitizeRule,
+  sanitizeRules,
+  validateRule,
+  validateRules
 };

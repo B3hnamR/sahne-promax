@@ -10,6 +10,8 @@ export const post = (p, body) =>
   api(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
 export const patch = (p, body) =>
   api(p, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+export const put = (p, body) =>
+  api(p, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
 
 let toastT;
 export function toast(m, kind) {

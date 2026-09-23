@@ -791,3 +791,113 @@ test('a media file that cannot be re-homed keeps the staging directory', async t
   assert.equal(stages.length, 1, 'the staging directory with the un-rehomed file is preserved');
   assert.equal(fs.readFileSync(path.join(dir, stages[0], 'rollback', 'media', 'keep.mp4'), 'utf8'), 'local-only');
 });
+
+test('rules endpoints round-trip, reject invalid edits and never mutate on failure', async t => {
+  const probe = net.createServer();
+  await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve));
+  const port = probe.address().port;
+  await new Promise(resolve => probe.close(resolve));
+  const dir = tempDir(t);
+  fs.mkdirSync(path.join(dir, 'media'));
+  fs.writeFileSync(path.join(dir, 'media', 'rule.webm'), 'x');
+  const app = createServer({ dataDir: dir, testHooks: { offline: true } });
+  app.configStore.config.port = port;
+  app.configStore.config.files = [
+    { id: 'aaaaaaaaaa', file: 'rule.webm', name: 'Rule', type: 'video', size: 1, enabled: true }
+  ];
+  app.saveConfig();
+  await app.start();
+  t.after(() => app.stop());
+  const origin = `http://127.0.0.1:${port}`;
+
+  const put = body =>
+    fetch(origin + '/api/rules', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Origin: origin },
+      body: JSON.stringify(body)
+    });
+
+  const bad = await put({ enabled: true, items: [{ fileId: 'nothex' }] });
+  assert.equal(bad.status, 400);
+  const badBody = await bad.json();
+  assert.ok(Array.isArray(badBody.errors) && badBody.errors.length);
+  assert.equal(app.configStore.config.alertRules.items.length, 0, 'invalid edit wrote nothing');
+
+  const rule = {
+    name: 'SE tips',
+    enabled: true,
+    conditions: { providers: ['streamelements'] },
+    fileId: 'aaaaaaaaaa'
+  };
+  const ok = await put({ enabled: true, items: [rule] });
+  assert.equal(ok.status, 200);
+  const saved = app.configStore.config.alertRules;
+  assert.equal(saved.items.length, 1);
+  assert.match(saved.items[0].id, /^[0-9a-f]{10}$/);
+
+  const get = await (await fetch(origin + '/api/rules')).json();
+  assert.equal(get.enabled, true);
+  assert.equal(get.availability.aaaaaaaaaa, 'ok');
+
+  const before = {
+    queue: app.playbackQueue.approved.length,
+    recent: app.playbackQueue.recent.length,
+    history: app.historyStore.entries.length,
+    goal: app.configStore.config.goal.currentToman
+  };
+  const sim = await (
+    await fetch(origin + '/api/rules/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: origin },
+      body: JSON.stringify({ provider: 'streamelements', kind: 'tip', currency: 'USD', amount: 5 })
+    })
+  ).json();
+  assert.equal(sim.ok, true);
+  assert.equal(sim.match.ruleId, saved.items[0].id);
+  assert.equal(sim.match.source, 'rule');
+  assert.deepEqual(
+    {
+      queue: app.playbackQueue.approved.length,
+      recent: app.playbackQueue.recent.length,
+      history: app.historyStore.entries.length,
+      goal: app.configStore.config.goal.currentToman
+    },
+    before,
+    'the simulator mutates nothing'
+  );
+});
+
+test('/api/simulate resolves sub and gift rows with their own alert kind', async t => {
+  const probe = net.createServer();
+  await new Promise(resolve => probe.listen(0, '127.0.0.1', resolve));
+  const port = probe.address().port;
+  await new Promise(resolve => probe.close(resolve));
+  const dir = tempDir(t);
+  fs.mkdirSync(path.join(dir, 'media'));
+  fs.writeFileSync(path.join(dir, 'media', 'tier.webm'), 'x');
+  fs.writeFileSync(path.join(dir, 'media', 'sub.webm'), 'x');
+  const app = createServer({ dataDir: dir, testHooks: { offline: true } });
+  app.configStore.config.port = port;
+  app.configStore.config.files = [
+    { id: 'aaaaaaaaaa', file: 'tier.webm', name: 'Tier', type: 'video', size: 1, enabled: true, minToman: 0 },
+    { id: 'bbbbbbbbbb', file: 'sub.webm', name: 'Sub', type: 'video', size: 1, enabled: true, minToman: 1000000 }
+  ];
+  app.saveConfig();
+  await app.start();
+  t.after(() => app.stop());
+  const origin = `http://127.0.0.1:${port}`;
+  const put = await fetch(origin + '/api/rules', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Origin: origin },
+    body: JSON.stringify({
+      enabled: true,
+      items: [{ name: 'subs', conditions: { kinds: ['sub'] }, fileId: 'bbbbbbbbbb' }]
+    })
+  });
+  assert.equal(put.status, 200);
+  const sim = await (await fetch(origin + '/api/simulate')).json();
+  const sub = sim.rows.find(r => r.label === 'sub');
+  assert.equal(sub.media.id, 'bbbbbbbbbb', 'the sub row follows sub rules');
+  const gift = sim.rows.find(r => r.label === 'gift' && r.count === 2);
+  assert.equal(gift.media.id, 'aaaaaaaaaa', 'gift rows do not match sub rules');
+});

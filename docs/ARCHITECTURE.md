@@ -7,6 +7,7 @@
 ## 1. Architectural Highlights
 
 ### 1.1 Backend Modularization (`server/`)
+
 The previous monolithic `server.js` (~2,200 lines) has been decomposed into domain-specific modules:
 
 ```
@@ -46,7 +47,9 @@ server/
 ```
 
 ### 1.2 Frontend Native ES Modules (`public/js/`)
+
 `public/app.js` has been converted into native ECMAScript Modules loaded via `<script type="module" src="/js/app.js">`:
+
 - `api.js`: Low-level network fetch helpers, formatters (`fmtToman`, `fmtSize`, `faNum`), toast notifications.
 - `state.js`: Global reactive application store.
 - `nav.js`: Tab switching and window control hooks.
@@ -84,54 +87,69 @@ server/
 ## 3. New Streamer ProMax Features
 
 ### 3.1 Paired Media (Custom Sound for Image Alerts)
+
 - Link any audio file (`.mp3`, `.wav`, `.ogg`) to a static image alert.
 - When triggered, `overlay.js` renders the image and synchronizes playback duration with the paired audio track.
 
 ### 3.2 Multi-Profile Scene Overlays
+
 - Configure scene-specific visual appearances (e.g., `gameplay`, `chatting`, `vertical`).
 - Load profiles in OBS Browser Source via `/overlay?profile=<name>` (or `/overlay.html?profile=<name>`).
 - Supports different positioning, card scaling, and font sizes without running separate server instances.
 
 ### 3.3 Hardware & Stream Deck REST API
+
 Sub-5ms loopback endpoints for hardware deck buttons and macro keypads:
 
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/control/skip` | `POST` | Immediately skips the currently playing alert and plays the next in queue |
-| `/api/control/replay` | `POST` | Re-enqueues and replays the last finished alert |
-| `/api/control/pause` | `POST` | Pauses alert queue playback |
-| `/api/control/resume` | `POST` | Resumes paused alert queue |
-| `/api/control/mute` | `POST` | Toggles overlay master audio mute |
-| `/api/control/volume?val=N` | `POST` | Sets master volume (`0` to `100`) |
-| `/api/control/clear` | `POST` | Empties all queued pending alerts |
+| Endpoint                    | Method | Description                                                               |
+| --------------------------- | ------ | ------------------------------------------------------------------------- |
+| `/api/control/skip`         | `POST` | Immediately skips the currently playing alert and plays the next in queue |
+| `/api/control/replay`       | `POST` | Re-enqueues and replays the last finished alert                           |
+| `/api/control/pause`        | `POST` | Pauses alert queue playback                                               |
+| `/api/control/resume`       | `POST` | Resumes paused alert queue                                                |
+| `/api/control/mute`         | `POST` | Toggles overlay master audio mute                                         |
+| `/api/control/volume?val=N` | `POST` | Sets master volume (`0` to `100`)                                         |
+| `/api/control/clear`        | `POST` | Empties all queued pending alerts                                         |
 
 ### 3.4 Live Donation & Subscription Goal Widget
+
 - OBS Browser Source URL: `http://127.0.0.1:7788/goal` (or `/goal.html`).
 - Tracks donations and subscriptions towards customizable financial targets.
 - Real-time animated CSS progress bar driven by Server-Sent Events (`goal_update`).
 - Automatically fires a celebratory confetti animation upon reaching 100%.
 
 ### 3.5 Milestone Subscription & Gift-Tier Alerts
+
 - Configure distinct alerts for subscription renewals:
   - `minMonths` & `maxMonths` (e.g. 3-month, 6-month, 12-month loyalty tiers).
 - Configure distinct alerts for bulk gifted subscriptions:
   - `minCount` & `maxCount` (e.g. 5+, 20+, 50+ gift bombs).
 
 ### 3.6 Zero-Dependency 1-Click Backup & Restore (.zip)
+
 - Built-in ZIP generation and decompression engine leveraging Node's native `zlib` library.
 - **Export Backup:** `GET /api/backup` streams a bounded ZIP of settings, alert history and eligible media. Credentials are omitted; the controller reports media that could not be included.
 - **Restore Backup:** `POST /api/restore` validates and stages the archive before replacing settings/history and merging media, then reloads the active integrations. Provider credentials require reconnection.
+
+### 3.7 Alert Media Routing Rules
+
+- Rules are an ordered list in `config.json` (`alertRules`), edited on the Rules page (`GET`/`PUT /api/rules`).
+- Resolution order for every displayed alert: chat-command mapping → replay's original file → first matching rule whose file is usable → existing threshold/keyword picker.
+- Conditions are fixed fields (provider, kind, currency, toman range, message substring, sub months, gift count); there are no user expressions or regular expressions.
+- The resolver (`server/playback/rules.js`) is side-effect-free and never throws: a malformed rule, a deleted file or a missing conversion falls through to the picker. Decisions are explained by `POST /api/rules/test` and recorded in alert history.
 
 ---
 
 ## 4. Verification & Testing
 
 The complete test suite runs via:
+
 ```bash
 npm test
 ```
 
 ### Verified Test Suites
+
 - **`test/server.test.js`**: Core security hardening (Host/Origin header verification, path traversal prevention, secret redaction, Persian/Arabic digit normalization, HTTP range streaming, and capture retry resiliency).
 - **`test/overlay-xss.test.js`**: Overlay XSS sanitation, CSS escape injection, HTML entity escaping, and foreign URL blocking.
 - **`test/promax.test.js`**:

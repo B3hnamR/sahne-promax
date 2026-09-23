@@ -79,6 +79,8 @@ class HistoryStore {
       months: rec.months != null ? Math.max(1, Math.round(Number(rec.months) || 1)) : null,
       message: String(rec.message || '').slice(0, LIMITS.message),
       media: rec.media ? String(rec.media).slice(0, LIMITS.fileName) : null,
+      rule: String(rec.rule || '').slice(0, 32) || null,
+      ruleName: String(rec.ruleName || '').slice(0, LIMITS.ruleName),
       test: !!rec.test,
       replay: !!rec.replay,
       at
