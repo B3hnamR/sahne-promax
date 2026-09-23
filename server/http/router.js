@@ -5,14 +5,14 @@ const fs = require('fs');
 const { Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const { LIMITS, ENUMS, FONTS, CSP_APP, CSP_OVERLAY, CSP_GOAL, CSP_TOP, DEFAULT_CONFIG } = require('../constants');
-const { cleanText, finite, intOrNull } = require('../utils/validation');
+const { cleanText, finite, intOrNull, normFa } = require('../utils/validation');
 const { localDayKey } = require('../utils/time');
-const { sanitizeFile, sanitizeAppearance, sanitizeChatCommands } = require('../utils/sanitizers');
+const { sanitizeFile, sanitizeAppearance, sanitizeChatCommands, validateRules } = require('../utils/sanitizers');
 const { serveFile, servePublic } = require('./streaming');
 const { handleStreamUpload } = require('../media/upload');
 const { exportBackupToFile, importBackupFromFile, MAX_ARCHIVE_BYTES } = require('../features/backup');
 const { buildPayload, pickMedia } = require('../playback/picker');
-const { resolveMedia } = require('../playback/rules');
+const { resolveMedia, evaluateRules, availabilityFor } = require('../playback/rules');
 
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -371,6 +371,75 @@ function createHttpRouter(context) {
         } finally {
           if (archivePath) await fs.promises.rm(archivePath, { force: true }).catch(() => {});
         }
+      }
+
+      // Alert media routing rules
+      if (p === '/api/rules' && req.method === 'GET') {
+        const rules = configStore.config.alertRules;
+        return json(res, 200, {
+          ok: true,
+          enabled: !!rules.enabled,
+          items: rules.items,
+          availability: availabilityFor(configStore.config, mediaDir)
+        });
+      }
+
+      if (p === '/api/rules' && req.method === 'PUT') {
+        const body = await readJson(req);
+        const { enabled, items, errors } = validateRules(body, configStore.config.files);
+        if (errors.length) {
+          return json(res, 400, { error: errors[0].message, errors });
+        }
+        configStore.config.alertRules = { v: 1, enabled, items };
+        configStore.saveConfig();
+        logger.info('قواعد رسانه ذخیره شد', { count: items.length, enabled });
+        sse.sendState();
+        return json(res, 200, {
+          ok: true,
+          rules: { enabled, items, availability: availabilityFor(configStore.config, mediaDir) }
+        });
+      }
+
+      if (p === '/api/rules/test' && req.method === 'POST') {
+        const body = await readJson(req);
+        const kind = ['tip', 'sub', 'gift'].includes(body.kind) ? body.kind : 'tip';
+        const currency = /^[A-Za-z]{3}$/.test(String(body.currency || ''))
+          ? String(body.currency).toUpperCase()
+          : 'USD';
+        const amount = finite(body.amount, 0, 1e9, 0);
+        const toman =
+          kind === 'tip' ? rateManager.tomanFor(amount, currency) : kickChatClient.subValueToman(kind) || null;
+        const facts = {
+          provider: ['kickbot', 'streamelements', 'kick'].includes(body.provider) ? body.provider : 'kickbot',
+          kind,
+          currency,
+          amount,
+          toman,
+          message: normFa(cleanText(body.message, LIMITS.message)),
+          months: intOrNull(body.months, 1, 240),
+          count: intOrNull(body.count, 1, 1000),
+          isTest: true,
+          isReplay: false
+        };
+        const evaluations = evaluateRules({}, facts, { config: configStore.config, mediaDir });
+        const currentRate = () => rateManager.currentRate();
+        const resolved = resolveMedia({}, facts, { config: configStore.config, mediaDir, currentRate });
+        const pickerMedia = pickMedia({}, { config: configStore.config, mediaDir, currentRate });
+        return json(res, 200, {
+          ok: true,
+          match: resolved.media
+            ? {
+                source: resolved.source,
+                ruleId: resolved.ruleId,
+                ruleName: resolved.ruleName,
+                fileId: resolved.media.id,
+                fileName: resolved.media.name,
+                file: resolved.media.file
+              }
+            : null,
+          evaluations,
+          picker: pickerMedia ? { fileId: pickerMedia.id, fileName: pickerMedia.name, file: pickerMedia.file } : null
+        });
       }
 
       // Controller Configuration Endpoints

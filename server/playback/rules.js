@@ -79,4 +79,19 @@ function resolveMedia(t, facts, { config, mediaDir, currentRate, replayFileId = 
   return picker('picker');
 }
 
-module.exports = { isFileUsable, evaluateRules, resolveMedia };
+function availabilityFor(config, mediaDir) {
+  const out = {};
+  for (const rule of (config.alertRules && config.alertRules.items) || []) {
+    const file = (config.files || []).find(f => f.id === rule.fileId);
+    out[rule.fileId] = !file
+      ? 'missing'
+      : file.enabled === false
+        ? 'disabled'
+        : isFileUsable(file, mediaDir)
+          ? 'ok'
+          : 'missing';
+  }
+  return out;
+}
+
+module.exports = { isFileUsable, evaluateRules, resolveMedia, availabilityFor };
