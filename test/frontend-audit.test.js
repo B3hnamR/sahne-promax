@@ -440,3 +440,55 @@ test('a failed save does not block later saves for the same file', async () => {
   await new Promise(resolve => setTimeout(resolve, 420));
   assert.equal(patches.length, 2);
 });
+
+test('rules page builds a PUT payload from the rendered rows', () => {
+  const source = read('js/rules.js');
+  const snippet = source.slice(source.indexOf('const num ='), source.indexOf('export function initRules()'));
+  const rows = [
+    {
+      dataset: { id: 'a1b2c3d4e5' },
+      querySelector: sel =>
+        ({
+          '.rule-enabled': { checked: true },
+          '.rule-name': { value: 'SE tips' },
+          '.rule-provider': { value: 'streamelements' },
+          '.rule-kind': { value: 'tip' },
+          '.rule-currency': { value: 'EUR' },
+          '.rule-min-toman': { value: '500000' },
+          '.rule-max-toman': { value: '' },
+          '.rule-message': { value: '' },
+          '.rule-months': { value: '' },
+          '.rule-count': { value: '' },
+          '.rule-file': { value: 'aaaaaaaaaa' }
+        })[sel]
+    }
+  ];
+  const context = vm.createContext({
+    $$: sel => (sel === '.rule-row' ? rows : []),
+    $: () => ({ checked: true })
+  });
+  vm.runInContext(withoutModules(snippet) + ';globalThis.out = collectRules();', context);
+  assert.deepEqual(JSON.parse(JSON.stringify(context.out)), {
+    enabled: true,
+    items: [
+      {
+        id: 'a1b2c3d4e5',
+        name: 'SE tips',
+        enabled: true,
+        conditions: {
+          providers: ['streamelements'],
+          kinds: ['tip'],
+          currency: 'EUR',
+          minToman: 500000,
+          maxToman: null,
+          messageContains: '',
+          minMonths: null,
+          maxMonths: null,
+          minCount: null,
+          maxCount: null
+        },
+        fileId: 'aaaaaaaaaa'
+      }
+    ]
+  });
+});

@@ -10,6 +10,7 @@ import { initLook, fillLook, fitPreview } from './look.js';
 import { initGoal, fillGoal } from './goal.js';
 import { initHistory, refreshHistory, renderHistoryLive } from './history.js';
 import { initCommands, fillCommands } from './commands.js';
+import { initRules, fillRules } from './rules.js';
 import { initControls } from './controls.js';
 import { initBackup } from './backup.js';
 import { initCustomSelects } from './dropdown.js';
@@ -466,6 +467,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (name === 'look') setTimeout(fitPreview, 40);
       if (name === 'home') loadSim();
       if (name === 'history') refreshHistory();
+      if (name === 'rules') fillRules();
       if (name === 'about' && !$('#docView').textContent) showDoc('PRIVACY.md');
       if (name !== 'files') closeInspector();
     }
@@ -493,6 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initGoal();
   initHistory();
   initCommands();
+  initRules();
   initControls({ onStateChange: renderState });
   initBackup({ onRestoreComplete: load });
 
