@@ -117,7 +117,7 @@ export function initLook() {
     gold: {
       font: 'Segoe UI',
       textSize: 40,
-      template: '{name} tip {amount}',
+      template: '{name} tipped {amount}',
       currency: 'eq-en',
       persianDigits: false,
       amountStyle: 'inherit',

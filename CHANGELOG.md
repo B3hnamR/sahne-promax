@@ -2,7 +2,7 @@
 
 All notable changes to the public builds. Versions follow semantic versioning.
 
-## Unreleased — follow-up fixes under review
+## 2.4.1 — 2026-09-23 (stability and portability fixes)
 
 - Commit the USD quote as soon as Nobitex responds, even if optional currency quote services are slow.
 - Keep replacement StreamElements and Kick chat sockets from being marked disconnected by older socket close events.
@@ -13,6 +13,17 @@ All notable changes to the public builds. Versions follow semantic versioning.
 - Preserve local-only media, the current port and provider reconnection guidance during restore; keep staged files when rollback fails.
 - Publish Baha24 USD quotes before optional FX lookups and mark non-ASCII backup names as UTF-8.
 - Verify release checksum manifests with GNU-style manifests and clean up failed draft releases.
+- Complete upstream 1.3.5 gold preset wording, keep pending media edits when deletion fails, and show the server's actual version in the browser controller.
+
+### How to update
+
+From 2.4.0, click **آپدیت** in the desktop app or download the installer from this repository's 2.4.1 release. The updater checks the installer against the published `SHA256SUMS.txt` before running it. Existing settings and media stay in the local data folder.
+
+### Files in this release
+
+- `Sahne-ProMax-Setup-2.4.1.exe` — Windows installer (per-user)
+- `SHA256SUMS.txt` — SHA-256 checksum manifest
+- `README-FA.md` — راهنمای فارسی
 
 ## 2.4.0 — 2026-09-23 (StreamElements and multi-currency tips)
 

@@ -33,7 +33,7 @@ function createServer(opts = {}) {
   const dataDir = opts.dataDir;
   const publicDir = opts.publicDir || path.join(__dirname, '..', 'public');
   const mediaDir = path.join(dataDir, 'media');
-  const appVersion = opts.appVersion || '2.4.0';
+  const appVersion = opts.appVersion || require('../package.json').version;
   const nodeOk = typeof fetch === 'function' && typeof WebSocket === 'function';
 
   fs.mkdirSync(mediaDir, { recursive: true });

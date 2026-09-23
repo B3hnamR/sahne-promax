@@ -175,6 +175,7 @@ test('StreamElements setup and disconnect keep the JWT out of public API respons
     });
     assert.equal(setup.status, 200);
     const snapshot = await (await fetch(url + '/api/config')).json();
+    assert.equal(snapshot.version, require('../package.json').version);
     assert.equal(snapshot.config.streamelements.configured, true);
     assert.equal(snapshot.state.se.configured, true);
     assert.ok(!JSON.stringify(snapshot).includes(token));

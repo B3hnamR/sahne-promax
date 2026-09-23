@@ -37,6 +37,9 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Check formatting
+        run: npm run format:check
+
       - name: Build installer (unsigned)
         run: npm run dist
         env:
@@ -104,7 +107,7 @@ jobs:
         run: |
           $isDraft = gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" --json isDraft -q .isDraft 2>$null
           if ($isDraft -eq 'true') {
-            gh release delete "${{ github.ref_name }}" --repo "${{ github.repository }}" --yes --cleanup-tag=false --verbose
+            gh release delete "${{ github.ref_name }}" --repo "${{ github.repository }}" --yes --cleanup-tag=false
           } else {
             Write-Host "release is not a draft (or does not exist); leaving it in place"
           }

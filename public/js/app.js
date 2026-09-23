@@ -2,7 +2,7 @@
 'use strict';
 
 import { $, $$, DESK, api, post, toast, esc, fmtToman, faNum, copyText, spConfirm } from './api.js';
-import { state, setConfig, setRuntimeState, setInfo } from './state.js';
+import { state, setConfig, setRuntimeState, setInfo, setVersion } from './state.js';
 import { initNav } from './nav.js';
 import { initInspector, closeInspector } from './inspector.js';
 import { initFiles, renderFiles } from './files.js';
@@ -58,6 +58,7 @@ async function load() {
   const r = await api('/api/config');
   setConfig(r.config);
   setRuntimeState(r.state);
+  setVersion(r.version || null);
 
   if (DESK && !state.info) {
     try {
@@ -65,7 +66,7 @@ async function load() {
     } catch {}
   }
 
-  const ver = r.version || (state.info && state.info.version) || '2.3.0';
+  const ver = state.version || (state.info && state.info.version) || '—';
   const brandVer = $('#brandVer');
   if (brandVer) brandVer.textContent = 'Sahne ProMax v' + ver;
 
@@ -237,8 +238,7 @@ function renderSe() {
 function fillApp() {
   const info = state.info;
   const cfg = state.cfg;
-  if ($('#appVer'))
-    $('#appVer').value = info ? info.version + ' · Electron ' + info.electron : (cfg && cfg.version) || '2.3.0';
+  if ($('#appVer')) $('#appVer').value = info ? info.version + ' · Electron ' + info.electron : state.version || '—';
   if ($('#dataDir')) $('#dataDir').value = info ? info.dataDir : '';
   if ($('#autostart')) {
     $('#autostart').checked = !!(info && info.autostart);
@@ -255,7 +255,7 @@ function fillApp() {
   if ($('#abVer')) {
     $('#abVer').textContent = info
       ? `${info.version} · Electron ${info.electron} · Chromium ${info.chrome}`
-      : (cfg && cfg.version) || '2.3.0';
+      : state.version || '—';
   }
   if ($('#abData')) $('#abData').textContent = info ? info.dataDir : '—';
   if ($('#abServer')) $('#abServer').textContent = 'http://localhost:' + ((cfg && cfg.port) || 7788);

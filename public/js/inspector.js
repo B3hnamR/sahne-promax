@@ -5,6 +5,8 @@ import { $, $$, esc, fmtToman, fmtSize, patch, toast, spConfirm } from './api.js
 import { state, setSelectedId } from './state.js';
 
 const insT = new Map();
+const scheduledBodies = new Map();
+const editGenerations = new Map();
 const pendingSaves = new Map();
 const typeLabel = { video: 'ویدیو', image: 'تصویر', audio: 'صدا' };
 
@@ -108,6 +110,38 @@ export function collectInspector() {
 export function initInspector({ onUpdate, onDelete, onPreview }) {
   $('#insClose').onclick = closeInspector;
 
+  const saveInspector = body => {
+    // Serialize requests for the same file so an older response cannot
+    // finish after a newer save and restore stale values.
+    const previous = (pendingSaves.get(body.id) || Promise.resolve()).catch(() => {});
+    const pending = previous.then(async () => {
+      try {
+        const r = await patch('/api/file', body);
+        if (r.ok) {
+          const f = (state.cfg.files || []).find(x => x.id === body.id);
+          if (f) Object.assign(f, r.file);
+          if (typeof onUpdate === 'function') onUpdate();
+          const s = $('#insSaved');
+          if (s && state.selectedId === body.id) {
+            s.classList.add('show');
+            setTimeout(() => s.classList.remove('show'), 1200);
+          }
+        } else {
+          toast(r.error || 'ذخیره نشد', 'err');
+        }
+      } catch {
+        toast('ذخیره نشد؛ اتصال را بررسی کنید', 'err');
+      }
+    });
+    pendingSaves.set(body.id, pending);
+    pending
+      .catch(() => {})
+      .then(() => {
+        if (pendingSaves.get(body.id) === pending) pendingSaves.delete(body.id);
+      });
+    return pending;
+  };
+
   const fields = [
     '#iName',
     '#iEnabled',
@@ -133,38 +167,16 @@ export function initInspector({ onUpdate, onDelete, onPreview }) {
       // Keep one debounce timer per file so editing another card cannot cancel it.
       const body = collectInspector();
       clearTimeout(insT.get(body.id));
+      const scheduled = { body, generation: (editGenerations.get(body.id) || 0) + 1 };
+      editGenerations.set(body.id, scheduled.generation);
+      scheduledBodies.set(body.id, scheduled);
       insT.set(
         body.id,
         setTimeout(() => {
           insT.delete(body.id);
-          // Serialize requests for the same file so an older response cannot
-          // finish after a newer save and restore stale values.
-          const previous = (pendingSaves.get(body.id) || Promise.resolve()).catch(() => {});
-          const pending = previous.then(async () => {
-            try {
-              const r = await patch('/api/file', body);
-              if (r.ok) {
-                const f = (state.cfg.files || []).find(x => x.id === body.id);
-                if (f) Object.assign(f, r.file);
-                if (typeof onUpdate === 'function') onUpdate();
-                const s = $('#insSaved');
-                if (s && state.selectedId === body.id) {
-                  s.classList.add('show');
-                  setTimeout(() => s.classList.remove('show'), 1200);
-                }
-              } else {
-                toast(r.error || 'ذخیره نشد', 'err');
-              }
-            } catch {
-              toast('ذخیره نشد؛ اتصال را بررسی کنید', 'err');
-            }
-          });
-          pendingSaves.set(body.id, pending);
-          pending
-            .catch(() => {})
-            .then(() => {
-              if (pendingSaves.get(body.id) === pending) pendingSaves.delete(body.id);
-            });
+          if (scheduledBodies.get(body.id) !== scheduled) return;
+          scheduledBodies.delete(body.id);
+          saveInspector(body);
         }, 350)
       );
     });
@@ -189,8 +201,10 @@ export function initInspector({ onUpdate, onDelete, onPreview }) {
       danger: true
     });
     if (!ok) return;
+    const scheduled = scheduledBodies.get(f.id);
     clearTimeout(insT.get(f.id));
     insT.delete(f.id);
+    scheduledBodies.delete(f.id);
     if (pendingSaves.has(f.id)) {
       try {
         await pendingSaves.get(f.id);
@@ -201,9 +215,15 @@ export function initInspector({ onUpdate, onDelete, onPreview }) {
       const result = await response.json();
       if (!response.ok || !result.deleted) throw new Error(result.error || 'delete failed');
     } catch {
+      // A failed delete leaves the file editable, so commit the paused edit.
+      if (scheduled && editGenerations.get(f.id) === scheduled.generation) await saveInspector(scheduled.body);
       toast('حذف فایل ناموفق بود؛ دوباره تلاش کنید', 'err');
       return;
     }
+    clearTimeout(insT.get(f.id));
+    insT.delete(f.id);
+    scheduledBodies.delete(f.id);
+    editGenerations.delete(f.id);
     closeInspector();
     toast('حذف شد', 'ok');
     if (typeof onDelete === 'function') onDelete();

@@ -5,6 +5,7 @@ export const state = {
   cfg: null,
   runtimeState: null,
   info: null,
+  version: null,
   selectedId: null
 };
 
@@ -18,6 +19,10 @@ export function setRuntimeState(s) {
 
 export function setInfo(i) {
   state.info = i;
+}
+
+export function setVersion(version) {
+  state.version = version;
 }
 
 export function setSelectedId(id) {

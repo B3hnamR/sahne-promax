@@ -9,7 +9,7 @@
 [![Zero Dependencies](https://img.shields.io/badge/Runtime%20Dependencies-0-brightgreen?style=flat-square)](#architecture)
 [![Tests](https://img.shields.io/badge/Tests-automated-success?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.4.0-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
+[![Version](https://img.shields.io/badge/Version-2.4.1-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
 
 <p align="center">
   <a href="#key-features">Features</a> •
@@ -28,7 +28,7 @@
 
 **Sahne ProMax** is a modernized, modular fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus) designed for Kick streamers. It plays transparent WebM animations, GIFs, images, and audio alerts for **KickBot donations**, **StreamElements tips**, **Kick subscriptions**, and **Kick gifted subscriptions**. The controller and alert server run locally, with no cloud backend and no runtime npm packages.
 
-ProMax combines its modular architecture and streamer tools with upstream Sahne+ 1.3.1–1.3.5 fixes and features. Version **2.4.0** ports **StreamElements tip alerts** and **multi-currency conversion**: tips enter the same queue as KickBot donations, use the same media tiers, and supported non-USD amounts are converted to toman while preserving the original amount and currency on the alert card. Earlier ProMax releases added a standalone OBS Goal Widget, Stream Deck controls, Paired Media, backup and restore, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, persistent alert history, and a top-donors widget.
+ProMax combines its modular architecture and streamer tools with upstream Sahne+ 1.3.1–1.3.5 fixes and features. Version **2.4.1** completes the upstream 1.3.5 gold preset wording and fixes alert rate timing, connection state, portable backup/restore, controller feedback, and update verification. Version 2.4.0 introduced **StreamElements tip alerts** and **multi-currency conversion**: tips enter the same queue as KickBot donations, use the same media tiers, and supported non-USD amounts are converted to toman while preserving the original amount and currency on the alert card. Earlier ProMax releases added a standalone OBS Goal Widget, Stream Deck controls, Paired Media, backup and restore, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, persistent alert history, and a top-donors widget.
 
 > **Note:** Sahne ProMax is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Kick, KickBot, StreamElements, Nobitex, Baha24, or Bonbast.
 

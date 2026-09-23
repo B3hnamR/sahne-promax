@@ -116,13 +116,22 @@ test('inspector saves snapshots for both files when selection changes during deb
   );
 });
 
-test('inspector keeps a file selected when deletion fails', async () => {
+test('inspector saves a paused edit and keeps the file selected when deletion fails', async () => {
   const elements = new Map();
   const notices = [];
+  const saved = [];
   const state = { selectedId: 'one', cfg: { files: [{ id: 'one', name: 'Media' }] } };
   const $ = selector => {
     if (!elements.has(selector)) {
-      elements.set(selector, { addEventListener() {}, classList: { add() {}, remove() {} } });
+      const element = {
+        value: '',
+        checked: true,
+        addEventListener(name, handler) {
+          this[name] = handler;
+        },
+        classList: { add() {}, remove() {} }
+      };
+      elements.set(selector, element);
     }
     return elements.get(selector);
   };
@@ -132,15 +141,51 @@ test('inspector keeps a file selected when deletion fails', async () => {
     state,
     setTimeout,
     clearTimeout,
+    fmtToman: String,
     spConfirm: async () => true,
     fetch: async () => ({ ok: true, json: async () => ({ ok: true, deleted: false }) }),
+    patch: async (_url, body) => {
+      saved.push({ ...body });
+      return { ok: true, file: body };
+    },
     toast: (message, kind) => notices.push({ message, kind })
   });
   vm.runInContext(withoutModules(read('js/inspector.js')), context);
   vm.runInContext('initInspector({})', context);
+  $('#iName').value = 'Pending edit';
+  $('#iName').input();
   await $('#iDelete').onclick();
   assert.equal(state.selectedId, 'one');
+  assert.deepEqual(
+    saved.map(body => [body.id, body.name]),
+    [['one', 'Pending edit']]
+  );
   assert.equal(notices.at(-1).kind, 'err');
+});
+
+test('gold preset uses the latest upstream tip wording', () => {
+  const source = read('js/look.js');
+  const presets = source.slice(source.indexOf('  const PRESETS ='), source.indexOf("  $$('[data-preset]')"));
+  const context = vm.createContext({});
+  vm.runInContext(presets.replace('const PRESETS =', 'globalThis.PRESETS ='), context);
+  assert.equal(context.PRESETS.gold.template, '{name} tipped {amount}');
+});
+
+test('browser controller About page uses the server version', () => {
+  const source = read('js/app.js');
+  const fillApp = source.slice(source.indexOf('function fillApp()'), source.indexOf('function renderState()'));
+  const elements = new Map();
+  const context = vm.createContext({
+    state: { info: null, cfg: { port: 7788, app: {}, kickbot: {} }, version: '2.4.1' },
+    DESK: false,
+    $: selector => {
+      if (!elements.has(selector)) elements.set(selector, {});
+      return elements.get(selector);
+    }
+  });
+  vm.runInContext(fillApp + 'fillApp()', context);
+  assert.equal(elements.get('#appVer').value, '2.4.1');
+  assert.equal(elements.get('#abVer').textContent, '2.4.1');
 });
 
 test('upload reports partial success and clears progress after request failures', async () => {

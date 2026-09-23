@@ -119,8 +119,8 @@ Sub-5ms loopback endpoints for hardware deck buttons and macro keypads:
 
 ### 3.6 Zero-Dependency 1-Click Backup & Restore (.zip)
 - Built-in ZIP generation and decompression engine leveraging Node's native `zlib` library.
-- **Export Backup:** `GET /api/backup` creates a complete zip archive of all media files and `config.json`.
-- **Restore Backup:** `POST /api/restore` extracts the archive directly into the data folder and reloads configuration dynamically.
+- **Export Backup:** `GET /api/backup` streams a bounded ZIP of settings, alert history and eligible media. Credentials are omitted; the controller reports media that could not be included.
+- **Restore Backup:** `POST /api/restore` validates and stages the archive before replacing settings/history and merging media, then reloads the active integrations. Provider credentials require reconnection.
 
 ---
 
