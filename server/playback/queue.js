@@ -195,6 +195,8 @@ class PlaybackQueue {
         ...this.tipSummary(t),
         toman,
         media: null,
+        mediaId: null,
+        file: null,
         skipped: true,
         at: Date.now()
       });
@@ -234,6 +236,8 @@ class PlaybackQueue {
       ...this.tipSummary(t),
       toman: payload.toman,
       media: media ? media.name : null,
+      mediaId: media ? media.id : null,
+      file: media ? media.file : null,
       at: Date.now()
     });
     if (this.recent.length > 30) this.recent.pop();
@@ -331,6 +335,9 @@ class PlaybackQueue {
       count: last.count,
       months: last.months,
       toman_override: last.toman,
+      currency: last.currency || 'USD',
+      source: last.source || undefined,
+      replay_media_id: last.mediaId || null,
       approval_status: 'approved',
       is_test: true,
       is_replay: true,

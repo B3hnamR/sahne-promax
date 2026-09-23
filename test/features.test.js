@@ -453,3 +453,52 @@ test('goal countdown: timed mode fields, expiry, clearing (2.2)', async t => {
   assert.equal(page.status, 200);
   assert.ok(page.body.includes('goal-timer'), 'widget html has the countdown element');
 });
+
+test('replay preserves the original currency, source and media id', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-replay-'));
+  const q = new PlaybackQueue({
+    configStore: {
+      config: {
+        mode: 'standalone',
+        appearance: { maxDuration: 10 },
+        rate: { value: 100000, fx: { EUR: 110000 } },
+        files: [{ id: 'file000001', file: 'celebration.webm', name: 'Celebration', enabled: true, minToman: 0 }]
+      }
+    },
+    playedStore: { isPlayed: () => false, markPlayed: () => {} },
+    mediaDir: dir,
+    logger: { info() {}, warn() {}, error() {} },
+    sse: { broadcast() {}, sendState() {}, clientCount: () => 0 },
+    rateManager: {
+      currentRate: () => 100000,
+      tomanOf: usd => usd * 100000,
+      tomanFor: (amount, currency) => amount * (currency === 'EUR' ? 110000 : 100000)
+    },
+    captureFn: async () => 'ok',
+    publishFn: () => {}
+  });
+  try {
+    fs.writeFileSync(path.join(dir, 'celebration.webm'), 'x');
+    q.showTip({
+      stripe_pi_id: 'se_1',
+      tipper_name: 'Donor',
+      amount_total: 500,
+      currency: 'EUR',
+      source: 'streamelements',
+      tip_message: 'hi',
+      kind: 'tip'
+    });
+    assert.equal(q.recent[0].mediaId, 'file000001');
+    assert.equal(q.recent[0].file, 'celebration.webm');
+    assert.equal(q.recent[0].currency, 'EUR');
+    assert.equal(q.recent[0].source, 'streamelements');
+
+    q.replayLast();
+    assert.equal(q.approved[0].currency, 'EUR', 'replay keeps the original currency');
+    assert.equal(q.approved[0].source, 'streamelements', 'replay keeps the provider');
+    assert.equal(q.approved[0].replay_media_id, 'file000001', 'replay remembers the played file');
+  } finally {
+    q.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
