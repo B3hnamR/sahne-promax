@@ -12,13 +12,13 @@ Sahne ProMax is an independent fork of [Sahne Plus](https://github.com/AmirEyZed
 
 - You are responsible for having rights to use imported videos, images, sounds and other media on your streams.
 - You are responsible for the viewer, donation and subscription information you display, and for complying with your streaming platform's rules.
-- Keep provider credentials, including KickBot widget secrets and StreamElements JWTs, private. Anyone who obtains a credential may be able to access the associated provider account or event feed.
+- Keep provider credentials, including KickBot widget secrets, StreamElements JWTs and Donofa API keys, private. Anyone who obtains a credential may be able to access the associated provider account or event feed.
 
 ## 3. Third-party services
 
-The application can connect to KickBot, Kick and its public chat feed, StreamElements, Nobitex, Baha24, Meld Studio on your computer, and GitHub for releases. These services are not operated by the ProMax project. They may change their interfaces or become unavailable; their own terms and privacy policies apply to your use of them.
+The application can connect to KickBot, Kick and its public chat feed, StreamElements, Donofa, Nobitex, Baha24, Meld Studio on your computer, and GitHub for releases. These services are not operated by the ProMax project. They may change their interfaces or become unavailable; their own terms and privacy policies apply to your use of them.
 
-Sahne ProMax is independent and is not affiliated with or endorsed by Kick, KickBot, StreamElements, Nobitex, Baha24, Meld Studio or GitHub.
+Sahne ProMax is independent and is not affiliated with or endorsed by Kick, KickBot, StreamElements, Donofa, Nobitex, Baha24, Meld Studio or GitHub.
 
 ## 4. Privacy
 

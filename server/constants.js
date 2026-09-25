@@ -6,7 +6,6 @@ const PUSHER_WS = 'wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&c
 const KICK_CHANNEL_API = 'https://kick.com/api/v2/channels/';
 const NOBITEX = 'https://apiv2.nobitex.ir/v3/orderbook/USDTIRT';
 const BAHA24 = 'https://baha24.com/api/v1/price';
-const BONBAST = 'https://www.bonbast.com/';
 const MELD_WS = 'ws://127.0.0.1:13376';
 const KICK_SUB_USD = 4.99;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36';
@@ -134,6 +133,7 @@ const DEFAULT_CONFIG = {
     maxPerMinute: 10,
     entries: []
   },
+  donofa: { endpoint: 'ir' },
   alertRules: {
     v: 1,
     enabled: false,
@@ -212,7 +212,7 @@ const TYPES = {
 const CSP_APP =
   "default-src 'self' 'unsafe-inline'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; media-src 'self'; object-src 'none'; base-uri 'none';";
 const CSP_OVERLAY =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' https: data:; media-src 'self' https://ttsaudio.kickbot.com https://tts.kickbotcdn.com blob:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none';";
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' https: data:; media-src 'self' https: blob:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none';";
 const CSP_GOAL =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none';";
 const CSP_TOP =
@@ -224,7 +224,6 @@ module.exports = {
   PUSHER_WS,
   KICK_CHANNEL_API,
   BAHA24,
-  BONBAST,
   NOBITEX,
   MELD_WS,
   KICK_SUB_USD,

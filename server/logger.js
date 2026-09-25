@@ -12,6 +12,10 @@ function safe(v) {
           'secret_id_enc',
           'se_token',
           'se_token_enc',
+          'donofa_key',
+          'donofa_key_enc',
+          'api_key',
+          'apikey',
           'token',
           'jwt',
           'access_token'

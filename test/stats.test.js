@@ -95,7 +95,7 @@ test('history store: entries, day/donor aggregates, prune, reload, clear', t => 
 
 async function bootServer(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-stats-'));
-  const port = 8500 + Math.floor(Math.random() * 300);
+  const port = 17000 + Math.floor(Math.random() * 300);
   fs.writeFileSync(
     path.join(dir, 'config.json'),
     JSON.stringify({ port, rate: { auto: false }, kick: { enabled: false }, app: { autostart: false } })
@@ -351,4 +351,22 @@ test('history records the matched routing rule and keeps aggregates rule-agnosti
   assert.equal(store.entries[0].ruleName, 'SE tips');
   assert.equal(store.totals().toman, 5000);
   assert.equal(store.getTop('all')[0].toman, 5000);
+});
+
+test('analytics API reads the existing history ledger without a second store', async t => {
+  const { srv, req } = await bootServer(t);
+  srv.historyStore.add({ id: 'paid', name: 'Ali', kind: 'tip', usd: 5, currency: 'EUR', toman: 1250000 });
+  srv.historyStore.add({ id: 'skipped', name: 'Sara', kind: 'tip', usd: 10, toman: 900000, played: false });
+  srv.historyStore.add({ id: 'test', name: 'Tester', kind: 'tip', usd: 100, toman: 9000000, test: true });
+  assert.equal(srv.historyStore.totals().toman, 1250000, 'skipped and test events do not inflate existing totals');
+  const response = await req('GET', '/api/analytics?range=today&tz=210');
+  assert.equal(response.status, 200);
+  assert.equal(response.json.ok, true);
+  assert.equal(response.json.totals.count, 2);
+  assert.equal(response.json.totals.amountToman, 2150000);
+  assert.equal(response.json.excluded.test, 1);
+  assert.equal(response.json.coverage.events, 3);
+  const app = await req('GET', '/');
+  assert.match(app.body, /data-page="analytics"/);
+  assert.equal((await req('GET', '/js/analytics.js')).status, 200);
 });

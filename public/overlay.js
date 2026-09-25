@@ -67,6 +67,7 @@
   }
   function fmtOrig(tip, fa) {
     const currency = String(tip.currency || 'USD').toUpperCase();
+    if (currency === 'IRT') return fmtToman(tip.toman != null ? tip.toman : tip.amount, true);
     if (currency === 'USD') return fmtUsd(tip.amount);
     const n = Number(tip.amount || 0);
     const amount = fa ? fmtNum(n, 2) : String(Math.round(n * 100) / 100);
@@ -80,6 +81,8 @@
     return fmtNum(t) + ' تومان';
   }
   function fmtAmount(tip) {
+    if (String(tip.currency || '').toUpperCase() === 'IRT')
+      return fmtToman(tip.toman != null ? tip.toman : tip.amount, A.currency === 'toman-full');
     const foreign = !!(tip.currency && String(tip.currency).toUpperCase() !== 'USD');
     const orig = fmtOrig(tip);
     // StreamElements can send currencies other than USD. Preserve the original amount
@@ -195,13 +198,28 @@
       Number.isFinite(delayS) && delayS > 0
         ? Math.min(delayS * 1000, Math.max(0, (A.maxDuration || 90) * 1000 - 1500))
         : 0;
-    const ttsUrl = tip.tts_url ? safeUrl(tip.tts_url) : null;
+    let ttsUrl = tip.tts_url ? safeUrl(tip.tts_url) : null;
     let ttsDone = () => {};
+    let cardShown = false;
+    let ttsStarted = false;
+    current.updateTts = url => {
+      if (!url || ttsStarted) return;
+      ttsUrl = url;
+      tip.tts_url = url;
+      if (cardShown) {
+        ttsStarted = true;
+        playTts(url, clamp((A.ttsVolume ?? 70) / 100)).then(ttsDone, ttsDone);
+      }
+    };
     const showCard = () => {
       if (!current || current.el !== el) return;
       card.style.visibility = '';
       animate(card, 'in');
-      if (ttsUrl) playTts(ttsUrl, clamp((A.ttsVolume ?? 70) / 100)).then(ttsDone, ttsDone);
+      cardShown = true;
+      if (ttsUrl && !ttsStarted) {
+        ttsStarted = true;
+        playTts(ttsUrl, clamp((A.ttsVolume ?? 70) / 100)).then(ttsDone, ttsDone);
+      }
     };
     animate(mediaBox, 'in', true);
 
@@ -398,8 +416,12 @@
   function playTts(url, vol) {
     const candidates = [url];
     try {
-      const p = new URL(url).pathname;
-      candidates.push('https://ttsaudio.kickbot.com' + p, 'https://tts.kickbotcdn.com' + p);
+      const parsed = new URL(url);
+      if (['ttsaudio.kickbot.com', 'tts.kickbotcdn.com'].includes(parsed.hostname))
+        candidates.push(
+          'https://ttsaudio.kickbot.com' + parsed.pathname,
+          'https://tts.kickbotcdn.com' + parsed.pathname
+        );
     } catch {}
     return new Promise(res => {
       let i = 0,
@@ -581,7 +603,10 @@
       }
       if (d.type === 'config') applyConfig(d.appearance);
       else if (d.type === 'play') play(d.tip);
-      else if (d.type === 'stop') stop();
+      else if (d.type === 'tts_update' && current && current.tip.id === d.id) {
+        const url = safeUrl(d.url);
+        if (url && url.startsWith('https://')) current.updateTts(url);
+      } else if (d.type === 'stop') stop();
       else if (d.type === 'celebrate') celebrate(d);
       else if (d.type === 'mute') {
         muted = !!d.muted;

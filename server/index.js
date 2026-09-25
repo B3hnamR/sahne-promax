@@ -12,10 +12,12 @@ const { RateManager } = require('./rates/manager');
 const { MediaManager } = require('./media/manager');
 const { GoalManager } = require('./features/goal');
 const { PlaybackQueue } = require('./playback/queue');
+const { tipToman } = require('./playback/rules');
 const { createCaptureTip } = require('./playback/capture');
 const { KickBotClient } = require('./integrations/kickbot');
 const { KickChatClient } = require('./integrations/kick-chat');
 const { StreamElementsClient } = require('./integrations/streamelements');
+const { DonofaClient } = require('./integrations/donofa');
 const { MeldManager } = require('./integrations/meld');
 const { createHttpRouter } = require('./http/router');
 const {
@@ -108,6 +110,17 @@ function createServer(opts = {}) {
     fetchProfile: opts.testHooks && opts.testHooks.fetchStreamElementsProfile
   });
 
+  const donofaClient = new DonofaClient({
+    configStore,
+    rateManager,
+    queue: playbackQueue,
+    playedStore,
+    logger,
+    sse,
+    WebSocketCtor: opts.testHooks && (opts.testHooks.WebSocketCtor || (opts.testHooks.offline ? null : undefined)),
+    verifyKeyFn: opts.testHooks && opts.testHooks.verifyDonofaKey
+  });
+
   const meldManager = new MeldManager({
     configStore,
     logger,
@@ -129,7 +142,9 @@ function createServer(opts = {}) {
       tippingEnabled: playbackQueue.tippingEnabled,
       pending: playbackQueue.pending.length,
       approved: playbackQueue.approved.length,
-      playing: playbackQueue.playing ? playbackQueue.tipSummary(playbackQueue.playing) : null,
+      playing: playbackQueue.playing
+        ? { ...playbackQueue.tipSummary(playbackQueue.playing), toman: tipToman(playbackQueue.playing, rateManager) }
+        : null,
       mode: config.mode,
       nodeVersion: process.versions.node,
       nodeOk,
@@ -142,6 +157,7 @@ function createServer(opts = {}) {
         hint: kickChatClient.kickState.hint
       },
       se: streamElementsClient.publicState(),
+      donofa: donofaClient.publicState(),
       rate: rateManager.currentRate(),
       rateUpdatedAt: config.rate.updatedAt,
       rateManual: Number(config.rate.manual) > 0,
@@ -173,6 +189,7 @@ function createServer(opts = {}) {
     goalManager,
     historyStore,
     streamElementsClient,
+    donofaClient,
     appVersion,
     openPathFn: opts.openPath
   });
@@ -203,6 +220,7 @@ function createServer(opts = {}) {
           kickBotClient.connect();
           kickBotClient.startKeepAlive();
           streamElementsClient.connect();
+          donofaClient.connect();
           if (configStore.config.kick.enabled && configStore.config.kick.channel) {
             kickChatClient.resolveKickChannel().then(ok => {
               if (ok) kickChatClient.connect();
@@ -226,6 +244,7 @@ function createServer(opts = {}) {
     kickBotClient.stop();
     kickChatClient.stop();
     streamElementsClient.stop();
+    donofaClient.stop();
     meldManager.stop();
     sse.close();
 
@@ -239,9 +258,11 @@ function createServer(opts = {}) {
       kickBotClient.stop();
       kickChatClient.stop();
       streamElementsClient.disconnect();
+      donofaClient.disconnect();
       playbackQueue.stop();
       configStore.setSecret('');
       configStore.setSeToken('');
+      configStore.setDonofaKey('');
       configStore.config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
       configStore.saveConfig();
       playedStore.clear();
@@ -283,7 +304,8 @@ function createServer(opts = {}) {
     playingTip: () => playbackQueue.playing,
     recentList: () => playbackQueue.recent,
     captureTip: opts.testHooks && opts.testHooks.captureTip,
-    streamElementsActivity: activity => streamElementsClient.handleActivity(activity)
+    streamElementsActivity: activity => streamElementsClient.handleActivity(activity),
+    donofaActivity: activity => donofaClient.handleActivity(activity)
   };
 
   return {
@@ -296,6 +318,7 @@ function createServer(opts = {}) {
     playbackQueue,
     goalManager,
     historyStore,
+    donofaClient,
     streamElementsClient,
     // Legacy compat surface used by electron/main.js (added in the 2.0.1 review fixes)
     appUrl: () => `http://localhost:${configStore.config.port}/`,

@@ -7,7 +7,6 @@ const path = require('node:path');
 const net = require('node:net');
 const { parseSeActivity, StreamElementsClient } = require('../server/integrations/streamelements');
 const { parseBaha24, FX_CODES } = require('../server/rates/baha24');
-const { parseBonbastFx } = require('../server/rates/bonbast');
 const { ConfigStore } = require('../server/config/store');
 const { createZipArchive, importBackupFromFile } = require('../server/features/backup');
 const { parseRange } = require('../server/utils/validation');
@@ -100,8 +99,18 @@ test('FX parsers retain upstream currency coverage and reject missing rates', ()
   assert.equal(quote.usd, 220000);
   assert.equal(quote.fx.EUR, 255000);
   assert.equal(quote.fx.MYR, 49000);
-  assert.equal(parseBonbastFx({ eur1: '256,000', omr1: '571,000' }).OMR, 571000);
-  assert.equal(parseBonbastFx({ xyz1: '100' }).XYZ, undefined);
+});
+
+test('config load discards legacy Bonbast quotes after provider removal', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-old-fx-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(
+    path.join(dir, 'config.json'),
+    JSON.stringify({ rate: { fxSource: 'bonbast', fx: { EUR: 250000 } } })
+  );
+  const store = new ConfigStore({ dataDir: dir });
+  assert.deepEqual(store.config.rate.fx, {});
+  assert.equal(store.config.rate.fxSource, null);
 });
 
 test('secret storage reports providers separately and reload clears removed credentials', () => {

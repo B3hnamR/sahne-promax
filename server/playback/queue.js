@@ -202,6 +202,26 @@ class PlaybackQueue {
         at: Date.now()
       });
       if (this.recent.length > 30) this.recent.pop();
+      if (this.historyStore) {
+        this.historyStore.add({
+          id: t.stripe_pi_id,
+          name: t.tipper_name,
+          kind: t.kind || 'tip',
+          usd: (t.amount_total || 0) / 100,
+          currency: t.currency || 'USD',
+          source: this.tipSummary(t).source,
+          toman,
+          count: t.count,
+          months: t.months,
+          message: t.tip_message,
+          rule: resolved.ruleId,
+          ruleName: resolved.ruleName,
+          test: !!t.is_test,
+          replay: !!t.is_replay,
+          played: false,
+          at: Date.now()
+        });
+      }
       if (this.goalManager) {
         this.goalManager.addAmount(toman, {
           kind: t.kind,
@@ -245,7 +265,7 @@ class PlaybackQueue {
     });
     if (this.recent.length > 30) this.recent.pop();
 
-    // Persistent history ledger: displayed alerts only, with live totals for the admin UI and the /top widget
+    // Played alerts contribute to the history totals and the /top widget.
     if (this.historyStore) {
       const hist = this.historyStore.add({
         id: payload.id,
@@ -263,6 +283,7 @@ class PlaybackQueue {
         ruleName: resolved.ruleName,
         test: !!t.is_test,
         replay: !!t.is_replay,
+        played: true,
         at: Date.now()
       });
       this.sse.broadcast('admin', {

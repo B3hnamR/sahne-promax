@@ -188,7 +188,7 @@ function sanitizeChatCommands(c, current = {}, files = []) {
   return out;
 }
 
-const RULE_PROVIDERS = new Set(['kickbot', 'streamelements', 'kick']);
+const RULE_PROVIDERS = new Set(['kickbot', 'streamelements', 'kick', 'donofa']);
 const RULE_KINDS = new Set(['tip', 'sub', 'gift']);
 
 function ruleEnumList(value, allowed) {

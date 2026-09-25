@@ -4,7 +4,7 @@ const path = require('path');
 const { LIMITS } = require('../constants');
 const { localDayKey, startOfDay } = require('../utils/time');
 
-// Every alert the overlay actually displayed, plus aggregates that pruning never shrinks: per-day totals and
+// Displayed and skipped alerts, plus aggregates that pruning never shrinks: per-day totals and
 // per-donor sums. Raw entries are bounded (LIMITS.history); the day and donor maps stay tiny. Writes are
 // debounced and atomic (tmp + rename), mirroring the config store.
 const KINDS = new Set(['tip', 'sub', 'gift', 'command']);
@@ -83,6 +83,7 @@ class HistoryStore {
       ruleName: String(rec.ruleName || '').slice(0, LIMITS.ruleName),
       test: !!rec.test,
       replay: !!rec.replay,
+      played: rec.played !== false,
       at
     };
 
@@ -90,7 +91,7 @@ class HistoryStore {
     if (this.entries.length > LIMITS.history) this.entries = this.entries.slice(-LIMITS.history);
 
     // Test/replay traffic stays in the raw list (tagged) but never pollutes totals or leaderboards
-    if (!entry.test && !entry.replay) {
+    if (entry.played && !entry.test && !entry.replay) {
       const d = this.days[day] || (this.days[day] = { alerts: 0, toman: 0, tips: 0, subs: 0, gifts: 0 });
       d.alerts++;
       d.toman += entry.toman;
@@ -160,7 +161,7 @@ class HistoryStore {
     const cutoff = startOfDay(Date.now() - (days - 1) * 86400000);
     const map = new Map();
     for (const e of this.entries) {
-      if (e.test || e.replay || e.toman <= 0 || e.at < cutoff) continue;
+      if (e.played === false || e.test || e.replay || e.toman <= 0 || e.at < cutoff) continue;
       const key = donorKey(e.name);
       if (!key) continue;
       const d = map.get(key) || { name: e.name, toman: 0, count: 0 };

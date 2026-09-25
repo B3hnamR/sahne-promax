@@ -147,7 +147,7 @@ test('goal sanitizer: countdown + confetti fields validated and clamped', () => 
 
 async function bootServer(t, { captureTip } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-feat-'));
-  const port = 8300 + Math.floor(Math.random() * 400);
+  const port = 16000 + Math.floor(Math.random() * 400);
   fs.writeFileSync(
     path.join(dir, 'config.json'),
     JSON.stringify({ port, rate: { auto: false }, kick: { enabled: false }, app: { autostart: false } })

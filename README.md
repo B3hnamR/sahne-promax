@@ -9,7 +9,7 @@
 [![Zero Dependencies](https://img.shields.io/badge/Runtime%20Dependencies-0-brightgreen?style=flat-square)](#architecture)
 [![Tests](https://img.shields.io/badge/Tests-Node.js%20suite-success?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.5.1-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
+[![Version](https://img.shields.io/badge/Version-2.6.0-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
 
 <p align="center">
   <a href="#key-features">Features</a> •
@@ -26,21 +26,28 @@
 
 ## 📖 Overview
 
-**Sahne ProMax** is a modernized, modular fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus) designed for Kick streamers. It plays transparent WebM animations, GIFs, images, and audio alerts for **KickBot donations**, **StreamElements tips**, **Kick subscriptions**, and **Kick gifted subscriptions**. The controller and alert server run locally, with no cloud backend and no runtime npm packages.
+**Sahne ProMax** is a modernized, modular fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus) designed for Kick streamers. It plays transparent WebM animations, GIFs, images, and audio alerts for **KickBot donations**, **StreamElements tips**, **Donofa donations**, **Kick subscriptions**, and **Kick gifted subscriptions**. The controller and alert server run locally, with no cloud backend and no runtime npm packages.
 
-ProMax incorporates upstream Sahne+ changes through **1.3.5**. The current **2.5.1** release fixes the Alert Rules editor, simulator, and preview. Version 2.5.0 added **alert media routing rules** and replay fidelity: ordered conditions choose the alert file, the Rules page explains decisions, and replay keeps its original currency and media. Version 2.4.1 fixed rate timing, stale connection events, portable backup/restore, controller feedback, and update downloads; 2.4.0 brought **StreamElements tip alerts** and **multi-currency conversion** into ProMax. ProMax also includes OBS goal and top-donors widgets, Stream Deck controls, paired media, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, and persistent alert history.
+ProMax incorporates upstream Sahne+ changes through **1.3.5**. The current **2.6.0** release adds **Donofa donations** and a **local analytics dashboard**, improves provider queue isolation and playing currency display, and removes the Bonbast fallback. Version 2.5.1 fixed the Alert Rules editor, simulator, and preview; 2.5.0 added media routing rules and replay fidelity. ProMax also includes OBS goal and top-donors widgets, Stream Deck controls, paired media, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, and persistent alert history.
 
-> **Note:** Sahne ProMax is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Kick, KickBot, StreamElements, Nobitex, Baha24, or Bonbast.
+> **Note:** Sahne ProMax is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Kick, KickBot, StreamElements, Donofa, Nobitex, or Baha24.
+
+### What's new in 2.6.0
+
+- **Donofa:** Connect a Donofa API key from Settings to receive paid toman donations through Donofa's realtime feed. Donofa alerts use the existing queue, media tiers, routing rules, goal, history, and analytics. Donofa TTS audio can accompany an alert. The API key is encrypted with Electron `safeStorage` when available and omitted from backups; reconnect after restoring.
+- **Analytics dashboard:** Choose a date range and explore trends, donor/source/currency breakdowns, amount distribution and playback status from local alert history. The existing ledger's 20,000-entry retention limit also limits detailed dashboard coverage. The dashboard does not send analytics data to any remote service.
+- **Provider fixes:** Disconnecting KickBot retains queued alerts from other providers. The active alert chip shows the correct original currency alongside the toman equivalent.
+- **Rates:** Removed the Bonbast fallback. Nobitex supplies the primary USD rate; Baha24 supplies fallback USD and supported non-USD rates. If Baha24 is unavailable, the app keeps the last known non-USD rates and logs that they are previous quotes.
+
+## 💚 Donofa support
+
+**Donofa donations are now a first-class alert source in ProMax.** Enter your Donofa API key under **Settings → Donofa**, choose `donofa.ir` or `donofa.com`, and connect. Paid donations arrive in **toman** through Donofa's realtime feed and use the same queue, media tiers, routing rules, goal widget, history, and analytics dashboard as other alerts. Optional Donofa TTS plays with the matching donation.
+
+The card shows connection status without displaying the key. The key is stored locally, encrypted with Electron `safeStorage` when available, omitted from portable backups, and removed when you disconnect. Reconnect Donofa after restoring a backup. Live delivery still needs verification with a real Donofa account and donation.
 
 ---
 
-## What's new in 2.5.1
-
-- **Accurate rule simulation:** the event tester now gives the tier/keyword picker the entered tip, uses full gift-bundle value, and includes subscription months. Its preview keeps the selected alert type and currency.
-- **Lossless rule editing:** choose multiple providers and alert types, set maximum subscription months and gift counts, and keep a missing file reference visible while repairing it.
-- **Safer preview:** changing an input or receiving an older test result cannot play a stale match. A deleted file reference no longer blocks unrelated rule edits; newly selected missing files are still rejected.
-
-See the [2.5.1 release notes](docs/releases/RELEASE_NOTES_2.5.1.md) for the full list.
+See the [2.6.0 release notes](docs/releases/RELEASE_NOTES_2.6.0.md) for the full list.
 
 ---
 
@@ -64,7 +71,9 @@ These tools are ProMax additions built on its modular server and overlay archite
 | **🎛️ Stream Deck REST API**     | Local endpoints (`/api/control/skip`, `/replay`, `/pause`, `/resume`, `/mute`, `/volume`, `/clear`) for hardware keypads and macros.                                                                                  |
 | **💾 1-Click Backup & Restore** | Export/import settings, media and alert history (see Backup & Restore below) as a standard `.zip` using Node's native `zlib` — no external tools.                                                                     |
 | **🧭 Media Routing Rules**      | Ordered conditions (provider, alert type, currency, toman range, message, sub months, gift count) pick the alert file; first match wins, otherwise the existing tier/keyword picker. Explainable from the Rules page. |
-| **🪙 Live Currency Rates**      | USD→Toman from Nobitex's USDT/IRT orderbook, with Baha24 as the USD fallback; Baha24 and Bonbast provide supported non-USD quotes.                                                                                    |
+| **📊 Local Analytics Dashboard** | Choose a date range in the existing history and inspect trends, donor/source breakdowns and playback status; no remote analytics service. |
+| **💚 Donofa Tips** | Connect a Donofa API key for paid toman tips and optional TTS; uses the same alert media, queue, rules, goal, and history. |
+| **🪙 Live Currency Rates**      | USD→Toman from Nobitex's USDT/IRT orderbook, with Baha24 as the USD fallback and source for supported non-USD quotes.                                                                                    |
 | **⚡ Performance Engineering**  | Async `fs.promises` I/O for uploads/scans/restores, lazy on-hover video decoding in the file grid, targeted SSE, and HTTP 304 ETag caching.                                                                           |
 | **🧩 Modular Server**           | The backend is split into focused modules (`config`, `http`, `integrations`, `media`, `playback`, `rates`, `utils`) instead of one monolithic file — easier to audit, test, and extend.                               |
 | **🪟 Modern Glassmorphic UI**   | Dark glass design system with custom dropdowns, modal dialogs, slim scrollbars, and a bento-grid layout.                                                                                                              |
@@ -83,7 +92,7 @@ These tools are ProMax additions built on its modular server and overlay archite
 ### 🪙 Real-Time Currency Conversion
 
 - **Nobitex USDT/IRT Orderbook (Primary):** Live dollar-to-toman conversion powered by Nobitex's real-time orderbook API (`/v3/orderbook/USDTIRT`), converting Iranian Rials to Toman with zero external dependencies.
-- **Baha24 and Bonbast FX:** Baha24 supplies supported non-USD quotes during normal Nobitex operation and the fallback USD quote if Nobitex fails. Bonbast supplies fallback non-USD quotes.
+- **Baha24 FX:** Baha24 supplies supported non-USD quotes during normal Nobitex operation and the fallback USD quote if Nobitex fails. If Baha24 has no usable FX quote, previously stored non-USD quotes remain in use and the failure is logged.
 - **Proxy & Manual Pinning:** Configurable HTTP/HTTPS proxy support and manual rate locking — plus automatic use of the **Windows system proxy** (e.g. v2rayN in "system proxy" mode) for kick.com and rate sources when the manual field is empty.
 
 ### 🎬 Advanced Streamer Tools
@@ -100,7 +109,7 @@ These tools are ProMax additions built on its modular server and overlay archite
 - **🎯 Live Donation & Sub Goal Widget:** Dedicated OBS Browser Source (`/goal` & `/goal.html`) rendering real-time animated progress bars and Persian Toman figures, complete with celebratory confetti at 100%.
 - **🎖️ Milestone & Tier Alerts:** Configure tier thresholds for subscription renewals (`minMonths` / `maxMonths`) and bulk gifted subscriptions (`minCount` / `maxCount`).
 - **⏱️ Card Delay:** Show the name/amount card (and KickBot TTS) a few seconds after the alert media starts — globally on the Look page, or per file in the file editor.
-- **💾 Backup & Restore:** Export and import settings, media and alert history as standard `.zip` archives. The limit is 512 MB per entry, 1 GB per archive, and 1,000 entries. Backups omit provider and proxy credentials, so reconnect KickBot and StreamElements after restoring. Restore validates before replacing live files, keeps media absent from the archive and the current port, and leaves previously played alert IDs local to each installation.
+- **💾 Backup & Restore:** Export and import settings, media and alert history as standard `.zip` archives. The limit is 512 MB per entry, 1 GB per archive, and 1,000 entries. Backups omit provider and proxy credentials, so reconnect KickBot, StreamElements and Donofa after restoring. Restore validates before replacing live files, keeps media absent from the archive and the current port, and leaves previously played alert IDs local to each installation.
 
 ### 🔄 Updates & Connectivity (upstream parity through Sahne+ 1.3.5)
 
@@ -108,6 +117,7 @@ These tools are ProMax additions built on its modular server and overlay archite
 - **Kick Behind a Filter:** If kick.com is filtered on your network, Sahne ProMax automatically uses your VPN app's Windows system proxy (manual proxy still wins; SOCKS-only setups need TUN mode or a manual HTTP proxy).
 - **Readable Kick Errors:** The Kick card explains problems in Persian — kick.com filtered, channel not found, request refused — instead of raw codes like `read ECONNRESET`.
 - **StreamElements Tips:** Connect with the JWT token from StreamElements → Account → Channels → Show secrets. The credential is stored locally and uses Electron `safeStorage` encryption when available; disconnect it from Settings to remove it.
+- **Donofa Tips:** Enter the Donofa API key in Settings and choose `donofa.ir` or `donofa.com`. Paid toman donations arrive through Donofa's realtime feed. The key is stored locally, encrypted when `safeStorage` is available; it is never included in a portable backup.
 - **Other Tip Currencies:** Supported StreamElements currencies are converted using the available rate and matched against the same toman-based alert tiers. The alert card retains the original amount and currency; an unsupported currency stays labeled without an invented toman conversion. In card templates, `{original}` shows the source amount and `{usd}` is populated only for USD tips.
 
 ---
@@ -184,7 +194,7 @@ sahne-promax/
 │   ├── integrations/         # KickBot/StreamElements WebSockets, Kick chat feed, Meld monitor
 │   ├── media/                # Async media manager & streaming upload sniffer
 │   ├── playback/             # Priority queue scheduler & payment capture engine
-│   ├── rates/                # Nobitex USD, Baha24/Bonbast FX and fallback
+│   ├── rates/                # Nobitex USD and Baha24 FX/fallback
 │   └── utils/                # Magic byte sniffing, sanitizers, HTTP client, proxy routing
 ├── public/                   # Frontend assets
 │   ├── app.html              # Main controller dashboard
@@ -215,7 +225,7 @@ sahne-promax/
 ## 🛡️ Security & Privacy
 
 - **No Cloud Backend:** Your media, settings, logs, and alert history remain on your machine (`Documents\Sahne Plus`); the app connects directly to the third-party services its features need.
-- **Local Secrets:** KickBot and StreamElements credentials use Windows DPAPI through Electron `safeStorage` when available. If encryption is unavailable, they are stored locally in plaintext; portable backups omit them. The local HTTP API does not return the credentials, and logs redact them.
+- **Local Secrets:** KickBot, StreamElements and Donofa credentials use Windows DPAPI through Electron `safeStorage` when available. If encryption is unavailable, they are stored locally in plaintext; portable backups omit them. The local HTTP API does not return the credentials, and logs redact them.
 - **Strict Loopback Protection:** The local server binds exclusively to `127.0.0.1` and enforces strict `Host` and `Origin` validation to block DNS rebinding and cross-site request forgery (CSRF).
 - **Event-Stream Gating:** `/events` refuses cross-site pages (`Origin` / `Sec-Fetch-Site`) and caps concurrent streams per role, so a random open browser tab can't consume alerts while OBS is closed.
 - **Registered-Media Only:** `/media/…` serves only files registered as alerts (or their paired audio) — never notes or partial uploads left in the folder.

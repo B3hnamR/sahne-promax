@@ -9,6 +9,7 @@ import { initFiles, renderFiles } from './files.js';
 import { initLook, fillLook, fitPreview } from './look.js';
 import { initGoal, fillGoal } from './goal.js';
 import { initHistory, refreshHistory, renderHistoryLive } from './history.js';
+import './analytics.js';
 import { initCommands, fillCommands } from './commands.js';
 import { initRules, fillRules } from './rules.js';
 import { initControls } from './controls.js';
@@ -33,25 +34,29 @@ function originalAmount(t) {
   const amount = Number((t && (t.amount ?? t.usd)) || 0);
   const value = Math.round(amount * 100) / 100;
   const currency = String((t && t.currency) || 'USD').toUpperCase();
+  if (currency === 'IRT' || currency === 'TMN' || currency === 'TOMAN') return fmtToman(value);
   return currency === 'USD' ? '$' + value : value + ' ' + currency;
 }
 
 function displayedAmount(t) {
   const original = originalAmount(t);
-  return t && t.toman != null ? fmtToman(t.toman) + ' · ' + original : original;
+  const currency = String((t && t.currency) || 'USD').toUpperCase();
+  return t && t.toman != null && !['IRT', 'TMN', 'TOMAN'].includes(currency)
+    ? fmtToman(t.toman) + ' · ' + original
+    : original;
 }
 
 function sourceLabel(source) {
   if (source === 'streamelements') return 'StreamElements';
   if (source === 'kickbot') return 'KickBot';
   if (source === 'kick') return 'Kick';
+  if (source === 'donofa') return 'Donofa';
   return '';
 }
 
 function rateSourceLabel(source) {
   if (source === 'nobitex') return 'نوبیتکس';
   if (source === 'baha24') return 'بهاء۲۴';
-  if (source === 'bonbast') return 'بون‌بست';
   return source || 'نوبیتکس';
 }
 
@@ -196,8 +201,10 @@ function fillSettings() {
   if ($('#ovUrlChatting')) $('#ovUrlChatting').value = `${base}/overlay?profile=chatting`;
   if ($('#mode')) $('#mode').value = state.cfg.mode;
   if ($('#showNoMedia')) $('#showNoMedia').checked = state.cfg.showAlertWithoutMedia !== false;
+  if ($('#donofaEndpoint')) $('#donofaEndpoint').value = (state.cfg.donofa && state.cfg.donofa.endpoint) || 'ir';
   renderKb();
   renderSe();
+  renderDonofa();
 }
 
 function renderSe() {
@@ -234,6 +241,35 @@ function renderSe() {
       : 'وارد نشده';
   }
   if ($('#btnSeDisconnect')) $('#btnSeDisconnect').disabled = !configured;
+}
+
+function renderDonofa() {
+  const cfg = (state.cfg && state.cfg.donofa) || {};
+  const runtime = (state.runtimeState && state.runtimeState.donofa) || {};
+  const configured = !!cfg.configured;
+  const status = runtime.status || (configured ? 'reconnecting' : 'unconfigured');
+  const [txt, cls] = SE_TEXT[status] || SE_TEXT.unconfigured;
+  const label = status === 'error' && runtime.error ? 'خطا: ' + runtime.error : txt;
+  for (const id of ['#donofaChip', '#hDonofa']) {
+    if ($(id)) {
+      $(id).textContent = label;
+      $(id).className = cls;
+    }
+  }
+  if ($('#hDonofaRow')) $('#hDonofaRow').hidden = !configured;
+  if ($('#stDonofa')) {
+    $('#stDonofa').hidden = !configured;
+    $('#stDonofa').className = 'status-pill' + (status === 'connected' ? ' on' : configured ? ' warn' : '');
+  }
+  if ($('#donofaSecret'))
+    $('#donofaSecret').textContent = configured
+      ? cfg.secretStorage === 'os'
+        ? 'کلید ذخیره و رمزنگاری شده است.'
+        : 'کلید در فایل تنظیمات محلی ذخیره شده است.'
+      : '';
+  if ($('#donofaConnected')) $('#donofaConnected').hidden = !configured;
+  if ($('#donofaKeyLabel')) $('#donofaKeyLabel').textContent = configured ? 'کلید API جدید' : 'کلید API';
+  if ($('#btnDonofaSetup')) $('#btnDonofaSetup').textContent = configured ? 'تغییر اتصال' : 'اتصال به Donofa';
 }
 
 function fillApp() {
@@ -286,6 +322,7 @@ function renderState() {
     renderKb();
     renderKickStatus();
     renderSe();
+    renderDonofa();
   }
 
   if ($('#stOv')) $('#stOv').className = 'status-pill' + (s.overlays > 0 ? ' on' : ' warn');
@@ -295,7 +332,7 @@ function renderState() {
 
   if ($('#sPlaying')) {
     $('#sPlaying').innerHTML = s.playing
-      ? `<span class="chip on">${esc(s.playing.name)} · ${esc(originalAmount(s.playing))}</span>`
+      ? `<span class="chip on">${esc(s.playing.name)} · ${esc(displayedAmount(s.playing))}</span>`
       : '—';
   }
   if ($('#sApproved')) $('#sApproved').textContent = s.approved;
@@ -433,6 +470,7 @@ function connectEvents() {
   es.onmessage = ev => {
     try {
       const d = JSON.parse(ev.data);
+      if (window.ANALYTICS) window.ANALYTICS.onEvent(d);
       if (d.type === 'state') {
         setRuntimeState(d.state);
         renderState();
@@ -467,6 +505,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (name === 'look') setTimeout(fitPreview, 40);
       if (name === 'home') loadSim();
       if (name === 'history') refreshHistory();
+      if (name === 'analytics' && window.ANALYTICS) window.ANALYTICS.open();
       if (name === 'rules') fillRules();
       if (name === 'about' && !$('#docView').textContent) showDoc('PRIVACY.md');
       if (name !== 'files') closeInspector();
@@ -570,6 +609,62 @@ document.addEventListener('DOMContentLoaded', async () => {
         const r = await post('/api/se/disconnect');
         if (r && r.ok) {
           toast('اتصال StreamElements حذف شد', 'ok');
+          await load();
+        } else toast((r && r.error) || 'قطع اتصال ناموفق بود', 'err');
+      } catch {
+        toast('قطع اتصال ناموفق بود', 'err');
+      }
+    };
+  }
+
+  if ($('#btnDonofaSetup')) {
+    $('#btnDonofaSetup').onclick = async () => {
+      const btn = $('#btnDonofaSetup');
+      const key = $('#donofaKey').value.trim();
+      if (!key) return toast('کلید API دونوفا را وارد کنید', 'err');
+      btn.disabled = true;
+      $('#donofaMsg').textContent = 'در حال بررسی کلید…';
+      $('#donofaMsg').dataset.state = '';
+      try {
+        const r = await post('/api/donofa/setup', { key, endpoint: $('#donofaEndpoint').value });
+        if (!r || !r.ok) throw new Error((r && r.error) || 'اتصال ناموفق بود');
+        $('#donofaKey').value = '';
+        $('#donofaMsg').textContent = 'کلید تأیید شد';
+        $('#donofaMsg').dataset.state = 'success';
+        toast('Donofa وصل شد', 'ok');
+        await load();
+      } catch (error) {
+        $('#donofaMsg').textContent = error.message || 'اتصال ناموفق بود';
+        $('#donofaMsg').dataset.state = 'error';
+        toast('اتصال Donofa ناموفق بود', 'err');
+      } finally {
+        btn.disabled = false;
+      }
+    };
+    $('#donofaKey').addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        $('#btnDonofaSetup').click();
+      }
+    });
+  }
+  if ($('#btnDonofaDisconnect')) {
+    $('#btnDonofaDisconnect').onclick = async () => {
+      const ok = await spConfirm({
+        title: 'قطع اتصال Donofa',
+        body: 'اتصال Donofa قطع و کلید ذخیره‌شده حذف شود؟',
+        confirmText: 'قطع اتصال',
+        cancelText: 'انصراف',
+        icon: '#i-x',
+        danger: true
+      });
+      if (!ok) return;
+      try {
+        const r = await post('/api/donofa/disconnect');
+        if (r && r.ok) {
+          $('#donofaMsg').textContent = '';
+          $('#donofaMsg').dataset.state = '';
+          toast('اتصال Donofa حذف شد', 'ok');
           await load();
         } else toast((r && r.error) || 'قطع اتصال ناموفق بود', 'err');
       } catch {

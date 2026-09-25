@@ -17,7 +17,7 @@ npm run dist           # نصب‌کننده NSIS در dist/Sahne-Plus-Setup-<ve
 ```
 electron/main.js     پروسه اصلی: پنجره بدون فریم، Tray، اجرای خودکار، IPC، اجرای سرور
 electron/preload.js  پل محدود بین صفحه و پوسته (کنترل پنجره، انتخاب فایل، اجرای خودکار)
-server/server.js     سرور لوکال (HTTP + SSE) — کیک‌بات، چت کیک، نرخ دلار (baha24 / بن‌بست)، صف پخش، Meld self-heal
+server/server.js     سرور لوکال (HTTP + SSE) — کیک‌بات، چت کیک، نرخ دلار (Nobitex / Baha24)، صف پخش، Meld self-heal
 public/app.html      رابط کنترلر (صفحه اصلی، فایل‌ها، ظاهر الرت، تنظیمات، لاگ)
 public/overlay.html  Browser Source (http://localhost:7788/overlay)
 build/               آیکون‌ها

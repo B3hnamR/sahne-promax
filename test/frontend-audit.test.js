@@ -326,23 +326,25 @@ test('live playing label uses the tip currency', () => {
   const source = read('js/app.js');
   const amountFunction = source.slice(
     source.indexOf('function originalAmount('),
-    source.indexOf('function displayedAmount(')
+    source.indexOf('function sourceLabel(')
   );
   const stateFunction = source.slice(source.indexOf('function renderState('), source.indexOf('function renderRate('));
   const playing = { innerHTML: '' };
   const context = vm.createContext({
     state: {
       cfg: null,
-      runtimeState: { playing: { name: 'Euro tip', amount: 5, currency: 'EUR' }, recent: [] }
+      runtimeState: { playing: { name: 'Euro tip', amount: 5, currency: 'EUR', toman: 600000 }, recent: [] }
     },
     $: selector => (selector === '#sPlaying' ? playing : null),
     KB_TEXT: { unconfigured: ['', ''] },
     renderProxy() {},
     esc: value => String(value),
+    fmtToman: value => `${value} تومان`,
     faNum: String
   });
   vm.runInContext(amountFunction + stateFunction + 'renderState()', context);
   assert.match(playing.innerHTML, /5 EUR/);
+  assert.match(playing.innerHTML, /600000 تومان/);
   assert.doesNotMatch(playing.innerHTML, /\$5/);
 });
 

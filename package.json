@@ -1,15 +1,15 @@
 {
   "name": "sahne-promax",
   "productName": "Sahne ProMax",
-  "version": "2.5.1",
-  "description": "Sahne ProMax — modular KickBot and StreamElements tip alerts, Kick sub alerts, goal widgets, paired media, and Stream Deck control",
+  "version": "2.6.0",
+  "description": "Sahne ProMax — modular KickBot, StreamElements and Donofa tip alerts, Kick sub alerts, local analytics and widgets",
   "author": "Behnam & Contributors",
   "license": "Apache-2.0",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/server.test.js test/update.test.js test/promax.test.js test/features.test.js test/stats.test.js test/frontend-dropdown.test.js test/frontend-history.test.js test/port.test.js test/rules.test.js test/backend-audit.test.js test/frontend-audit.test.js test/verify-checksums.ps1.test.js test/updater-audit.test.js && node test/overlay-xss.test.js",
+    "test": "node --test test/server.test.js test/update.test.js test/promax.test.js test/features.test.js test/stats.test.js test/analytics.test.js test/donofa.test.js test/frontend-dropdown.test.js test/frontend-history.test.js test/port.test.js test/rules.test.js test/backend-audit.test.js test/frontend-audit.test.js test/verify-checksums.ps1.test.js test/updater-audit.test.js && node test/overlay-xss.test.js",
     "icons": "electron scripts/render-icons.js",
     "screenshots": "electron scripts/capture-pages.js",
     "dist": "electron-builder --win --x64 --publish never",

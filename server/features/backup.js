@@ -14,12 +14,19 @@ const MAX_ENTRIES = 1000;
 
 function portableConfig(config) {
   const copy = { ...config };
+  if (copy.donofa && typeof copy.donofa === 'object')
+    copy.donofa = {
+      ...copy.donofa,
+      reconnectRequired: !!(copy.donofa.reconnectRequired || copy.donofa_key || copy.donofa_key_enc)
+    };
   // DPAPI blobs are tied to a Windows user and plaintext secrets must not be
   // embedded in a portable download. Account identifiers remain for the UI.
   delete copy.secret_id;
   delete copy.secret_id_enc;
   delete copy.se_token;
   delete copy.se_token_enc;
+  delete copy.donofa_key;
+  delete copy.donofa_key_enc;
   if (copy.rate && typeof copy.rate.proxy === 'string') {
     // A proxy URL can embed user:pass with or without a scheme; keep the route,
     // drop the credentials.
@@ -435,7 +442,8 @@ async function importBackupFromFile(dataDir, archivePath, { configStore, logger,
     }
     const reconnectRequired = {
       kickbot: !!restored.streamer_id || !!(configStore.getSecret && configStore.getSecret()),
-      streamelements: !!(restored.se && restored.se.channelId) || !!configStore.seToken
+      streamelements: !!(restored.se && restored.se.channelId) || !!configStore.seToken,
+      donofa: !!(restored.donofa && restored.donofa.reconnectRequired) || !!configStore.donofaKey
     };
     // The HTTP server is already bound to the live port; installing the backup's
     // port would make every Host/Origin check fail until an app restart.

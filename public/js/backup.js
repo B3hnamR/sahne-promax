@@ -63,9 +63,11 @@ export function initBackup({ onRestoreComplete }) {
           }
           toast(`بازیابی با موفقیت انجام شد (${r.restoredFiles || 0} فایل)`, 'ok');
           const reconnect = r.reconnectRequired || {};
-          const providers = [reconnect.kickbot && 'KickBot', reconnect.streamelements && 'StreamElements'].filter(
-            Boolean
-          );
+          const providers = [
+            reconnect.kickbot && 'KickBot',
+            reconnect.streamelements && 'StreamElements',
+            reconnect.donofa && 'Donofa'
+          ].filter(Boolean);
           if (notice && providers.length) {
             notice.textContent = `بازیابی انجام شد. برای دریافت دوبارهٔ دونیت‌ها، اتصال ${providers.join(' و ')} را در تنظیمات دوباره برقرار کنید.`;
             notice.hidden = false;

@@ -2,6 +2,24 @@
 
 All notable changes to the public builds. Versions follow semantic versioning.
 
+## 2.6.0 — 2026-09-26 (Donofa and analytics)
+
+- Remove the Bonbast FX fallback. Nobitex remains the primary USD source and Baha24 supplies fallback USD and supported non-USD quotes. When Baha24 cannot supply FX, retain the previous quotes and report that clearly.
+- Port the upstream KickBot disconnect fix so other providers' queued alerts remain.
+- Show the original currency correctly for the playing alert.
+- Add a local analytics dashboard backed by ProMax's existing alert history, with range and source filters, trends, donor breakdowns, and explicit coverage limits.
+- Add Donofa paid-toman donations, API key verification and storage, realtime alerts, optional TTS, provider-specific disconnect, rules, history, analytics, and portable-backup reconnection guidance.
+
+### How to update
+
+From 2.5.1, click **آپدیت** in the desktop app or download the installer from this repository's 2.6.0 release. The updater verifies the installer against `SHA256SUMS.txt`. Existing settings, rules, media and history remain in the local data folder. Connect Donofa in Settings with your own API key.
+
+### Files in this release
+
+- `Sahne-ProMax-Setup-2.6.0.exe` — Windows installer (per-user)
+- `SHA256SUMS.txt` — SHA-256 checksum manifest
+- `README-FA.md` — راهنمای فارسی
+
 ## 2.5.1 — 2026-09-23 (Alert Rules corrections)
 
 - Make the rules simulator use the same event facts and fallback picker inputs as live alerts, including full gift values and subscription months.

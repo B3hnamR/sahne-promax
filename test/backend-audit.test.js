@@ -186,7 +186,7 @@ test('backup omits credentials and restore reports connections requiring re-entr
   assert.equal(exported.se_token, undefined);
   assert.equal(exported.se_token_enc, undefined);
   const result = await importBackup(dir, backup, { configStore: store, logger, sse });
-  assert.deepEqual(result.reconnectRequired, { kickbot: true, streamelements: true });
+  assert.deepEqual(result.reconnectRequired, { kickbot: true, streamelements: true, donofa: false });
   assert.equal(store.getSecret(), '');
   assert.equal(store.seToken, '');
 });
@@ -240,7 +240,7 @@ test('HTTP restore reinitializes the restored Kick chat connection', async t => 
   const response = await fetch(origin + '/api/restore', { method: 'POST', headers: { Origin: origin }, body: zip });
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.deepEqual(body.reconnectRequired, { kickbot: false, streamelements: false });
+  assert.deepEqual(body.reconnectRequired, { kickbot: false, streamelements: false, donofa: false });
   const chat = sockets.find(socket => socket.url.includes('pusher'));
   assert.ok(chat, 'restored Kick chat starts without an app restart');
   chat.readyState = 1;
@@ -356,11 +356,42 @@ test('a stale KickBot socket cannot deliver a tip', t => {
   assert.deepEqual(handled, []);
 });
 
-test('Baha24 fallback publishes USD before a slow Bonbast FX lookup', async () => {
-  let releaseFx;
-  const bonbast = new Promise(resolve => {
-    releaseFx = resolve;
+test('disconnecting KickBot removes only its queued tips', () => {
+  let savedSecret = 'secret';
+  const queue = {
+    pending: [{ stripe_pi_id: 'kb-pending' }, { stripe_pi_id: 'se-pending', source: 'streamelements', is_local: true }],
+    approved: [
+      { stripe_pi_id: 'kb-approved', source: 'kickbot' },
+      { stripe_pi_id: 'se', source: 'streamelements', is_local: true },
+      { stripe_pi_id: 'sub', source: 'kick', is_local: true },
+      { stripe_pi_id: 'test', source: 'kickbot', is_test: true }
+    ]
+  };
+  const client = new KickBotClient({
+    configStore: {
+      config: { streamer_id: 1 },
+      getSecret: () => savedSecret,
+      setSecret: value => (savedSecret = value),
+      saveConfig() {}
+    },
+    playedStore: { isPlayed: () => false },
+    queue,
+    logger,
+    sse
   });
+  client.disconnect();
+  assert.equal(savedSecret, '');
+  assert.deepEqual(
+    queue.pending.map(tip => tip.stripe_pi_id),
+    ['se-pending']
+  );
+  assert.deepEqual(
+    queue.approved.map(tip => tip.stripe_pi_id),
+    ['se', 'sub', 'test']
+  );
+});
+
+test('Baha24 fallback publishes USD even when foreign FX is unavailable', async () => {
   const configStore = {
     config: { rate: { auto: true, manual: null, value: 0, source: null, proxy: '', fx: {} } },
     debouncedSave() {}
@@ -372,16 +403,35 @@ test('Baha24 fallback publishes USD before a slow Bonbast FX lookup', async () =
     fetchNobitexFn: async () => {
       throw new Error('nobitex down');
     },
-    fetchBaha24QuoteFn: async () => ({ usd: 92000, fx: {} }),
-    fetchBonbastFxFn: () => bonbast,
-    bonbastMinIntervalMs: 0
+    fetchBaha24QuoteFn: async () => ({ usd: 92000, fx: {} })
   });
-  const pending = rate.refreshRate();
-  await new Promise(resolve => setImmediate(resolve));
+  await rate.refreshRate();
   assert.equal(configStore.config.rate.value, 92000);
   assert.equal(configStore.config.rate.source, 'baha24');
-  releaseFx({});
-  await pending;
+  assert.deepEqual(configStore.config.rate.fx, {});
+});
+
+test('Baha24 FX failure is reported once without a Bonbast fallback', async () => {
+  const warnings = [];
+  const configStore = {
+    config: { rate: { auto: true, manual: null, value: 0, source: null, proxy: '', fx: {} } },
+    debouncedSave() {}
+  };
+  const rate = new RateManager({
+    configStore,
+    logger: { ...logger, warn: (message, detail) => warnings.push([message, detail]) },
+    sse,
+    fetchNobitexFn: async () => 91000,
+    fetchBaha24QuoteFn: async () => {
+      throw new Error('HTTP 429');
+    }
+  });
+  await rate.refreshRate();
+  await rate.refreshRate();
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0][0], /بها۲۴/);
+  assert.doesNotMatch(warnings[0][0], /بون‌بست/);
+  assert.match(warnings[0][0], /در دسترس نیست/);
 });
 
 test('stopping the rate manager discards an in-flight refresh', async () => {
@@ -421,11 +471,7 @@ test('a refresh without new FX emits a single admin rate event', async () => {
       }
     },
     fetchNobitexFn: async () => 91000,
-    fetchBaha24QuoteFn: async () => ({ usd: 92000, fx: {} }),
-    fetchBonbastFxFn: async () => {
-      throw new Error('bonbast down');
-    },
-    bonbastMinIntervalMs: 0
+    fetchBaha24QuoteFn: async () => ({ usd: 92000, fx: {} })
   });
   await rate.refreshRate();
   assert.equal(events.filter(type => type === 'rate').length, 1);
@@ -439,7 +485,7 @@ test('restore asks to reconnect providers that existed only on this installation
   store.saveConfig();
   const zip = createZipArchive({ 'config.json': JSON.stringify({ mode: 'standalone' }) });
   const result = await importBackup(dir, zip, { configStore: store, logger, sse });
-  assert.deepEqual(result.reconnectRequired, { kickbot: true, streamelements: false });
+  assert.deepEqual(result.reconnectRequired, { kickbot: true, streamelements: false, donofa: false });
   assert.equal(store.getSecret(), '');
 });
 

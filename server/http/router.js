@@ -7,6 +7,7 @@ const { pipeline } = require('stream/promises');
 const { LIMITS, ENUMS, FONTS, CSP_APP, CSP_OVERLAY, CSP_GOAL, CSP_TOP, DEFAULT_CONFIG } = require('../constants');
 const { cleanText, finite, intOrNull } = require('../utils/validation');
 const { localDayKey } = require('../utils/time');
+const { computeAnalytics } = require('../features/analytics');
 const { sanitizeFile, sanitizeAppearance, sanitizeChatCommands, validateRules } = require('../utils/sanitizers');
 const { serveFile, servePublic } = require('./streaming');
 const { handleStreamUpload } = require('../media/upload');
@@ -83,6 +84,7 @@ function createHttpRouter(context) {
     kickBotClient,
     kickChatClient,
     streamElementsClient,
+    donofaClient,
     goalManager,
     historyStore,
     appVersion,
@@ -128,6 +130,13 @@ function createHttpRouter(context) {
     tip.currency = /^[A-Za-z]{3}$/.test(String(body.currency || '')) ? String(body.currency).toUpperCase() : 'USD';
     tip.source = ['kickbot', 'streamelements', 'kick'].includes(body.provider) ? body.provider : 'kickbot';
     tip.is_local = tip.source === 'kick';
+    if (body.provider === 'donofa') {
+      tip.source = 'donofa';
+      tip.currency = 'IRT';
+      tip.toman_override = finite(body.amount, 0, 1e12, 0);
+      tip.amount_total = Math.round(tip.toman_override * 100);
+      tip.is_local = true;
+    }
     return tip;
   };
 
@@ -330,6 +339,40 @@ function createHttpRouter(context) {
         });
       }
 
+      if (p === '/api/analytics' && req.method === 'GET') {
+        const tzParam = url.searchParams.get('tz');
+        const offset = tzParam === null ? NaN : Number(tzParam);
+        const tz =
+          Number.isFinite(offset) && offset >= -720 && offset <= 840
+            ? Math.round(offset)
+            : -new Date().getTimezoneOffset();
+        const entries = historyStore.entries.filter(e => e && ['tip', 'sub', 'gift'].includes(e.kind));
+        const oldest = entries.length ? entries[0].at : null;
+        const result = computeAnalytics(
+          entries.map(e => ({
+            ...e,
+            amount: Number(e.usd) > 0 ? e.usd : Number(e.toman) > 0 ? e.toman : e.usd,
+            currency: Number(e.usd) > 0 ? e.currency : Number(e.toman) > 0 ? 'IRT' : e.currency,
+            preview: e.replay
+          })),
+          {
+            range: url.searchParams.get('range') || 'today',
+            from: url.searchParams.get('from') || undefined,
+            to: url.searchParams.get('to') || undefined,
+            now: Date.now(),
+            tz,
+            includeTests: url.searchParams.get('includeTests') === '1',
+            rate: configStore.config.rate,
+            coverage: {
+              from: oldest ? new Date(oldest).toISOString() : null,
+              events: entries.length,
+              truncated: historyStore.entries.length >= LIMITS.history
+            }
+          }
+        );
+        return json(res, 200, result);
+      }
+
       if (p === '/api/top' && req.method === 'GET') {
         const rangeParam = String(url.searchParams.get('range') || '');
         const range = ['daily', 'weekly', 'all'].includes(rangeParam) ? rangeParam : 'all';
@@ -406,6 +449,7 @@ function createHttpRouter(context) {
             if (configStore.config.rate.auto) rateManager.refreshRate(false);
           });
           restart('StreamElements', () => streamElementsClient.reloadAfterRestore());
+          restart('Donofa', () => donofaClient.reloadAfterRestore());
           return json(res, 200, { ok: true, ...result });
         } catch (e) {
           logger.error('بازیابی نسخه پشتیبان ناموفق بود', e.message);
@@ -733,6 +777,38 @@ function createHttpRouter(context) {
         playbackQueue.approved = playbackQueue.approved.filter(t => t.source !== 'streamelements');
         configStore.saveConfig();
         logger.info('اتصال StreamElements حذف شد');
+        sse.sendState();
+        return json(res, 200, { ok: true });
+      }
+
+      if (p === '/api/donofa/setup' && req.method === 'POST') {
+        const body = await readJson(req);
+        const key = String(body.key || '').trim();
+        const endpoint = body.endpoint === 'com' ? 'com' : 'ir';
+        if (!configStore.isValidDonofaKey(key)) return json(res, 400, { error: 'کلید API دونوفا نامعتبر است.' });
+        const verified = await donofaClient.verifyKey(key, endpoint);
+        if (!verified.ok)
+          return json(res, verified.rejected ? 400 : 502, {
+            error: verified.rejected ? 'دونوفا کلید API را قبول نکرد.' : 'ارتباط با دونوفا برای بررسی کلید برقرار نشد.'
+          });
+        donofaClient.resetConnection();
+        playbackQueue.pending = playbackQueue.pending.filter(t => t.source !== 'donofa');
+        playbackQueue.approved = playbackQueue.approved.filter(t => t.source !== 'donofa');
+        configStore.setDonofaKey(key);
+        configStore.config.donofa = { endpoint };
+        configStore.saveConfig();
+        logger.info('حساب دونوفا وصل شد', { endpoint, secretStorage: configStore.donofaSecretStorage });
+        donofaClient.connect();
+        sse.sendState();
+        return json(res, 200, { ok: true, endpoint, secretStorage: configStore.donofaSecretStorage });
+      }
+
+      if (p === '/api/donofa/disconnect' && req.method === 'POST') {
+        donofaClient.disconnect();
+        playbackQueue.pending = playbackQueue.pending.filter(t => t.source !== 'donofa');
+        playbackQueue.approved = playbackQueue.approved.filter(t => t.source !== 'donofa');
+        configStore.saveConfig();
+        logger.info('اتصال دونوفا حذف شد');
         sse.sendState();
         return json(res, 200, { ok: true });
       }

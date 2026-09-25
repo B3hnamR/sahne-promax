@@ -16,6 +16,6 @@ attribution and does not grant permission to use those marks. See BRANDING.md.
 Bundled fonts are licensed under the SIL Open Font License 1.1; their license
 texts ship alongside the font files. See THIRD_PARTY_NOTICES.md.
 
-Kick, KickBot, StreamElements, Nobitex, Baha24, Meld Studio and GitHub are
+Kick, KickBot, StreamElements, Donofa, Nobitex, Baha24, Meld Studio and GitHub are
 unrelated third-party services. Sahne ProMax is not affiliated with or
 endorsed by them.

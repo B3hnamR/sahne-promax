@@ -152,6 +152,7 @@ function ruleRow(rule) {
       [
         ['kickbot', 'KickBot'],
         ['streamelements', 'StreamElements'],
+        ['donofa', 'Donofa'],
         ['kick', 'Kick']
       ],
       conditions.providers || []
@@ -234,6 +235,15 @@ export function initRules() {
     input.addEventListener('input', invalidatePreview);
     input.addEventListener('change', () => {
       if (selector === '#rtKind') syncSimulationKind();
+      if (selector === '#rtProvider' && $('#rtKind').value === 'tip') {
+        if ($('#rtProvider').value === 'donofa') {
+          $('#rtCurrency').value = 'IRT';
+          $('#rtAmount').value = '500000';
+        } else if ($('#rtCurrency').value === 'IRT') {
+          $('#rtCurrency').value = 'USD';
+          $('#rtAmount').value = '5';
+        }
+      }
       invalidatePreview();
     });
   }

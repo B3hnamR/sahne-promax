@@ -20,8 +20,10 @@ class ConfigStore {
     this.log = logger || (() => {});
     this.secret = '';
     this.seToken = '';
+    this.donofaKey = '';
     this.secretStorage = 'none';
     this.seSecretStorage = 'none';
+    this.donofaSecretStorage = 'none';
     this.config = this.loadConfig();
     this.saveDebounceTimer = null;
     this.saveGeneration = 0;
@@ -30,6 +32,7 @@ class ConfigStore {
   loadConfig() {
     this.secret = '';
     this.seToken = '';
+    this.donofaKey = '';
     let c = {};
     let raw = null;
     try {
@@ -56,6 +59,7 @@ class ConfigStore {
       goal: sanitizeGoal(c.goal || {}, DEFAULT_CONFIG.goal),
       rate: { ...DEFAULT_CONFIG.rate, ...(c.rate || {}), fx: sanitizeFx(c.rate && c.rate.fx) },
       kick: { ...DEFAULT_CONFIG.kick, ...(c.kick || {}) },
+      donofa: { endpoint: c.donofa && c.donofa.endpoint === 'com' ? 'com' : 'ir' },
       chatCommands: { ...DEFAULT_CONFIG.chatCommands, ...(c.chatCommands || {}) },
       app: { ...DEFAULT_CONFIG.app, ...(c.app || {}) }
     };
@@ -104,6 +108,22 @@ class ConfigStore {
     else merged.se = { ...DEFAULT_CONFIG.se, ...merged.se };
     if (!/^[A-Za-z0-9]{1,64}$/.test(String(merged.se.channelId || ''))) merged.se.channelId = null;
 
+    this.donofaSecretStorage = isStoreAvailable ? 'os' : 'plain';
+    if (c.donofa_key_enc && isStoreAvailable) {
+      try {
+        this.donofaKey = String(this.store.decrypt(c.donofa_key_enc) || '');
+      } catch {
+        this.donofaKey = '';
+      }
+    } else if (typeof c.donofa_key === 'string') {
+      this.donofaKey = c.donofa_key;
+      this.donofaSecretStorage = 'plain';
+    }
+    if (!this.isValidDonofaKey(this.donofaKey)) this.donofaKey = '';
+    if (!this.donofaKey) this.donofaSecretStorage = 'none';
+    delete merged.donofa_key;
+    delete merged.donofa_key_enc;
+
     if (!Array.isArray(merged.files)) merged.files = [];
     merged.files = merged.files.map(sanitizeFile).filter(Boolean).slice(0, LIMITS.files);
     merged.chatCommands = sanitizeChatCommands(merged.chatCommands, DEFAULT_CONFIG.chatCommands, merged.files);
@@ -120,7 +140,11 @@ class ConfigStore {
         process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || '';
     }
     merged.rate.intervalMin = Math.max(LIMITS.minRateInterval, Number(merged.rate.intervalMin) || 2);
-    if (!['baha24', 'bonbast'].includes(merged.rate.fxSource)) merged.rate.fxSource = null;
+    if (merged.rate.fxSource !== 'baha24') {
+      // Older builds could persist quotes from the removed Bonbast provider.
+      if (merged.rate.fxSource === 'bonbast') merged.rate.fx = {};
+      merged.rate.fxSource = null;
+    }
     merged.port = finite(merged.port, 1024, 65535, 7788);
     if (!ENUMS.mode.includes(merged.mode)) merged.mode = 'standalone';
 
@@ -155,6 +179,20 @@ class ConfigStore {
       } else {
         out.se_token = this.seToken;
         this.seSecretStorage = 'plain';
+      }
+    }
+    if (this.donofaKey) {
+      if (this.store && typeof this.store.available === 'function' && this.store.available()) {
+        try {
+          out.donofa_key_enc = this.store.encrypt(this.donofaKey);
+          this.donofaSecretStorage = 'os';
+        } catch {
+          out.donofa_key = this.donofaKey;
+          this.donofaSecretStorage = 'plain';
+        }
+      } else {
+        out.donofa_key = this.donofaKey;
+        this.donofaSecretStorage = 'plain';
       }
     }
     return out;
@@ -211,6 +249,11 @@ class ConfigStore {
         username: this.config.se && this.config.se.username,
         provider: this.config.se && this.config.se.provider,
         secretStorage: this.seSecretStorage
+      },
+      donofa: {
+        configured: !!this.donofaKey,
+        endpoint: this.config.donofa.endpoint,
+        secretStorage: this.donofaSecretStorage
       }
     };
   }
@@ -226,6 +269,16 @@ class ConfigStore {
   setSeToken(token) {
     this.seToken = token ? String(token).trim() : '';
     this.seSecretStorage = this.seToken ? 'plain' : 'none';
+  }
+
+  setDonofaKey(key) {
+    this.donofaKey = key ? String(key).trim() : '';
+    this.donofaSecretStorage = this.donofaKey ? 'plain' : 'none';
+  }
+
+  isValidDonofaKey(key) {
+    const value = String(key || '').trim();
+    return value.length >= 8 && value.length <= 256 && /^[A-Za-z0-9_.-]+$/.test(value);
   }
 
   isValidSeToken(token) {

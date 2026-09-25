@@ -27,4 +27,4 @@ Font files in `public/fonts` are distributed under the SIL Open Font License 1.1
 
 ## Third-party services
 
-Depending on configured features, Sahne ProMax connects to KickBot, Kick and its public Pusher-hosted chat feed, StreamElements, Nobitex, Baha24, Meld Studio on the local computer, and GitHub. These are services, not bundled code. Their terms and privacy policies apply to their services. Sahne ProMax is not affiliated with or endorsed by them.
+Depending on configured features, Sahne ProMax connects to KickBot, Kick and its public Pusher-hosted chat feed, StreamElements, Donofa, Nobitex, Baha24, Meld Studio on the local computer, and GitHub. These are services, not bundled code. Their terms and privacy policies apply to their services. Sahne ProMax is not affiliated with or endorsed by them.

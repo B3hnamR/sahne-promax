@@ -1,8 +1,7 @@
 'use strict';
-const { LIMITS, NOBITEX, BAHA24, BONBAST } = require('../constants');
+const { LIMITS, NOBITEX, BAHA24 } = require('../constants');
 const { fetchNobitex } = require('./nobitex');
 const { fetchBaha24, fetchBaha24Quote, sanitizeFx } = require('./baha24');
-const { fetchBonbastFx } = require('./bonbast');
 const { routeOrder, routeLabel } = require('../utils/net');
 
 class RateManager {
@@ -13,9 +12,7 @@ class RateManager {
     systemProxy = null,
     fetchNobitexFn = null,
     fetchBaha24Fn = null,
-    fetchBaha24QuoteFn = null,
-    fetchBonbastFxFn = null,
-    bonbastMinIntervalMs = 5 * 60 * 1000
+    fetchBaha24QuoteFn = null
   }) {
     this.configStore = configStore;
     this.logger = logger;
@@ -25,12 +22,10 @@ class RateManager {
     this.fetchBaha24Quote =
       fetchBaha24QuoteFn ||
       (fetchBaha24Fn ? async routes => ({ usd: await fetchBaha24Fn(routes), fx: {} }) : fetchBaha24Quote);
-    this.fetchBonbastFx = fetchBonbastFxFn || fetchBonbastFx;
-    this.bonbastMinIntervalMs = Math.max(0, Number(bonbastMinIntervalMs) || 0);
-    this.lastBonbastAttempt = 0;
     this.systemProxy = systemProxy;
     this.systemProxyLabel = null;
     this.rateError = null;
+    this.lastFxWarning = null;
     this.rateTimer = null;
     this.rateBusy = false;
     this.refreshGeneration = 0;
@@ -87,14 +82,17 @@ class RateManager {
     return rate && Number.isFinite(value) ? Math.round(value * rate) : null;
   }
 
-  async fetchFxFallback() {
-    if (Date.now() - this.lastBonbastAttempt < this.bonbastMinIntervalMs) return null;
-    this.lastBonbastAttempt = Date.now();
-    return this.fetchBonbastFx(await this.routesFor(BONBAST, false));
-  }
-
   async fetchBahaQuote() {
     return this.fetchBaha24Quote(await this.routesFor(BAHA24, true));
+  }
+
+  warnFxUnavailable(error) {
+    const hasPrevious = Object.keys(sanitizeFx(this.configStore.config.rate.fx)).length > 0;
+    const message = hasPrevious
+      ? 'دریافت نرخ ارزهای دیگر از بها۲۴ ناموفق بود؛ نرخ‌های قبلی استفاده می‌شود'
+      : 'دریافت نرخ ارزهای دیگر از بها۲۴ ناموفق بود؛ نرخ تبدیلی در دسترس نیست';
+    if (this.lastFxWarning !== message) this.logger.warn(message, error && error.message);
+    this.lastFxWarning = message;
   }
 
   async refreshRate(force = false) {
@@ -118,23 +116,14 @@ class RateManager {
         // A slow optional FX source must never delay the usable USD rate.
         this.publishRate(v, source);
         usdPublished = true;
-        // Baha24 is still queried on the normal Nobitex path: its quote table supplies non-USD SE currency rates.
+        // Baha24 supplies non-USD currency rates independently of the Nobitex USD rate.
         try {
           const quote = await this.fetchBahaQuote();
           fx = quote && quote.fx;
           if (!fx || !Object.keys(sanitizeFx(fx)).length) throw new Error('no supported foreign exchange rates');
           fxSource = 'baha24';
         } catch (e) {
-          this.logger.warn('دریافت نرخ ارزهای دیگر از بها۲۴ ناموفق بود؛ تلاش با بون‌بست', e.message);
-          try {
-            fx = await this.fetchFxFallback();
-            if (fx && Object.keys(sanitizeFx(fx)).length) fxSource = 'bonbast';
-          } catch (fallbackError) {
-            this.logger.warn(
-              'دریافت نرخ ارزهای دیگر از بون‌بست ناموفق بود؛ نرخ‌های قبلی استفاده می‌شود',
-              fallbackError.message
-            );
-          }
+          this.warnFxUnavailable(e);
         }
       } catch (e1) {
         if (generation !== this.refreshGeneration) return null;
@@ -153,17 +142,7 @@ class RateManager {
             usdPublished = true;
           }
           if (fx && Object.keys(sanitizeFx(fx)).length) fxSource = 'baha24';
-          if (!fx || !Object.keys(sanitizeFx(fx)).length) {
-            try {
-              fx = await this.fetchFxFallback();
-              if (fx && Object.keys(sanitizeFx(fx)).length) fxSource = 'bonbast';
-            } catch (fallbackError) {
-              this.logger.warn(
-                'دریافت نرخ ارزهای دیگر از بون‌بست ناموفق بود؛ نرخ‌های قبلی استفاده می‌شود',
-                fallbackError.message
-              );
-            }
-          }
+          if (!fx || !Object.keys(sanitizeFx(fx)).length) this.warnFxUnavailable();
         } catch (e2) {
           errs.push('baha24: ' + e2.message);
           throw new Error(errs.join(' | '));
@@ -175,6 +154,7 @@ class RateManager {
       if (fx && Object.keys(sanitizeFx(fx)).length) {
         config.rate.fx = sanitizeFx(fx);
         config.rate.fxSource = fxSource;
+        this.lastFxWarning = null;
         this.configStore.debouncedSave();
         this.sse.broadcast('admin', { type: 'rate', rate: config.rate, effective: this.currentRate() });
         this.sse.sendState();
@@ -225,6 +205,7 @@ class RateManager {
 
   resetForRestore() {
     this.rateError = null;
+    this.lastFxWarning = null;
     this.stop();
   }
 }

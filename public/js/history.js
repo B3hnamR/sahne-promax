@@ -131,9 +131,15 @@ function renderEntries() {
         ? '—'
         : currency === 'USD'
           ? '$' + (Number(e.usd) || 0)
-          : (Number(e.usd) || 0) + ' ' + currency;
+          : currency === 'IRT'
+            ? fmtToman(e.toman || e.usd)
+            : (Number(e.usd) || 0) + ' ' + currency;
     const amount =
-      e.kind === 'command' ? 'دستور چت' : Number(e.toman) > 0 ? fmtToman(e.toman) + ' · ' + original : original;
+      e.kind === 'command'
+        ? 'دستور چت'
+        : Number(e.toman) > 0 && currency !== 'IRT'
+          ? fmtToman(e.toman) + ' · ' + original
+          : original;
     const source =
       e.source === 'streamelements'
         ? 'StreamElements'
@@ -141,13 +147,16 @@ function renderEntries() {
           ? 'KickBot'
           : e.source === 'kick'
             ? 'Kick'
-            : '';
+            : e.source === 'donofa'
+              ? 'Donofa'
+              : '';
     const rowEl = row([
       span('t', shortTime(e.at)),
       span('n', e.name || 'ناشناس'),
       chip(k.label, k.cls),
       source ? chip(source) : null,
       e.test ? chip('تست', 'warn') : e.replay ? chip('ریپلی') : null,
+      e.played === false ? chip('نمایش داده نشد', 'warn') : null,
       e.ruleName ? chip(e.ruleName, 'acc') : null,
       span('m', e.message || ''),
       span('a', amount)

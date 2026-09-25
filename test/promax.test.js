@@ -8,7 +8,7 @@ const http = require('node:http');
 const os = require('node:os');
 const { createServer } = require('../server');
 
-let nextPort = 8100 + Math.floor(Math.random() * 200);
+let nextPort = 15000 + Math.floor(Math.random() * 200);
 
 function makeTempDir() {
   const dir = path.join(os.tmpdir(), 'sahne-promax-test-' + Math.random().toString(36).slice(2));
@@ -401,8 +401,7 @@ test('ProMax: Nobitex USDTIRT Rate Provider as Primary & Baha24 as Fallback', as
     fetchBaha24QuoteFn: async () => {
       baha24Called = true;
       return { usd: 229500, fx: { EUR: 250000 } };
-    },
-    fetchBonbastFxFn: async () => ({})
+    }
   });
   const rateA = await mgrA.refreshRate(true);
   assert.equal(rateA, 228883);
@@ -418,8 +417,7 @@ test('ProMax: Nobitex USDTIRT Rate Provider as Primary & Baha24 as Fallback', as
     fetchNobitexFn: async () => {
       throw new Error('Nobitex rate limit or network unreachable');
     },
-    fetchBaha24QuoteFn: async () => ({ usd: 229500, fx: { EUR: 251000 } }),
-    fetchBonbastFxFn: async () => ({})
+    fetchBaha24QuoteFn: async () => ({ usd: 229500, fx: { EUR: 251000 } })
   });
   const rateB = await mgrB.refreshRate(true);
   assert.equal(rateB, 229500);
@@ -435,8 +433,7 @@ test('ProMax: Nobitex USDTIRT Rate Provider as Primary & Baha24 as Fallback', as
     },
     fetchBaha24QuoteFn: async () => {
       throw new Error('Baha24 down');
-    },
-    fetchBonbastFxFn: async () => ({})
+    }
   });
   const rateC = await mgrC.refreshRate(true);
   assert.equal(rateC, null);

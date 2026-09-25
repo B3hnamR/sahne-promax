@@ -19,7 +19,7 @@ Please include:
 - the affected feature and its impact, including attacker access required;
 - reproduction steps or a proof of concept, and source locations if known;
 - relevant lines from `Documents\Sahne Plus\sahne-plus.log` after removing donor names and other personal data;
-- never include your KickBot widget secret or StreamElements JWT.
+- never include your KickBot widget secret, StreamElements JWT or Donofa API key.
 
 ## Responsible disclosure
 
@@ -35,7 +35,7 @@ In scope:
 - the Electron shell, IPC bridge, navigation, permissions or updater;
 - a release workflow issue that could publish an unofficial binary as a ProMax release.
 
-Out of scope: vulnerabilities in Kick, KickBot, StreamElements, Nobitex, Baha24, Meld Studio or GitHub itself; social engineering; issues requiring a compromised Windows account.
+Out of scope: vulnerabilities in Kick, KickBot, StreamElements, Donofa, Nobitex, Baha24, Meld Studio or GitHub itself; social engineering; issues requiring a compromised Windows account.
 
 ## Release integrity
 

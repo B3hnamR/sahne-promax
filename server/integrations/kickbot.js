@@ -254,6 +254,11 @@ class KickBotClient {
     this.configStore.config.streamer_id = null;
     this.configStore.saveConfig();
     this.resetConnection();
+    // The queue is shared with Kick subscriptions and other tip providers.
+    const belongsToKickBot = tip => (tip.source || (tip.is_local ? 'kick' : 'kickbot')) === 'kickbot' && !tip.is_test;
+    this.queue.pending = this.queue.pending.filter(tip => !belongsToKickBot(tip));
+    this.queue.approved = this.queue.approved.filter(tip => !belongsToKickBot(tip));
+    this.sse.sendState();
     this.logger.info('اتصال کیک‌بات حذف شد');
   }
 
