@@ -9,6 +9,7 @@ const path = require('path');
 const { createServer } = require('../server/server');
 const { PlaybackQueue } = require('../server/playback/queue');
 const { sanitizeChatCommands, sanitizeGoal } = require('../server/utils/sanitizers');
+const { freePort } = require('./helpers/free-port');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -147,7 +148,7 @@ test('goal sanitizer: countdown + confetti fields validated and clamped', () => 
 
 async function bootServer(t, { captureTip } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-feat-'));
-  const port = 16000 + Math.floor(Math.random() * 400);
+  const port = await freePort();
   fs.writeFileSync(
     path.join(dir, 'config.json'),
     JSON.stringify({ port, rate: { auto: false }, kick: { enabled: false }, app: { autostart: false } })

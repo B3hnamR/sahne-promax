@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
+const { freePort } = require('./helpers/free-port');
 const {
   createServer,
   typeOf,
@@ -112,7 +113,7 @@ test('cleanText / normFa', () => {
 
 test('loopback hardening: Host and Origin checks, traversal, secret never exposed', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-test-'));
-  const port = 14000 + Math.floor(Math.random() * 100);
+  const port = await freePort();
   fs.writeFileSync(
     path.join(dir, 'config.json'),
     JSON.stringify({
@@ -203,7 +204,7 @@ test('Persian and Arabic-Indic digits are normalised in thresholds and keywords 
 
 test('upload streaming + sniffing, suffix Range, config.files merge, capture retry never consumes an uncaptured tip', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-test-'));
-  const port = 14100 + Math.floor(Math.random() * 100);
+  const port = await freePort();
   fs.writeFileSync(
     path.join(dir, 'config.json'),
     JSON.stringify({
@@ -334,7 +335,7 @@ test('upload streaming + sniffing, suffix Range, config.files merge, capture ret
 
 test('event streams: foreign pages are refused and the number of streams is bounded (1.3.2)', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-test-'));
-  const port = 14200 + Math.floor(Math.random() * 100);
+  const port = await freePort();
   fs.writeFileSync(
     path.join(dir, 'config.json'),
     JSON.stringify({ port, rate: { auto: false }, kick: { enabled: false }, app: { autostart: false } })
@@ -382,7 +383,7 @@ test('event streams: foreign pages are refused and the number of streams is boun
 
 test('media: only registered alert files are served (1.3.2)', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-test-'));
-  const port = 14300 + Math.floor(Math.random() * 100);
+  const port = await freePort();
   fs.writeFileSync(
     path.join(dir, 'config.json'),
     JSON.stringify({ port, rate: { auto: false }, kick: { enabled: false }, app: { autostart: false } })

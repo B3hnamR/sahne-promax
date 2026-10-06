@@ -33,6 +33,11 @@ class HistoryStore {
     this.entries = [];
     this.days = safeMap();
     this.donors = safeMap();
+    // Alerts received while recording is off still power live counters and /top.
+    // This data is never included in toJSON() or written to disk.
+    this.liveEntries = [];
+    this.liveDays = safeMap();
+    this.liveDonors = safeMap();
     this.saveTimer = null;
     this.saveGeneration = 0;
     this.load();
@@ -56,9 +61,12 @@ class HistoryStore {
   reload() {
     ++this.saveGeneration;
     this.load();
+    this.liveEntries = [];
+    this.liveDays = safeMap();
+    this.liveDonors = safeMap();
   }
 
-  add(rec) {
+  add(rec, { persist = true } = {}) {
     const at = Number(rec.at) || Date.now();
     const day = localDayKey(new Date(at));
     const name =
@@ -87,12 +95,15 @@ class HistoryStore {
       at
     };
 
-    this.entries.push(entry);
-    if (this.entries.length > LIMITS.history) this.entries = this.entries.slice(-LIMITS.history);
+    const entries = persist ? this.entries : this.liveEntries;
+    const days = persist ? this.days : this.liveDays;
+    const donors = persist ? this.donors : this.liveDonors;
+    entries.push(entry);
+    if (entries.length > LIMITS.history) entries.splice(0, entries.length - LIMITS.history);
 
     // Test/replay traffic stays in the raw list (tagged) but never pollutes totals or leaderboards
     if (entry.played && !entry.test && !entry.replay) {
-      const d = this.days[day] || (this.days[day] = { alerts: 0, toman: 0, tips: 0, subs: 0, gifts: 0 });
+      const d = days[day] || (days[day] = { alerts: 0, toman: 0, tips: 0, subs: 0, gifts: 0 });
       d.alerts++;
       d.toman += entry.toman;
       if (entry.kind === 'sub') d.subs++;
@@ -101,7 +112,7 @@ class HistoryStore {
 
       const key = donorKey(entry.name);
       if (key && entry.toman > 0) {
-        const dn = this.donors[key] || (this.donors[key] = { name: entry.name, toman: 0, count: 0, at: 0 });
+        const dn = donors[key] || (donors[key] = { name: entry.name, toman: 0, count: 0, at: 0 });
         dn.name = entry.name; // keep the latest spelling
         dn.toman += entry.toman;
         dn.count++;
@@ -109,12 +120,19 @@ class HistoryStore {
       }
     }
 
-    this.debouncedSave();
+    if (persist) this.debouncedSave();
     return { day, entry };
   }
 
   day(day) {
-    return this.days[day] || { alerts: 0, toman: 0, tips: 0, subs: 0, gifts: 0 };
+    const saved = this.days[day] || {};
+    const live = this.liveDays[day] || {};
+    return Object.fromEntries(
+      ['alerts', 'toman', 'tips', 'subs', 'gifts'].map(key => [
+        key,
+        (Number(saved[key]) || 0) + (Number(live[key]) || 0)
+      ])
+    );
   }
 
   totals() {
@@ -122,7 +140,7 @@ class HistoryStore {
       alerts = 0,
       subs = 0,
       gifts = 0;
-    for (const d of Object.values(this.days)) {
+    for (const d of [...Object.values(this.days), ...Object.values(this.liveDays)]) {
       toman += Number(d.toman) || 0;
       alerts += Number(d.alerts) || 0;
       subs += Number(d.subs) || 0;
@@ -141,7 +159,7 @@ class HistoryStore {
 
   getDays(limit = 30) {
     const n = Math.min(365, Math.max(1, Math.round(Number(limit) || 30)));
-    return Object.keys(this.days)
+    return [...new Set([...Object.keys(this.days), ...Object.keys(this.liveDays)])]
       .sort()
       .reverse()
       .slice(0, n)
@@ -152,7 +170,18 @@ class HistoryStore {
   getTop(range = 'all', limit = 10) {
     const n = Math.min(50, Math.max(1, Math.round(Number(limit) || 10)));
     if (range !== 'daily' && range !== 'weekly') {
-      return Object.values(this.donors)
+      const combined = new Map();
+      for (const [key, d] of [...Object.entries(this.donors), ...Object.entries(this.liveDonors)]) {
+        const row = combined.get(key) || { name: d.name, toman: 0, count: 0, at: 0 };
+        row.toman += Number(d.toman) || 0;
+        row.count += Number(d.count) || 0;
+        if ((Number(d.at) || 0) >= row.at) {
+          row.name = d.name;
+          row.at = Number(d.at) || 0;
+        }
+        combined.set(key, row);
+      }
+      return [...combined.values()]
         .sort((a, b) => b.toman - a.toman || b.count - a.count)
         .slice(0, n)
         .map((d, i) => ({ rank: i + 1, name: d.name, toman: d.toman, count: d.count }));
@@ -160,7 +189,7 @@ class HistoryStore {
     const days = range === 'daily' ? 1 : 7;
     const cutoff = startOfDay(Date.now() - (days - 1) * 86400000);
     const map = new Map();
-    for (const e of this.entries) {
+    for (const e of [...this.entries, ...this.liveEntries]) {
       if (e.played === false || e.test || e.replay || e.toman <= 0 || e.at < cutoff) continue;
       const key = donorKey(e.name);
       if (!key) continue;
@@ -181,6 +210,9 @@ class HistoryStore {
     this.entries = [];
     this.days = safeMap();
     this.donors = safeMap();
+    this.liveEntries = [];
+    this.liveDays = safeMap();
+    this.liveDonors = safeMap();
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;

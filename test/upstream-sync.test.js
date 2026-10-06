@@ -9,9 +9,11 @@ const { Writable } = require('stream');
 const { PlaybackQueue } = require('../server/playback/queue');
 const { WaitingStore } = require('../server/playback/waiting-store');
 const { KickBotClient } = require('../server/integrations/kickbot');
+const { DonofaClient } = require('../server/integrations/donofa');
 const { streamDownload } = require('../electron/download-core');
 const { createServer } = require('../server/server');
 const { ConfigStore } = require('../server/config/store');
+const { HistoryStore } = require('../server/config/history');
 
 const logger = { info() {}, warn() {}, error() {} };
 
@@ -43,16 +45,56 @@ test('captured donation waits after the last Browser Source closes and survives 
   });
   queue.enqueueApproved({ stripe_pi_id: 'pi_paid', tipper_name: 'Ali', amount_total: 100, source: 'kickbot' });
   const running = queue.tryNext();
+  queue.enqueueApproved({ stripe_pi_id: 'sub_abcdef123456', source: 'kick', is_local: true, kind: 'sub' });
+  queue.enqueueApproved({ stripe_pi_id: 'pi_later', tipper_name: 'Later', amount_total: 200, source: 'kickbot' });
   overlays = 0;
   finishCapture('ok');
   await running;
   assert.equal(played.has('pi_paid'), false);
-  assert.equal(queue.approved[0].captured, true);
-  assert.equal(JSON.parse(fs.readFileSync(store.file, 'utf8'))[0].stripe_pi_id, 'pi_paid');
+  assert.deepEqual(
+    queue.approved.map(tip => tip.stripe_pi_id),
+    ['sub_abcdef123456', 'pi_paid', 'pi_later']
+  );
+  assert.equal(queue.approved[1].captured, true);
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(store.file, 'utf8')).map(tip => tip.stripe_pi_id),
+    ['sub_abcdef123456', 'pi_paid']
+  );
   queue.stop();
   const restored = new WaitingStore(dir, playedStore, logger).load();
-  assert.equal(restored.length, 1);
-  assert.equal(restored[0].captured, true);
+  assert.deepEqual(
+    restored.map(tip => tip.stripe_pi_id),
+    ['sub_abcdef123456', 'pi_paid']
+  );
+  assert.equal(restored[1].captured, true);
+});
+
+test('recording opt-out keeps live totals and top donors without persisting private alerts', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'promax-live-history-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const history = new HistoryStore(dir);
+  t.after(() => history.stop());
+  history.add({ id: 'off', name: 'Ali', toman: 1000, played: true }, { persist: false });
+  assert.equal(history.entries.length, 0);
+  assert.equal(history.getEntries().length, 0);
+  assert.equal(history.totals().toman, 1000);
+  assert.equal(history.getTop('daily')[0].toman, 1000);
+  assert.equal(history.getTop('all')[0].toman, 1000);
+  assert.equal(fs.existsSync(history.file), false);
+
+  history.add({ id: 'on', name: 'Ali', toman: 2000, played: true });
+  history.saveSync();
+  assert.equal(history.totals().toman, 3000);
+  assert.equal(history.getTop('weekly')[0].toman, 3000);
+  assert.equal(history.getTop('all')[0].toman, 3000);
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(history.file, 'utf8')).entries.map(entry => entry.id),
+    ['on']
+  );
+  assert.deepEqual(
+    history.getEntries().map(entry => entry.id),
+    ['on']
+  );
 });
 
 test('waiting store keeps paid local alerts but rejects test and malformed entries', t => {
@@ -73,6 +115,41 @@ test('waiting store keeps paid local alerts but rejects test and malformed entri
   );
   store.clear();
   assert.equal(fs.existsSync(store.file), false);
+});
+
+test('Donofa audio arriving after the donation updates the saved waiting alert', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'promax-donofa-waiting-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const playedStore = { isPlayed: () => false };
+  const store = new WaitingStore(dir, playedStore, logger);
+  const queue = {
+    approved: [
+      {
+        stripe_pi_id: 'donofa_abc',
+        source: 'donofa',
+        is_local: true,
+        kind: 'tip',
+        currency: 'IRT',
+        amount_total: 100000,
+        audio_url: null
+      }
+    ],
+    playing: null,
+    persistWaiting() {
+      store.save(this.approved);
+    }
+  };
+  queue.persistWaiting();
+  const client = new DonofaClient({
+    configStore: { donofaKey: '', config: { donofa: { endpoint: 'ir' } } },
+    queue,
+    playedStore,
+    logger,
+    sse: { broadcast() {} }
+  });
+  assert.equal(client.handleTts({ donate_id: 'abc', url: 'https://media.donofa.ir/abc.mp3' }), true);
+  const restored = new WaitingStore(dir, playedStore, logger).load();
+  assert.equal(restored[0].audio_url, 'https://media.donofa.ir/abc.mp3');
 });
 
 test('KickBot queue settings event retains its fields and resumes playback', () => {
@@ -162,6 +239,25 @@ test('download without progress and blocked disk writes both time out', async ()
   });
   const blocked = new Writable({ highWaterMark: 1, write() {} });
   await assert.rejects(streamDownload(oneChunk, blocked, { maxBytes: 100, stallMs: 25 }), /writing to disk timed out/);
+  const closing = new Writable({
+    write(_chunk, _encoding, callback) {
+      callback();
+    },
+    final() {}
+  });
+  await assert.rejects(
+    streamDownload(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1]));
+          controller.close();
+        }
+      }),
+      closing,
+      { maxBytes: 100, stallMs: 25 }
+    ),
+    /writing to disk timed out/
+  );
 });
 
 test('a long media report extends only the matching active alert', t => {
@@ -230,11 +326,17 @@ test('file ranges, history switch and media extension work through the local API
     tipper_name: 'No history',
     amount_total: 100,
     currency: 'USD',
+    toman_override: 5000,
     source: 'kick',
     is_local: true,
     kind: 'tip'
   });
   assert.equal(server.historyStore.entries.length, 0, 'disabled recording leaves the ledger untouched');
+  const top = await fetch(`http://127.0.0.1:${port}/api/top?range=daily`).then(response => response.json());
+  assert.equal(top.donors[0].toman, 5000, 'top donors continue updating in memory');
+  const history = await fetch(`http://127.0.0.1:${port}/api/history`).then(response => response.json());
+  assert.equal(history.entries.length, 0);
+  assert.equal(history.today.toman, 5000);
   server.playbackQueue.stop();
   server.playbackQueue.playing = { stripe_pi_id: 'active' };
   server.playbackQueue.armPlayTimeout('active', 1);

@@ -7,8 +7,7 @@ const path = require('node:path');
 const http = require('node:http');
 const os = require('node:os');
 const { createServer } = require('../server');
-
-let nextPort = 15000 + Math.floor(Math.random() * 200);
+const { freePort } = require('./helpers/free-port');
 
 function makeTempDir() {
   const dir = path.join(os.tmpdir(), 'sahne-promax-test-' + Math.random().toString(36).slice(2));
@@ -61,7 +60,7 @@ function req(port, method, p, body, headers = {}) {
 test('ProMax: Paired Media & Milestone Sub Alerts', async t => {
   const dir = makeTempDir();
   const mediaDir = path.join(dir, 'media');
-  const port = ++nextPort;
+  const port = await freePort();
 
   fs.writeFileSync(
     path.join(dir, 'config.json'),
@@ -134,7 +133,7 @@ test('ProMax: Paired Media & Milestone Sub Alerts', async t => {
 
 test('ProMax: Stream Deck & Hardware REST Controls', async t => {
   const dir = makeTempDir();
-  const port = ++nextPort;
+  const port = await freePort();
 
   fs.writeFileSync(
     path.join(dir, 'config.json'),
@@ -195,7 +194,7 @@ test('ProMax: Stream Deck & Hardware REST Controls', async t => {
 
 test('ProMax: Donation & Sub Goal Engine', async t => {
   const dir = makeTempDir();
-  const port = ++nextPort;
+  const port = await freePort();
 
   fs.writeFileSync(
     path.join(dir, 'config.json'),
@@ -248,7 +247,7 @@ test('ProMax: Donation & Sub Goal Engine', async t => {
 test('ProMax: Zero-Dependency 1-Click Backup & Restore (.zip)', async t => {
   const dir = makeTempDir();
   const mediaDir = path.join(dir, 'media');
-  const port = ++nextPort;
+  const port = await freePort();
 
   fs.writeFileSync(
     path.join(dir, 'config.json'),
@@ -320,7 +319,7 @@ test('ProMax: Zero-Dependency 1-Click Backup & Restore (.zip)', async t => {
 
 test('ProMax: ETag Static Caching (304 Not Modified)', async t => {
   const dir = makeTempDir();
-  const port = ++nextPort;
+  const port = await freePort();
 
   fs.writeFileSync(
     path.join(dir, 'config.json'),

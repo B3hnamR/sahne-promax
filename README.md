@@ -38,7 +38,7 @@ The source on `main` includes the changes from upstream Sahne+ through [**1.4.1*
 - Videos, audio, and images with a file-specific duration can run past the global alert maximum, with a one-hour safety limit. The queue waits for the actual end.
 - KickBot queue settings now apply, including delay and pause/play; disconnect removes its dashboard test tips while retaining ProMax test alerts and other providers.
 - Widget-link fields are masked and cleared after connecting. The updater times out stalled downloads and reports disk failures separately. The media editor rejects inverted amount ranges.
-- Local history recording can be turned off in Settings → App. The analytics dashboard uses the retained history ledger; older detailed entries remain subject to its 20,000-entry limit.
+- Local history recording can be turned off in Settings → App. New alerts then stay out of the disk history and analytics, while live counters and the top-donors widget continue updating in memory for the current session. The analytics dashboard uses the retained history ledger; older detailed entries remain subject to its 20,000-entry limit.
 - Pull request CI checks both Ubuntu and Windows, and the screenshot script accepts a custom local port.
 
 ### What's new in 2.6.0

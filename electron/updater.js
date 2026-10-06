@@ -144,15 +144,15 @@ function createUpdater({ version, canInstall, dryRun, log, onChange }) {
       30000,
       file,
       () => ac.abort()
-    );
-    if (!r.ok || !r.body) throw new Error('HTTP ' + r.status + ' for ' + file);
-    const total = Number(r.headers.get('content-length')) || 0;
-    if (total > core.MAX_INSTALLER_BYTES) {
-      await r.body.cancel().catch(() => {});
-      throw new Error('installer too large');
-    }
+    ).catch(e => {
+      ac.abort();
+      throw e;
+    });
     let sha256;
     try {
+      if (!r.ok || !r.body) throw new Error('HTTP ' + r.status + ' for ' + file);
+      const total = Number(r.headers.get('content-length')) || 0;
+      if (total > core.MAX_INSTALLER_BYTES) throw new Error('installer too large');
       ({ sha256 } = await streamDownload(r.body, fs.createWriteStream(dest), {
         maxBytes: core.MAX_INSTALLER_BYTES,
         total,
@@ -160,6 +160,7 @@ function createUpdater({ version, canInstall, dryRun, log, onChange }) {
         onStall: () => ac.abort()
       }));
     } catch (e) {
+      if (r.body && !r.body.locked) r.body.cancel(e).catch(() => {});
       ac.abort();
       throw e;
     }

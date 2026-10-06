@@ -43,7 +43,9 @@ async function streamDownload(
     clearTimeout(timer);
     timer = setTimeout(() => {
       stallError = new Error(
-        output.writableNeedDrain ? 'download: writing to disk timed out' : 'download: waiting for data timed out'
+        output.writableNeedDrain || output.writableEnded
+          ? 'download: writing to disk timed out'
+          : 'download: waiting for data timed out'
       );
       stalled.abort(stallError);
       onStall();

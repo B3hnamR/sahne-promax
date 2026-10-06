@@ -10,6 +10,7 @@ const { createServer } = require('../server/server');
 const { HistoryStore } = require('../server/config/history');
 const { ConfigStore } = require('../server/config/store');
 const { importBackupFromFile } = require('../server/features/backup');
+const { freePort } = require('./helpers/free-port');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -95,7 +96,7 @@ test('history store: entries, day/donor aggregates, prune, reload, clear', t => 
 
 async function bootServer(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-stats-'));
-  const port = 17000 + Math.floor(Math.random() * 300);
+  const port = await freePort();
   fs.writeFileSync(
     path.join(dir, 'config.json'),
     JSON.stringify({ port, rate: { auto: false }, kick: { enabled: false }, app: { autostart: false } })

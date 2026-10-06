@@ -9,6 +9,7 @@ const zlib = require('zlib');
 const { ConfigStore } = require('../server/config/store');
 const { DonofaClient, parseDonofaActivity, donofaAudioUrl } = require('../server/integrations/donofa');
 const { createServer } = require('../server/server');
+const { freePort } = require('./helpers/free-port');
 
 test('Donofa parser accepts paid Toman and Rial and rejects invalid events', () => {
   const tip = parseDonofaActivity({
@@ -55,6 +56,10 @@ test('Donofa websocket subscription, dedupe, exact TTS association and disconnec
     approved: [],
     pending: [],
     playing: null,
+    persisted: 0,
+    persistWaiting() {
+      this.persisted++;
+    },
     enqueueApproved(t) {
       this.approved.push(t);
     },
@@ -85,6 +90,7 @@ test('Donofa websocket subscription, dedupe, exact TTS association and disconnec
   emit('.tts.created', { donate_id: 'two', url: 'https://media.donofa.ir/two.mp3' });
   assert.equal(queue.approved[0].audio_url, null);
   assert.match(queue.approved[1].audio_url, /two\.mp3/);
+  assert.equal(queue.persisted, 1, 'late TTS is saved with the waiting donation');
   assert.equal(client.handleTts({ url: 'https://media.donofa.ir/ambiguous.mp3' }), true);
   assert.match(queue.approved[0].audio_url, /ambiguous\.mp3/);
   queue.playing = queue.approved.shift();
@@ -122,7 +128,7 @@ test('Donofa key is hidden from public config and excluded from portable backups
 
 test('Donofa setup, simulation and disconnect preserve other providers', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-donofa-http-'));
-  const port = 18000 + Math.floor(Math.random() * 300);
+  const port = await freePort();
   fs.writeFileSync(
     path.join(dir, 'config.json'),
     JSON.stringify({ port, rate: { auto: false }, kick: { enabled: false } })

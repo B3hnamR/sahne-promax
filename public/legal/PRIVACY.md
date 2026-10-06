@@ -12,7 +12,7 @@ Sahne ProMax is an independent fork of [Sahne Plus](https://github.com/AmirEyZed
 
 - Sahne ProMax has no cloud backend. Its controller and local alert server run on your computer.
 - The application makes network requests to the third-party services required by its enabled features (section 4). Those providers receive the request data described below.
-- The local analytics dashboard reads the history ledger on your computer. You can turn new history recording off in Settings → App. No analytics, telemetry, advertising, or automatic crash reports are sent elsewhere. It checks this fork's GitHub releases for updates; you can turn automatic checks off, and downloads/installations require your click.
+- The local analytics dashboard reads the history ledger on your computer. You can turn new history recording off in Settings → App; live counters and the top-donors widget still update in memory until the app closes. No analytics, telemetry, advertising, or automatic crash reports are sent elsewhere. It checks this fork's GitHub releases for updates; you can turn automatic checks off, and downloads/installations require your click.
 
 ## 3. What Sahne ProMax stores on your computer
 

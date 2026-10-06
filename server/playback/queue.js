@@ -177,7 +177,14 @@ class PlaybackQueue {
 
       if (this.sse.clientCount('overlay') === 0) {
         this.playing = null;
-        this.approved.unshift(t);
+        // A sub arriving during capture keeps ProMax's sub-first ordering.
+        // The interrupted tip still leads the other regular tips.
+        if (t.is_replay || t.kind === 'sub' || t.kind === 'gift') this.approved.unshift(t);
+        else {
+          let i = 0;
+          while (i < this.approved.length && (this.approved[i].kind === 'sub' || this.approved[i].kind === 'gift')) i++;
+          this.approved.splice(i, 0, t);
+        }
         this.logger.warn('Browser Source disconnected; paid alert is waiting', this.tipSummary(t));
         this.sse.sendState();
         return;
@@ -220,25 +227,28 @@ class PlaybackQueue {
         at: Date.now()
       });
       if (this.recent.length > 30) this.recent.pop();
-      if (this.historyStore && config.app?.recordHistory !== false) {
-        this.historyStore.add({
-          id: t.stripe_pi_id,
-          name: t.tipper_name,
-          kind: t.kind || 'tip',
-          usd: (t.amount_total || 0) / 100,
-          currency: t.currency || 'USD',
-          source: this.tipSummary(t).source,
-          toman,
-          count: t.count,
-          months: t.months,
-          message: t.tip_message,
-          rule: resolved.ruleId,
-          ruleName: resolved.ruleName,
-          test: !!t.is_test,
-          replay: !!t.is_replay,
-          played: false,
-          at: Date.now()
-        });
+      if (this.historyStore) {
+        this.historyStore.add(
+          {
+            id: t.stripe_pi_id,
+            name: t.tipper_name,
+            kind: t.kind || 'tip',
+            usd: (t.amount_total || 0) / 100,
+            currency: t.currency || 'USD',
+            source: this.tipSummary(t).source,
+            toman,
+            count: t.count,
+            months: t.months,
+            message: t.tip_message,
+            rule: resolved.ruleId,
+            ruleName: resolved.ruleName,
+            test: !!t.is_test,
+            replay: !!t.is_replay,
+            played: false,
+            at: Date.now()
+          },
+          { persist: config.app?.recordHistory !== false }
+        );
       }
       if (this.goalManager) {
         this.goalManager.addAmount(toman, {
@@ -284,26 +294,29 @@ class PlaybackQueue {
     if (this.recent.length > 30) this.recent.pop();
 
     // Played alerts contribute to the history totals and the /top widget.
-    if (this.historyStore && config.app?.recordHistory !== false) {
-      const hist = this.historyStore.add({
-        id: payload.id,
-        name: payload.name,
-        kind: payload.kind || 'tip',
-        usd: payload.amount,
-        currency: payload.currency,
-        source: this.tipSummary(t).source,
-        toman: payload.toman,
-        count: payload.count,
-        months: payload.months,
-        message: payload.message,
-        media: media ? media.file : null,
-        rule: resolved.ruleId,
-        ruleName: resolved.ruleName,
-        test: !!t.is_test,
-        replay: !!t.is_replay,
-        played: true,
-        at: Date.now()
-      });
+    if (this.historyStore) {
+      const hist = this.historyStore.add(
+        {
+          id: payload.id,
+          name: payload.name,
+          kind: payload.kind || 'tip',
+          usd: payload.amount,
+          currency: payload.currency,
+          source: this.tipSummary(t).source,
+          toman: payload.toman,
+          count: payload.count,
+          months: payload.months,
+          message: payload.message,
+          media: media ? media.file : null,
+          rule: resolved.ruleId,
+          ruleName: resolved.ruleName,
+          test: !!t.is_test,
+          replay: !!t.is_replay,
+          played: true,
+          at: Date.now()
+        },
+        { persist: config.app?.recordHistory !== false }
+      );
       this.sse.broadcast('admin', {
         type: 'history_update',
         day: hist.day,

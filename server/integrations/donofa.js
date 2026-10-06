@@ -290,6 +290,7 @@ class DonofaClient {
     const pending = this.queue.approved.find(item => item.stripe_pi_id === fullId);
     if (pending) {
       pending.audio_url = url;
+      this.queue.persistWaiting?.();
       return true;
     }
     if (this.queue.playing && this.queue.playing.stripe_pi_id === fullId) {
