@@ -75,38 +75,44 @@ See the [2.7.0 release notes](docs/releases/RELEASE_NOTES_2.7.0.md) for the full
 
 ---
 
-## 🚀 ProMax Features
+## 🚀 ProMax additions compared with Sahne+ 1.4.1
 
-These tools are ProMax additions built on its modular server and overlay architecture. Upstream-derived features are described separately under Updates & Connectivity:
+I checked these against the [upstream 1.4.1 source](https://github.com/AmirEyZed/sahne-plus/tree/v1.4.1). They are present in ProMax and do not have an equivalent feature in that upstream release. This comparison is version-specific; it does not imply upstream will never add them.
 
-| Feature                         | What it does                                                                                                                                                                                                          |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **⌨️ Kick Chat Commands**       | Viewers type `!command` in Kick chat and the mapped file plays — free, rate-limited (per viewer / global / per minute), with a dedicated card template.                                                               |
-| **🥇 Sub-First Queue Priority** | Sub and gift-sub alerts jump ahead of regular tips (FIFO inside each class); capture retries return to the back and manual replays go to the front.                                                                   |
-| **🎊 Milestone Confetti**       | Overlay confetti on goal completion (once per goal), on donations above a configurable toman threshold, and on the first sub of the day.                                                                              |
-| **⏳ Timed Goal Countdown**     | Optional deadline on the goal widget with a live Persian countdown, expiry state, and server-clock skew correction.                                                                                                   |
-| **🔢 Sub & Gift Counters**      | The goal widget counts subscription events, gifted subscriptions, and today's subs — reset with the goal or hidden entirely.                                                                                          |
-| **📜 Alert History**            | When recording is enabled, displayed alerts are saved locally (20k detailed entries), with per-day and donor totals that survive restarts and are included in backups. When disabled, new alerts update live totals in memory only. |
-| **🥇 Top-Donors Widget**        | A second OBS Browser Source (`/top`) with a live leaderboard for today / last 7 days / all-time, medals included.                                                                                                     |
-| **🎯 Live Goal Widget**         | A standalone OBS Browser Source (`/goal`) with an animated progress bar, Persian Toman figures, and confetti at 100%. Eligible live alerts update the amount when auto-increment is on.                               |
-| **🎨 Multi-Profile Overlays**   | Independent appearance profiles per OBS scene via URL (`/overlay?profile=gameplay`, `?profile=chatting`) — no duplicate server, no re-editing.                                                                        |
-| **🎵 Paired Media**             | Attach an audio track (`.mp3`/`.wav`/`.ogg`) to a static image alert; the overlay follows the audio length, subject to the alert's duration and safety limits.                                                                                     |
-| **🎖️ Milestone & Tier Alerts**  | Per-file thresholds for sub-renewal months (`minMonths`/`maxMonths`) and gift-sub counts (`minCount`/`maxCount`).                                                                                                     |
-| **🎛️ Stream Deck REST API**     | Local endpoints (`/api/control/skip`, `/replay`, `/pause`, `/resume`, `/mute`, `/volume`, `/clear`) for hardware keypads and macros.                                                                                  |
-| **💾 1-Click Backup & Restore** | Export/import settings, media and alert history (see Backup & Restore below) as a standard `.zip` using Node's native `zlib` — no external tools.                                                                     |
-| **🧭 Media Routing Rules**      | Ordered conditions (provider, alert type, currency, toman range, message, sub months, gift count) pick the alert file; first match wins, otherwise the existing tier/keyword picker. Explainable from the Rules page. |
-| **📊 Local Analytics Dashboard** | Choose a date range in the existing history and inspect trends, donor/source breakdowns and playback status; no remote analytics service. |
-| **💚 Donofa Tips** | Connect a Donofa API key for paid toman tips and optional TTS; uses the same alert media, queue, rules, goal, and history. |
-| **🪙 Live Currency Rates**      | USD→Toman from Nobitex's USDT/IRT orderbook, with Baha24 as the USD fallback and source for supported non-USD quotes.                                                                                    |
-| **⚡ Performance Engineering**  | Async `fs.promises` I/O for uploads/scans/restores, lazy on-hover video decoding in the file grid, targeted SSE, and HTTP 304 ETag caching.                                                                           |
-| **🧩 Modular Server**           | The backend is split into focused modules (`config`, `http`, `integrations`, `media`, `playback`, `rates`, `utils`) instead of one monolithic file — easier to audit, test, and extend.                               |
-| **🪟 Modern Glassmorphic UI**   | Dark glass design system with custom dropdowns, modal dialogs, slim scrollbars, and a bento-grid layout.                                                                                                              |
+| ProMax addition | What it does |
+| --- | --- |
+| **⌨️ Kick Chat Commands** | Viewers type `!command` in Kick chat and the mapped file plays, with per-viewer and global rate limits and a dedicated card template. |
+| **🥇 Sub-First Queue Priority** | Sub and gift-sub alerts jump ahead of regular tips while keeping FIFO order inside each class; manual replays stay at the front. |
+| **🎊 Milestone Confetti** | Overlay effects for goal completion, a large donation, and the first sub of the day. |
+| **⏳ Timed Goal Countdown** | An optional deadline on the goal widget with a Persian countdown and expiry state. |
+| **🔢 Sub & Gift Counters** | Goal-widget counters for subscriptions, gifted subscriptions, and today's subs. |
+| **🥇 Top-Donors OBS Widget** | A separate `/top` Browser Source with a live leaderboard. Sahne+ has top donors in Analytics, but not this OBS widget. |
+| **🎯 Live Goal OBS Widget** | A separate `/goal` Browser Source with progress, donation/sub updates, and completion effects. |
+| **🎨 Multi-Profile Overlays** | Appearance profiles selected per OBS scene with `/overlay?profile=…`. |
+| **🎵 Paired Media** | Attach an uploaded audio track to an image alert; playback follows the audio, subject to duration limits. |
+| **🎖️ Subscription Tiers** | Per-file renewal-month and gift-count ranges for subscription alerts. |
+| **🎛️ Stream Deck REST API** | Dedicated `/api/control/*` endpoints for skip, replay, pause, resume, mute, volume, and clear. |
+| **💾 ZIP Backup & Restore** | Export and import settings, media, and saved history as a standard `.zip`. |
+| **🧭 Media Routing Rules** | Ordered conditions for provider, event type, currency, amount, message, months, and gift count; a simulator explains the chosen file. |
+| **💚 Donofa Tips** | Paid toman donations and optional TTS through Donofa, integrated with ProMax's queue, rules, widgets, and history. |
+
+### Features now shared with upstream
+
+| Capability | What differs in ProMax |
+| --- | --- |
+| **📜 Local alert history and analytics** | Sahne+ added its own local Analytics page and recording switch in 1.4.0. ProMax uses its `history.json` ledger with a 20,000-entry detail limit and keeps live totals in memory when recording is off. |
+| **🪙 Currency conversion** | Both convert tips to toman. ProMax uses Nobitex for the primary USD rate and Baha24 for fallback and supported non-USD quotes. |
+| **🎬 Queue recovery and long media** | Both now retain waiting alerts and let long media finish. ProMax adapts this behavior to Donofa, its sub-first queue, and its own overlay architecture. |
+
+ProMax also uses a modular server and targeted SSE, ETag caching, and lazy file previews. Those are implementation choices, so they are documented under [Architecture](#architecture) and [Performance](#performance) rather than claimed as exclusive streamer features.
 
 ---
 
 <a id="key-features"></a>
 
 ## ✨ Key Features
+
+<a id="performance"></a>
 
 ### ⚡ Performance & Resource Efficiency
 
