@@ -141,23 +141,26 @@ class KickBotClient {
       is_test: !!p.is_test,
       gif_url: httpsUrl(p.gif_url),
       audio_url: httpsUrl(p.audio_url),
-      created_at: p.created_at
+      created_at: p.created_at,
+      source: 'kickbot'
     };
   }
 
   handleEvent(type, raw) {
     if (type === 'pulse') return;
-    const p = type.startsWith('tip_') ? this.normalizeTip(raw) : raw;
+    const isTip = type.startsWith('tip_') && type !== 'tip_queue_config_updated';
+    const p = isTip ? this.normalizeTip(raw) : raw;
     if (type !== 'tip_play' && type !== 'tip_end') {
-      this.logger.info('ایونت: ' + type, type.startsWith('tip_') ? this.queue.tipSummary(p) : p);
+      this.logger.info('ایونت: ' + type, isTip ? this.queue.tipSummary(p) : p);
     }
 
     switch (type) {
       case 'tip_queue_config_updated':
-        this.queue.queueMode = p.queue_mode ?? this.queue.queueMode;
+        if (typeof p.queue_mode === 'string') this.queue.queueMode = p.queue_mode.slice(0, 20);
         this.queue.queueDelay = finite(p.queue_delay, 0, 600, this.queue.queueDelay);
-        this.queue.queueStatus = p.queue_status ?? this.queue.queueStatus;
-        this.queue.tippingEnabled = p.is_active ?? this.queue.tippingEnabled;
+        if (p.queue_status === 'play' || p.queue_status === 'pause') this.queue.queueStatus = p.queue_status;
+        if (typeof p.is_active === 'boolean') this.queue.tippingEnabled = p.is_active;
+        this.queue.tryNext();
         break;
       case 'queue_play':
         this.queue.queueStatus = 'play';
@@ -255,7 +258,7 @@ class KickBotClient {
     this.configStore.saveConfig();
     this.resetConnection();
     // The queue is shared with Kick subscriptions and other tip providers.
-    const belongsToKickBot = tip => (tip.source || (tip.is_local ? 'kick' : 'kickbot')) === 'kickbot' && !tip.is_test;
+    const belongsToKickBot = tip => (tip.source || (tip.is_local ? 'kick' : 'kickbot')) === 'kickbot' && !tip.is_replay;
     this.queue.pending = this.queue.pending.filter(tip => !belongsToKickBot(tip));
     this.queue.approved = this.queue.approved.filter(tip => !belongsToKickBot(tip));
     this.sse.sendState();

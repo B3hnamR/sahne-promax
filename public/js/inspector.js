@@ -8,6 +8,7 @@ const insT = new Map();
 const scheduledBodies = new Map();
 const editGenerations = new Map();
 const pendingSaves = new Map();
+const drafts = new Map();
 const typeLabel = { video: 'ویدیو', image: 'تصویر', audio: 'صدا' };
 
 export function selectFile(id, { onUpdate, onDelete }) {
@@ -65,6 +66,28 @@ export function selectFile(id, { onUpdate, onDelete }) {
   if (minC) minC.value = f.minCount ?? '';
   if (maxC) maxC.value = f.maxCount ?? '';
 
+  const draft = drafts.get(id);
+  if (draft) {
+    for (const [key, sel] of Object.entries({
+      name: '#iName',
+      minToman: '#iMin',
+      maxToman: '#iMax',
+      volume: '#iVol',
+      duration: '#iDur',
+      cardDelay: '#iCardDelay',
+      minMonths: '#iMinMonths',
+      maxMonths: '#iMaxMonths',
+      minCount: '#iMinCount',
+      maxCount: '#iMaxCount'
+    })) {
+      if ($(sel)) $(sel).value = draft[key] ?? '';
+    }
+    $('#iEnabled').checked = draft.enabled;
+    $('#iKw').value = draft.keywords.join(', ');
+    if (audioSelect) audioSelect.value = draft.audioFile || '';
+  }
+  validateInspectorRange();
+
   $('#inspector').hidden = false;
   $('#shell').classList.add('has-inspector');
 }
@@ -107,6 +130,27 @@ export function collectInspector() {
   };
 }
 
+function validateInspectorRange() {
+  const min = $('#iMin');
+  const max = $('#iMax');
+  const error = $('#iRangeError');
+  const message =
+    min.validity?.badInput || max.validity?.badInput
+      ? 'مبلغ معتبر وارد کنید'
+      : max.value !== '' && Number(min.value || 0) > Number(max.value)
+        ? 'حداقل مبلغ (تومان) نباید از حداکثر بیشتر باشد'
+        : '';
+  if (error) {
+    error.textContent = message;
+    error.hidden = !message;
+  }
+  for (const el of [min, max]) {
+    el.setAttribute?.('aria-invalid', message ? 'true' : 'false');
+    el.setCustomValidity?.(message);
+  }
+  return !message;
+}
+
 export function initInspector({ onUpdate, onDelete, onPreview }) {
   $('#insClose').onclick = closeInspector;
 
@@ -118,6 +162,8 @@ export function initInspector({ onUpdate, onDelete, onPreview }) {
       try {
         const r = await patch('/api/file', body);
         if (r.ok) {
+          if (drafts.get(body.id) && JSON.stringify(drafts.get(body.id)) === JSON.stringify(body))
+            drafts.delete(body.id);
           const f = (state.cfg.files || []).find(x => x.id === body.id);
           if (f) Object.assign(f, r.file);
           if (typeof onUpdate === 'function') onUpdate();
@@ -166,7 +212,14 @@ export function initInspector({ onUpdate, onDelete, onPreview }) {
       // Capture both the file and its edited values before selection can change.
       // Keep one debounce timer per file so editing another card cannot cancel it.
       const body = collectInspector();
+      drafts.set(body.id, body);
       clearTimeout(insT.get(body.id));
+      insT.delete(body.id);
+      $('#insSaved').classList.remove('show');
+      if (!validateInspectorRange()) {
+        scheduledBodies.delete(body.id);
+        return;
+      }
       const scheduled = { body, generation: (editGenerations.get(body.id) || 0) + 1 };
       editGenerations.set(body.id, scheduled.generation);
       scheduledBodies.set(body.id, scheduled);
@@ -224,6 +277,7 @@ export function initInspector({ onUpdate, onDelete, onPreview }) {
     insT.delete(f.id);
     scheduledBodies.delete(f.id);
     editGenerations.delete(f.id);
+    drafts.delete(f.id);
     closeInspector();
     toast('حذف شد', 'ok');
     if (typeof onDelete === 'function') onDelete();

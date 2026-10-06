@@ -11,11 +11,13 @@ class SseManager {
     };
     this.keepAliveTimer = null;
     this.getState = null;
+    this.onState = null;
     this.clientProfiles = new WeakMap();
   }
 
-  init({ getState }) {
+  init({ getState, onState }) {
     this.getState = getState;
+    this.onState = onState;
     this.keepAliveTimer = setInterval(() => {
       for (const role of Object.keys(this.clients)) {
         for (const res of this.clients[role]) {
@@ -74,6 +76,7 @@ class SseManager {
   }
 
   sendState() {
+    if (this.onState) this.onState();
     if (this.getState) {
       this.broadcast('admin', { type: 'state', state: this.getState() });
     }

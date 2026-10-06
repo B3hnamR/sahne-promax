@@ -261,6 +261,7 @@ class KickChatClient {
       tip_message: cleanText(message, LIMITS.message),
       approval_status: 'approved',
       is_local: true,
+      source: 'kick',
       kind,
       count,
       months,

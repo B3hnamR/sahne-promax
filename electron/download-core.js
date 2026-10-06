@@ -28,12 +28,30 @@ async function readLimitedText(body, maxBytes) {
 // pipeline owns both streams for the whole transfer. In particular, a disk write
 // failure while waiting for backpressure must reject instead of becoming an
 // unhandled stream error or leaving the updater waiting for a drain event.
-async function streamDownload(body, output, { maxBytes, total = 0, onProgress = () => {} }) {
+async function streamDownload(
+  body,
+  output,
+  { maxBytes, total = 0, onProgress = () => {}, stallMs = 60000, onStall = () => {} }
+) {
   const hash = crypto.createHash('sha256');
   let received = 0;
   let lastPercent = -1;
+  const stalled = new AbortController();
+  let timer;
+  let stallError = null;
+  const resetStall = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      stallError = new Error(
+        output.writableNeedDrain ? 'download: writing to disk timed out' : 'download: waiting for data timed out'
+      );
+      stalled.abort(stallError);
+      onStall();
+    }, stallMs);
+  };
   const meter = new Transform({
     transform(chunk, encoding, callback) {
+      resetStall();
       received += chunk.length;
       if (received > maxBytes) return callback(new Error('installer too large'));
       hash.update(chunk);
@@ -45,7 +63,14 @@ async function streamDownload(body, output, { maxBytes, total = 0, onProgress = 
       callback(null, chunk);
     }
   });
-  await pipeline(Readable.fromWeb(body), meter, output);
+  resetStall();
+  try {
+    await pipeline(Readable.fromWeb(body), meter, output, { signal: stalled.signal });
+  } catch (e) {
+    throw stallError || e;
+  } finally {
+    clearTimeout(timer);
+  }
   return { bytes: received, sha256: hash.digest('hex') };
 }
 

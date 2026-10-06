@@ -364,7 +364,8 @@ test('disconnecting KickBot removes only its queued tips', () => {
       { stripe_pi_id: 'kb-approved', source: 'kickbot' },
       { stripe_pi_id: 'se', source: 'streamelements', is_local: true },
       { stripe_pi_id: 'sub', source: 'kick', is_local: true },
-      { stripe_pi_id: 'test', source: 'kickbot', is_test: true }
+      { stripe_pi_id: 'test', source: 'kickbot', is_test: true },
+      { stripe_pi_id: 'app-test', source: 'app', is_test: true }
     ]
   };
   const client = new KickBotClient({
@@ -387,7 +388,7 @@ test('disconnecting KickBot removes only its queued tips', () => {
   );
   assert.deepEqual(
     queue.approved.map(tip => tip.stripe_pi_id),
-    ['se', 'sub', 'test']
+    ['se', 'sub', 'app-test']
   );
 });
 

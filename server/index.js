@@ -14,6 +14,7 @@ const { GoalManager } = require('./features/goal');
 const { PlaybackQueue } = require('./playback/queue');
 const { tipToman } = require('./playback/rules');
 const { createCaptureTip } = require('./playback/capture');
+const { WaitingStore } = require('./playback/waiting-store');
 const { KickBotClient } = require('./integrations/kickbot');
 const { KickChatClient } = require('./integrations/kick-chat');
 const { StreamElementsClient } = require('./integrations/streamelements');
@@ -53,6 +54,7 @@ function createServer(opts = {}) {
   });
 
   const playedStore = new PlayedStore(dataDir);
+  const waitingStore = new WaitingStore(dataDir, playedStore, logger);
   const historyStore = new HistoryStore(dataDir, { logger: (level, msg, extra) => logger.log(level, msg, extra) });
   const goalManager = new GoalManager({ configStore, logger, sse });
   const rateManager = new RateManager({ configStore, logger, sse, systemProxy: opts.systemProxy });
@@ -75,6 +77,7 @@ function createServer(opts = {}) {
     rateManager,
     captureFn,
     historyStore,
+    waitingStore,
     publishFn: (ev, pl) => {
       if (kickBotClient) kickBotClient.publish(ev, pl);
     },
@@ -171,7 +174,7 @@ function createServer(opts = {}) {
     };
   }
 
-  sse.init({ getState: getPublicState });
+  sse.init({ getState: getPublicState, onState: () => playbackQueue.persistWaiting() });
 
   const routerHandler = createHttpRouter({
     dataDir,
@@ -260,6 +263,7 @@ function createServer(opts = {}) {
       streamElementsClient.disconnect();
       donofaClient.disconnect();
       playbackQueue.stop();
+      waitingStore.clear();
       configStore.setSecret('');
       configStore.setSeToken('');
       configStore.setDonofaKey('');

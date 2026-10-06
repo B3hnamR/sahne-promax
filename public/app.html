@@ -91,7 +91,7 @@
       <div class="card setup" id="setupCard" hidden>
         <h3><svg><use href="#i-link"/></svg>راه‌اندازی اولیه</h3>
         <p class="hint" style="margin:0 0 12px">لینک ویجت دونیت کیک‌بات خودت رو اینجا بچسبون (داشبورد KickBot → Tipping → Widget URL؛ لینکی شبیه <code>https://widgets.kickbot.com/external/tipping/…</code>).</p>
-        <div class="url"><input type="text" id="setupUrl" placeholder="https://widgets.kickbot.com/external/tipping/xxxxxxxx%3Axxxxxxxx"><button class="btn primary" id="btnSetup">اتصال</button></div>
+        <div class="url"><input type="password" id="setupUrl" placeholder="https://widgets.kickbot.com/external/tipping/xxxxxxxx%3Axxxxxxxx" autocomplete="off"><button class="btn primary" id="btnSetup">اتصال</button></div>
         <p class="hint" id="setupMsg"></p>
       </div>
       <div class="bento">
@@ -447,7 +447,7 @@
           <div class="kv"><b>Streamer ID</b><span class="num" id="kbStreamer">—</span></div>
           <div class="kv"><b>کلید ویجت (Secret)</b><span id="kbSecret" class="hint" style="margin:0">—</span></div>
           <p class="hint">کلید ویجت هرگز نمایش داده نمی‌شود، در لاگ نمی‌آید و در صورت پشتیبانی ویندوز به‌صورت رمزنگاری‌شده (DPAPI) ذخیره می‌شود. هر کسی که این لینک را داشته باشد می‌تواند رویدادهای دونیت شما را دریافت کند؛ آن را با کسی به اشتراک نگذارید.</p>
-          <div class="field" style="margin:10px 0"><label>تغییر اتصال: لینک ویجت جدید</label><div class="url"><input type="text" id="setupUrl2" placeholder="https://widgets.kickbot.com/external/tipping/…" autocomplete="off"><button class="btn" id="btnSetup2">اتصال</button></div><span class="hint" id="setupMsg2"></span></div>
+          <div class="field" style="margin:10px 0"><label>تغییر اتصال: لینک ویجت جدید</label><div class="url"><input type="password" id="setupUrl2" placeholder="https://widgets.kickbot.com/external/tipping/…" autocomplete="off"><button class="btn" id="btnSetup2">اتصال</button></div><span class="hint" id="setupMsg2"></span></div>
           <div class="row"><button class="btn danger" id="btnDisconnect"><svg><use href="#i-x"/></svg>قطع اتصال و حذف کلید کیک‌بات</button></div>
         </div>
         <div class="card span-6">
@@ -515,6 +515,7 @@
           <div class="grid">
             <div class="field"><div class="switch-row"><label class="lbl" style="margin:0">اجرا هنگام ورود به ویندوز (پس‌زمینه)</label><label class="switch"><input type="checkbox" id="autostart"><span></span></label></div></div>
             <div class="field"><div class="switch-row"><label class="lbl" style="margin:0">بررسی خودکار نسخه‌ی جدید (از GitHub، هر ۶ ساعت)</label><label class="switch"><input type="checkbox" id="updCheck"><span></span></label></div></div>
+            <div class="field"><div class="switch-row"><label class="lbl" style="margin:0">ثبت تاریخچه‌ی الرت‌ها برای آمار محلی</label><label class="switch"><input type="checkbox" id="recordHistory"><span></span></label></div></div>
             <div class="field"><label>پوشه‌ی داده‌ها</label><div class="row"><input type="text" id="dataDir" readonly class="ltr" style="flex:1"><button class="btn icon" id="btnOpenData" title="باز کردن"><svg><use href="#i-folder"/></svg></button></div></div>
             <div class="field"><label>نسخه</label><input type="text" id="appVer" readonly class="ltr"></div>
           </div>
@@ -602,8 +603,9 @@
     <div class="fields">
       <div class="field"><label>اسم نمایشی</label><input type="text" id="iName"></div>
       <div class="switch-row"><label class="lbl" style="margin:0">فعال</label><label class="switch"><input type="checkbox" id="iEnabled"><span></span></label></div>
-      <div class="field"><label><span>حداقل مبلغ (تومان)</span><span class="chip" id="iMinChip"></span></label><input type="number" id="iMin" min="0" step="10000" class="ltr"></div>
-      <div class="field"><label>حداکثر مبلغ (تومان) — خالی = نامحدود</label><input type="number" id="iMax" min="0" step="10000" class="ltr"></div>
+      <div class="field"><label><span>حداقل مبلغ (تومان)</span><span class="chip" id="iMinChip"></span></label><input type="number" id="iMin" min="0" step="10000" class="ltr" aria-describedby="iRangeError"></div>
+      <div class="field"><label>حداکثر مبلغ (تومان) — خالی = نامحدود</label><input type="number" id="iMax" min="0" step="10000" class="ltr" aria-describedby="iRangeError"></div>
+      <p class="hint" id="iRangeError" role="alert" hidden></p>
       <div class="field"><label>کلمات کلیدی داخل پیام (با , جدا کن) — خالی = فقط مبلغ</label><input type="text" id="iKw" placeholder="!dance, رقص, sub"></div>
       <div class="field" id="iAudioRow" hidden>
         <label>صدای همزمان برای تصویر (Audio Pairing)</label>

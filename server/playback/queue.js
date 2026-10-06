@@ -16,6 +16,7 @@ class PlaybackQueue {
     captureFn,
     publishFn,
     historyStore = null,
+    waitingStore = null,
     captureRetryMs = 15000
   }) {
     this.configStore = configStore;
@@ -27,10 +28,11 @@ class PlaybackQueue {
     this.capture = captureFn;
     this.publish = publishFn || (() => {});
     this.historyStore = historyStore;
+    this.waitingStore = waitingStore;
     this.captureRetryMs = Number(captureRetryMs) || 15000;
 
     this.pending = [];
-    this.approved = [];
+    this.approved = waitingStore ? waitingStore.load() : [];
     this.playing = null;
     this.recent = [];
     this.queueStatus = 'play';
@@ -43,6 +45,7 @@ class PlaybackQueue {
     this.lastEnd = 0;
     this.nextTimer = null;
     this.playTimeout = null;
+    this.playTimeoutAt = 0;
     this.advancing = false;
     this.captureFailures = new Map();
     this.CAPTURE_MAX_ATTEMPTS = 3;
@@ -53,6 +56,10 @@ class PlaybackQueue {
 
   setGoalManager(gm) {
     this.goalManager = gm;
+  }
+
+  persistWaiting() {
+    if (this.waitingStore) this.waitingStore.save(this.approved);
   }
 
   tipSummary(t) {
@@ -128,7 +135,7 @@ class PlaybackQueue {
       this.playing = t;
       this.sse.sendState();
 
-      if (!t.is_test && !t.is_local) {
+      if (!t.is_test && !t.is_local && !t.captured) {
         const res = await this.capture(t);
         if (!this.playing || this.playing.stripe_pi_id !== t.stripe_pi_id) return;
         if (res !== 'ok') {
@@ -164,8 +171,19 @@ class PlaybackQueue {
           next = this.approved.length > 1;
           return;
         }
-        this.publish('tip_play', { stripe_pi_id: t.stripe_pi_id });
+        t.captured = true;
+        if (this.waitingStore) this.waitingStore.save([t, ...this.approved]);
       }
+
+      if (this.sse.clientCount('overlay') === 0) {
+        this.playing = null;
+        this.approved.unshift(t);
+        this.logger.warn('Browser Source disconnected; paid alert is waiting', this.tipSummary(t));
+        this.sse.sendState();
+        return;
+      }
+
+      if (!t.is_test && !t.is_local) this.publish('tip_play', { stripe_pi_id: t.stripe_pi_id });
 
       this.captureFailures.delete(t.stripe_pi_id);
       this.playedStore.markPlayed(t.stripe_pi_id);
@@ -202,7 +220,7 @@ class PlaybackQueue {
         at: Date.now()
       });
       if (this.recent.length > 30) this.recent.pop();
-      if (this.historyStore) {
+      if (this.historyStore && config.app?.recordHistory !== false) {
         this.historyStore.add({
           id: t.stripe_pi_id,
           name: t.tipper_name,
@@ -266,7 +284,7 @@ class PlaybackQueue {
     if (this.recent.length > 30) this.recent.pop();
 
     // Played alerts contribute to the history totals and the /top widget.
-    if (this.historyStore) {
+    if (this.historyStore && config.app?.recordHistory !== false) {
       const hist = this.historyStore.add({
         id: payload.id,
         name: payload.name,
@@ -310,12 +328,21 @@ class PlaybackQueue {
     this.logger.info('نمایش دونیت', { ...this.tipSummary(t), media: media ? media.file : '-' });
     this.sse.broadcast('overlay', { type: 'play', tip: payload });
 
-    clearTimeout(this.playTimeout);
-    this.playTimeout = setTimeout(
-      () => this.finishPlaying(t.stripe_pi_id, false, true),
-      (config.appearance.maxDuration + 15) * 1000
-    );
+    this.armPlayTimeout(t.stripe_pi_id, config.appearance.maxDuration);
     this.sse.sendState();
+  }
+
+  armPlayTimeout(id, seconds) {
+    clearTimeout(this.playTimeout);
+    const ms = (seconds + 15) * 1000;
+    this.playTimeoutAt = Date.now() + ms;
+    this.playTimeout = setTimeout(() => this.finishPlaying(id, false, true), ms);
+  }
+
+  extendPlaying(id, seconds) {
+    if (this.configStore.config.mode === 'companion' || !this.playing || this.playing.stripe_pi_id !== id) return;
+    const duration = finite(seconds, 0, 3600, 0);
+    if (duration > 0 && (duration + 15) * 1000 > this.playTimeoutAt - Date.now()) this.armPlayTimeout(id, duration);
   }
 
   finishPlaying(id, rejected, timedOut) {
@@ -409,6 +436,7 @@ class PlaybackQueue {
       tip_message: cleanText(message, LIMITS.message),
       approval_status: 'approved',
       is_test: true,
+      source: 'app',
       kind,
       count: intOrNull(count, 1, 100),
       months: intOrNull(months, 1, 240),
@@ -419,6 +447,7 @@ class PlaybackQueue {
   clearQueue() {
     this.approved = [];
     this.pending = [];
+    this.persistWaiting();
     this.logger.info('صف خالی شد');
     this.sse.sendState();
   }

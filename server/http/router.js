@@ -20,6 +20,17 @@ function json(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 
+function fileRangeError(file, update) {
+  for (const [min, max, label] of [
+    ['minToman', 'maxToman', 'تومان'],
+    ['minAmount', 'maxAmount', 'دلار']
+  ]) {
+    if ((min in update || max in update) && file[max] != null && (file[min] ?? 0) > file[max])
+      return `حداقل مبلغ (${label}) نباید از حداکثر بیشتر باشد`;
+  }
+  return null;
+}
+
 function readBody(req, limit = 4 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -536,6 +547,19 @@ function createHttpRouter(context) {
         const body = await readJson(req);
         const config = configStore.config;
 
+        const fileUpdates = new Map();
+        if (Array.isArray(body.files)) {
+          for (const raw of body.files) {
+            const cur = raw && config.files.find(x => x.id === raw.id);
+            if (!cur) continue;
+            const previous = fileUpdates.get(cur.id)?.merged || cur;
+            const merged = sanitizeFile({ ...previous, ...raw, id: cur.id, file: cur.file, size: cur.size });
+            if (!merged) continue;
+            const error = fileRangeError(merged, raw);
+            if (error) return json(res, 400, { error, code: 'invalid_amount_range' });
+            fileUpdates.set(cur.id, { cur, merged });
+          }
+        }
         if (body.appearance) config.appearance = sanitizeAppearance(body.appearance, config.appearance);
         if (body.profiles && typeof body.profiles === 'object') {
           config.profiles = { ...config.profiles, ...body.profiles };
@@ -544,14 +568,7 @@ function createHttpRouter(context) {
           goalManager.setGoal(body.goal);
         }
 
-        if (Array.isArray(body.files)) {
-          for (const raw of body.files) {
-            const cur = raw && config.files.find(x => x.id === raw.id);
-            if (!cur) continue;
-            const merged = sanitizeFile({ ...cur, ...raw, id: cur.id, file: cur.file, size: cur.size });
-            if (merged) Object.assign(cur, merged);
-          }
-        }
+        for (const { cur, merged } of fileUpdates.values()) Object.assign(cur, merged);
 
         if (body.mode && ENUMS.mode.includes(body.mode)) config.mode = body.mode;
         if (typeof body.showAlertWithoutMedia === 'boolean') config.showAlertWithoutMedia = body.showAlertWithoutMedia;
@@ -559,7 +576,9 @@ function createHttpRouter(context) {
           config.app = {
             ...config.app,
             autostart: body.app.autostart === undefined ? config.app.autostart : !!body.app.autostart,
-            updateCheck: body.app.updateCheck === undefined ? config.app.updateCheck !== false : !!body.app.updateCheck
+            updateCheck: body.app.updateCheck === undefined ? config.app.updateCheck !== false : !!body.app.updateCheck,
+            recordHistory:
+              body.app.recordHistory === undefined ? config.app.recordHistory !== false : !!body.app.recordHistory
           };
         }
 
@@ -630,6 +649,8 @@ function createHttpRouter(context) {
         if (!f) return json(res, 404, { error: 'not found' });
         const merged = sanitizeFile({ ...f, ...body, id: f.id, file: f.file, size: f.size });
         if (!merged) return json(res, 400, { error: 'invalid' });
+        const rangeError = fileRangeError(merged, body);
+        if (rangeError) return json(res, 400, { error: rangeError, code: 'invalid_amount_range' });
         Object.assign(f, merged);
         configStore.saveConfig();
         sse.sendState();
@@ -894,6 +915,12 @@ function createHttpRouter(context) {
       if (p === '/api/done' && req.method === 'POST') {
         const body = await readJson(req);
         playbackQueue.finishPlaying(body.id, false, false);
+        return json(res, 200, { ok: true });
+      }
+
+      if (p === '/api/extend' && req.method === 'POST') {
+        const body = await readJson(req);
+        playbackQueue.extendPlaying(String(body.id || ''), body.seconds);
         return json(res, 200, { ok: true });
       }
 

@@ -163,7 +163,7 @@ const DEFAULT_CONFIG = {
     showNewSubs: true
   },
   se: { channelId: null, username: null, provider: null },
-  app: { autostart: true, updateCheck: true, updateNotifiedFor: null }
+  app: { autostart: true, updateCheck: true, recordHistory: true, updateNotifiedFor: null }
 };
 
 const FONTS = ['Vazirmatn', 'Estedad', 'Lalezar', 'Inter', 'Poppins', 'Segoe UI', 'Tahoma'];

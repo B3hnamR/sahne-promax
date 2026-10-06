@@ -10,6 +10,24 @@ const { spawn } = require('child_process');
 const core = require('./update-core');
 const { readLimitedText, streamDownload } = require('./download-core');
 
+function withTimeout(promise, ms, what, onTimeout) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(what + ' timed out'));
+      try {
+        onTimeout();
+      } catch {}
+    }, ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+const DISK_ERRORS = new Set(['ENOSPC', 'EDQUOT', 'EACCES', 'EPERM', 'EBUSY', 'EROFS', 'EIO', 'EMFILE', 'ENFILE']);
+function isDiskError(e) {
+  return DISK_ERRORS.has(e?.code) || /writing to disk timed out/.test(String(e?.message));
+}
+
 function createUpdater({ version, canInstall, dryRun, log, onChange }) {
   let st = {
     status: 'idle', // idle | checking | uptodate | available | downloading | ready (dry run) | installing | error
@@ -92,9 +110,25 @@ function createUpdater({ version, canInstall, dryRun, log, onChange }) {
   }
 
   async function fetchText(url) {
-    const r = await net.fetch(url, { headers, cache: 'no-store' });
-    if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + path.basename(url));
-    return readLimitedText(r.body, core.MAX_SUMS_BYTES);
+    const ac = new AbortController();
+    try {
+      return await withTimeout(
+        (async () => {
+          const r = await net.fetch(url, { headers, cache: 'no-store', signal: ac.signal });
+          if (!r.ok) {
+            if (r.body) r.body.cancel().catch(() => {});
+            throw new Error('HTTP ' + r.status + ' for ' + path.basename(url));
+          }
+          return readLimitedText(r.body, core.MAX_SUMS_BYTES);
+        })(),
+        30000,
+        path.basename(url),
+        () => ac.abort()
+      );
+    } catch (e) {
+      ac.abort();
+      throw e;
+    }
   }
 
   async function download(latest) {
@@ -104,18 +138,31 @@ function createUpdater({ version, canInstall, dryRun, log, onChange }) {
     fs.rmSync(dir, { recursive: true, force: true });
     fs.mkdirSync(dir, { recursive: true });
     const dest = path.join(dir, file);
-    const r = await net.fetch(core.assetUrl(latest, file), { headers, cache: 'no-store' });
+    const ac = new AbortController();
+    const r = await withTimeout(
+      net.fetch(core.assetUrl(latest, file), { headers, cache: 'no-store', signal: ac.signal }),
+      30000,
+      file,
+      () => ac.abort()
+    );
     if (!r.ok || !r.body) throw new Error('HTTP ' + r.status + ' for ' + file);
     const total = Number(r.headers.get('content-length')) || 0;
     if (total > core.MAX_INSTALLER_BYTES) {
       await r.body.cancel().catch(() => {});
       throw new Error('installer too large');
     }
-    const { sha256 } = await streamDownload(r.body, fs.createWriteStream(dest), {
-      maxBytes: core.MAX_INSTALLER_BYTES,
-      total,
-      onProgress: progress => set({ progress })
-    });
+    let sha256;
+    try {
+      ({ sha256 } = await streamDownload(r.body, fs.createWriteStream(dest), {
+        maxBytes: core.MAX_INSTALLER_BYTES,
+        total,
+        onProgress: progress => set({ progress }),
+        onStall: () => ac.abort()
+      }));
+    } catch (e) {
+      ac.abort();
+      throw e;
+    }
     if (sha256 !== expected) throw new Error('checksum: SHA-256 of the download does not match SHA256SUMS.txt');
     const head = Buffer.alloc(2);
     const fd = fs.openSync(dest, 'r');
@@ -140,12 +187,15 @@ function createUpdater({ version, canInstall, dryRun, log, onChange }) {
         fs.rmSync(dir, { recursive: true, force: true });
       } catch {}
       log('error', 'دانلود آپدیت ناموفق بود', e.message);
+      if (fs.existsSync(dir)) log('warn', 'فایل ناقص آپدیت پاک نشد', dir);
       set({
         status: 'available',
         progress: 0,
         error: /^checksum/.test(e.message)
           ? 'فایل دانلودشده با چک‌سام رسمی جور نبود و نصب نشد.'
-          : 'دانلود ناموفق بود؛ اینترنت یا VPN را بررسی کنید و دوباره امتحان کنید.'
+          : isDiskError(e)
+            ? 'ذخیره‌ی فایل آپدیت ناموفق بود؛ فضای خالی دیسک یا آنتی‌ویروس را بررسی کنید و دوباره امتحان کنید.'
+            : 'دانلود ناموفق بود؛ اینترنت یا VPN را بررسی کنید و دوباره امتحان کنید.'
       });
       return { ...st };
     }

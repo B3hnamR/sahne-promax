@@ -5,6 +5,7 @@
   const qs = new URLSearchParams(location.search);
   const isPreview = qs.get('preview') === '1';
   const isEdit = isPreview && qs.get('edit') === '1';
+  const LONGEST_ALERT_MS = 3600 * 1000;
   const profile = qs.get('profile') || '';
   if (isEdit) document.body.classList.add('edit');
   let A = null;
@@ -256,6 +257,7 @@
           };
           v.addEventListener('ended', fin);
           v.addEventListener('error', fin);
+          v.addEventListener('loadedmetadata', () => allowLength(v.duration, m.duration));
           if (m.duration)
             v.addEventListener('timeupdate', () => {
               if (v.currentTime >= m.duration) {
@@ -285,6 +287,7 @@
             };
             a.addEventListener('ended', fin);
             a.addEventListener('error', fin);
+            a.addEventListener('loadedmetadata', () => allowLength(a.duration, m.duration));
             if (m.duration)
               a.addEventListener('timeupdate', () => {
                 if (a.currentTime >= m.duration) {
@@ -312,6 +315,7 @@
           };
           a.addEventListener('ended', fin);
           a.addEventListener('error', fin);
+          a.addEventListener('loadedmetadata', () => allowLength(a.duration, m.duration));
           if (m.duration)
             a.addEventListener('timeupdate', () => {
               if (a.currentTime >= m.duration) {
@@ -335,10 +339,58 @@
       maxMs = (A.maxDuration || 90) * 1000;
     const cardMinMs = cardDelayMs ? cardDelayMs + Math.min(minMs, 4000) : 0; // a delayed card still stays up for a few seconds
     const minWait = new Promise(r => current.timers.push(setTimeout(r, Math.max(minMs, visualDur || 0, cardMinMs))));
-    const cap = new Promise(r => current.timers.push(setTimeout(r, maxMs)));
+    const startedAt = Date.now();
+    const step = Math.min(10000, Math.max(1000, maxMs));
+    let capResolve = () => {},
+      capTimer = null,
+      capMs = maxMs;
+    const cap = new Promise(r => {
+      capResolve = r;
+      capTimer = setTimeout(capCheck, maxMs);
+      current.timers.push(capTimer);
+    });
+    if (m && m.type === 'image' && m.duration) allowLength(m.duration, null);
     Promise.race([Promise.all([Promise.all(waits), minWait]), cap]).then(() => {
       if (current && current.el === el) end();
     });
+    function allowLength(seconds, cut) {
+      if (!current || current.el !== el) return;
+      let duration = Number(seconds);
+      if (!Number.isFinite(duration) || duration <= 0) return;
+      if (cut && Number(cut) > 0) duration = Math.min(duration, Number(cut));
+      const ms = Math.min(Math.ceil(duration * 1000) + 1500, LONGEST_ALERT_MS);
+      if (ms <= capMs) return;
+      capMs = ms;
+      const left = Math.max(0, ms - (Date.now() - startedAt));
+      clearTimeout(capTimer);
+      capTimer = setTimeout(capCheck, left);
+      current.timers.push(capTimer);
+      reportLonger(left);
+    }
+    function capCheck() {
+      if (!current || current.el !== el) return;
+      let moving = false;
+      for (const item of current.media) {
+        const position = Number(item.currentTime) || 0;
+        if (!item.ended && !item.paused && position > (item.capSeen || 0) + 0.5) moving = true;
+        item.capSeen = position;
+      }
+      if (moving && Date.now() - startedAt + step <= LONGEST_ALERT_MS) {
+        capTimer = setTimeout(capCheck, step);
+        current.timers.push(capTimer);
+        reportLonger(step + 1500);
+        return;
+      }
+      capResolve();
+    }
+    function reportLonger(ms) {
+      if (isPreview) return;
+      fetch('/api/extend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: tip.id, seconds: Math.ceil(ms / 1000) })
+      }).catch(() => {});
+    }
   }
 
   // JS-driven animation. If the host does not advance animations (hidden/offscreen page),

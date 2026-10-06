@@ -106,6 +106,8 @@ async function doSetup(inputSel, msgSel) {
   if (msg) msg.textContent = 'در حال بررسی…';
   const r = await post('/api/setup', { url: $(inputSel).value });
   if (r.ok) {
+    if ($('#setupUrl')) $('#setupUrl').value = '';
+    if ($('#setupUrl2')) $('#setupUrl2').value = '';
     toast('متصل شد', 'ok');
     if (msg) msg.textContent = 'انجام شد. Streamer ID: ' + r.streamer_id;
     load();
@@ -285,6 +287,7 @@ function fillApp() {
     $('#updCheck').checked = !(cfg && cfg.app && cfg.app.updateCheck === false);
     $('#updCheck').disabled = !DESK;
   }
+  if ($('#recordHistory')) $('#recordHistory').checked = !(cfg && cfg.app && cfg.app.recordHistory === false);
   if ($('#btnOpenData')) $('#btnOpenData').disabled = !DESK;
   if ($('#btnOpenLog')) $('#btnOpenLog').disabled = !DESK;
   if ($('#btnClearData')) $('#btnClearData').disabled = !DESK;
@@ -791,6 +794,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('#updCheck').onchange = async e => {
       await post('/api/config', { app: { updateCheck: e.target.checked } });
       toast(e.target.checked ? 'بررسی خودکار آپدیت روشن شد' : 'بررسی خودکار آپدیت خاموش شد', 'ok');
+    };
+  }
+  if ($('#recordHistory')) {
+    $('#recordHistory').onchange = async e => {
+      await post('/api/config', { app: { recordHistory: e.target.checked } });
+      load();
     };
   }
 

@@ -28,9 +28,18 @@
 
 **Sahne ProMax** is a modernized, modular fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus) designed for Kick streamers. It plays transparent WebM animations, GIFs, images, and audio alerts for **KickBot donations**, **StreamElements tips**, **Donofa donations**, **Kick subscriptions**, and **Kick gifted subscriptions**. The controller and alert server run locally, with no cloud backend and no runtime npm packages.
 
-ProMax incorporates upstream Sahne+ changes through **1.3.5** and both fixes released in [**1.3.6**](https://github.com/AmirEyZed/sahne-plus/releases/tag/v1.3.6): disconnecting KickBot preserves other providers' queued alerts, and Home shows the playing alert's real amount and currency. The current **2.6.0** release adds **Donofa donations** and a **local analytics dashboard** and removes the Bonbast fallback. Version 2.5.1 fixed the Alert Rules editor, simulator, and preview; 2.5.0 added media routing rules and replay fidelity. ProMax also includes OBS goal and top-donors widgets, Stream Deck controls, paired media, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, and persistent alert history.
+The source on `main` includes the changes from upstream Sahne+ through [**1.4.1**](https://github.com/AmirEyZed/sahne-plus/releases/tag/v1.4.1), adapted to ProMax's modular backend and its extra providers. The latest packaged **2.6.0** release added **Donofa donations** and a **local analytics dashboard** and removed the Bonbast fallback. ProMax also includes OBS goal and top-donors widgets, Stream Deck controls, paired media, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, and alert history.
 
 > **Note:** Sahne ProMax is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Kick, KickBot, StreamElements, Donofa, Nobitex, or Baha24.
+
+### Changes on `main` since 2.6.0
+
+- Paid KickBot tips wait if the Browser Source disconnects during capture, and waiting KickBot, StreamElements, Donofa, and Kick subscription alerts survive an app restart.
+- Videos, audio, and images with a file-specific duration can run past the global alert maximum, with a one-hour safety limit. The queue waits for the actual end.
+- KickBot queue settings now apply, including delay and pause/play; disconnect removes its dashboard test tips while retaining ProMax test alerts and other providers.
+- Widget-link fields are masked and cleared after connecting. The updater times out stalled downloads and reports disk failures separately. The media editor rejects inverted amount ranges.
+- Local history recording can be turned off in Settings → App. The analytics dashboard uses the retained history ledger; older detailed entries remain subject to its 20,000-entry limit.
+- Pull request CI checks both Ubuntu and Windows, and the screenshot script accepts a custom local port.
 
 ### What's new in 2.6.0
 
@@ -62,7 +71,7 @@ These tools are ProMax additions built on its modular server and overlay archite
 | **🎊 Milestone Confetti**       | Overlay confetti on goal completion (once per goal), on donations above a configurable toman threshold, and on the first sub of the day.                                                                              |
 | **⏳ Timed Goal Countdown**     | Optional deadline on the goal widget with a live Persian countdown, expiry state, and server-clock skew correction.                                                                                                   |
 | **🔢 Sub & Gift Counters**      | The goal widget counts subscription events, gifted subscriptions, and today's subs — reset with the goal or hidden entirely.                                                                                          |
-| **📜 Alert History**            | Every displayed alert is persisted (20k entries) with per-day totals and per-donor sums that survive restarts; included in backups.                                                                                   |
+| **📜 Alert History**            | Displayed alerts are persisted when local recording is enabled (20k detailed entries), with per-day totals and per-donor sums that survive restarts; included in backups. |
 | **🥇 Top-Donors Widget**        | A second OBS Browser Source (`/top`) with a live leaderboard for today / last 7 days / all-time, medals included.                                                                                                     |
 | **🎯 Live Goal Widget**         | A standalone OBS Browser Source (`/goal`) with an animated progress bar, Persian Toman figures, and confetti at 100%. Eligible live alerts update the amount when auto-increment is on.                               |
 | **🎨 Multi-Profile Overlays**   | Independent appearance profiles per OBS scene via URL (`/overlay?profile=gameplay`, `?profile=chatting`) — no duplicate server, no re-editing.                                                                        |

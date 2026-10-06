@@ -1,6 +1,6 @@
 # Sahne ProMax — Privacy Policy
 
-_Last updated: 2026-09-25 · Covers the unreleased working tree after Sahne ProMax 2.5.1_
+_Last updated: 2026-10-06 · Covers source on main after Sahne ProMax 2.6.0_
 
 **خلاصه‌ی فارسی:** Sahne ProMax سرور ابری ندارد. تنظیمات، فایل‌های رسانه، گزارش‌ها و سابقه‌ی الرت‌ها روی رایانه‌ی شما می‌مانند و داشبورد آمار از همین سابقهٔ محلی ساخته می‌شود. برای دریافت الرت، برنامه به KickBot و در صورت اتصال به StreamElements و Donofa وصل می‌شود؛ رویداد ساب‌های کیک را از فید عمومی کیک دریافت می‌کند و نرخ ارز را از نوبیتکس و بهاء۲۴ می‌گیرد. برای بررسی نسخه‌ی جدید نیز به گیت‌هاب این مخزن وصل می‌شود. هیچ دادهٔ آماری، تبلیغ یا گزارش خطای خودکاری به سازنده ارسال نمی‌شود و نصب به‌روزرسانی فقط پس از کلیک شما انجام می‌شود.
 
@@ -12,7 +12,7 @@ Sahne ProMax is an independent fork of [Sahne Plus](https://github.com/AmirEyZed
 
 - Sahne ProMax has no cloud backend. Its controller and local alert server run on your computer.
 - The application makes network requests to the third-party services required by its enabled features (section 4). Those providers receive the request data described below.
-- The local analytics dashboard reads the history ledger on your computer. No analytics, telemetry, advertising, or automatic crash reports are sent elsewhere. It checks this fork's GitHub releases for updates; you can turn automatic checks off, and downloads/installations require your click.
+- The local analytics dashboard reads the history ledger on your computer. You can turn new history recording off in Settings → App. No analytics, telemetry, advertising, or automatic crash reports are sent elsewhere. It checks this fork's GitHub releases for updates; you can turn automatic checks off, and downloads/installations require your click.
 
 ## 3. What Sahne ProMax stores on your computer
 
@@ -25,9 +25,10 @@ Application files and settings live in `Documents\\Sahne Plus` for compatibility
 | Imported alert media | `media\\` | Files are copied into the app's data folder; originals are not modified. |
 | Recently played alert IDs | `played.json` | Keeps the most recent 1,000 IDs to avoid replaying events after restart. |
 | Alert history | `history.json` | Stores up to 20,000 displayed alert records, including donor display name, event type, amount/currency and time, plus daily and per-donor aggregates that persist when old records are pruned. Included in backup exports. |
+| Waiting alerts | `waiting-alerts.json` | Stores up to 500 paid alerts that may not be sent again after restart, including captured KickBot tips and waiting StreamElements, Donofa, and Kick subscription alerts. Removed when the queue empties or application data is cleared. |
 | Diagnostic log | `sahne-plus.log` | Local connection status and errors, and alert details such as donor name, amount, message and selected media. The log rotates at 5 MB. Provider credentials are redacted. |
 
-The app's **Clear application data** action removes settings, played IDs, alert history, media and logs after confirmation. Uninstalling preserves the data folder so media and settings survive reinstall; delete `Documents\\Sahne Plus` manually if you want to remove it.
+The app's **Clear application data** action removes settings, played IDs, waiting alerts, alert history, media and logs after confirmation. Uninstalling preserves both the data folder and the Electron profile. To remove them after uninstall, delete `Documents\\Sahne Plus` and `%APPDATA%\\SahnePlus` manually.
 
 Backup exports contain settings, alert history and media, but omit KickBot, StreamElements and Donofa credentials. After restoring a backup, reconnect those providers in Settings. Recently played alert IDs are local to each installation and are not transferred.
 
@@ -50,7 +51,7 @@ The Browser Source may load KickBot-provided HTTPS GIFs/TTS audio and Donofa TTS
 
 ## 5. Data about viewers
 
-Donation and subscription events include viewer names and, for tips, may include messages and amounts. The application displays them on your stream, records displayed alerts in the local history ledger, and may write event details to the local log. The retained history is limited to 20,000 individual records; daily and per-donor aggregates remain until you clear application data. You are responsible for how you display viewer information in your broadcast.
+Donation and subscription events include viewer names and, for tips, may include messages and amounts. The application displays them on your stream, records displayed alerts in the local history ledger when recording is enabled, and may write event details to the local log. The retained history is limited to 20,000 individual records; daily and per-donor aggregates remain until you clear application data. Waiting alerts are stored separately until played or cleared. You are responsible for how you display viewer information in your broadcast.
 
 ## 6. What we do not do
 

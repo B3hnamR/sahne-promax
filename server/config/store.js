@@ -33,6 +33,9 @@ class ConfigStore {
     this.secret = '';
     this.seToken = '';
     this.donofaKey = '';
+    this.secretStorage = 'none';
+    this.seSecretStorage = 'none';
+    this.donofaSecretStorage = 'none';
     let c = {};
     let raw = null;
     try {
@@ -73,21 +76,21 @@ class ConfigStore {
     if (c.secret_id_enc && isStoreAvailable) {
       try {
         this.secret = String(this.store.decrypt(c.secret_id_enc) || '');
-        this.secretStorage = 'os';
+        this.secretStorage = this.secret ? 'os' : 'none';
       } catch {
         this.secret = '';
       }
     } else if (typeof c.secret_id === 'string' && c.secret_id) {
       this.secret = c.secret_id;
-      this.secretStorage = isStoreAvailable ? 'os' : 'plain';
+      this.secretStorage = 'plain';
     } else {
-      this.secretStorage = isStoreAvailable ? 'os' : 'plain';
+      this.secretStorage = 'none';
     }
 
     delete merged.secret_id;
     delete merged.secret_id_enc;
 
-    this.seSecretStorage = isStoreAvailable ? 'os' : 'plain';
+    this.seSecretStorage = 'none';
     if (c.se_token_enc && isStoreAvailable) {
       try {
         this.seToken = String(this.store.decrypt(c.se_token_enc) || '');
@@ -108,7 +111,7 @@ class ConfigStore {
     else merged.se = { ...DEFAULT_CONFIG.se, ...merged.se };
     if (!/^[A-Za-z0-9]{1,64}$/.test(String(merged.se.channelId || ''))) merged.se.channelId = null;
 
-    this.donofaSecretStorage = isStoreAvailable ? 'os' : 'plain';
+    this.donofaSecretStorage = 'none';
     if (c.donofa_key_enc && isStoreAvailable) {
       try {
         this.donofaKey = String(this.store.decrypt(c.donofa_key_enc) || '');
@@ -157,42 +160,33 @@ class ConfigStore {
       if (this.store && typeof this.store.available === 'function' && this.store.available()) {
         try {
           out.secret_id_enc = this.store.encrypt(this.secret);
-          this.secretStorage = 'os';
         } catch {
           out.secret_id = this.secret;
-          this.secretStorage = 'plain';
         }
       } else {
         out.secret_id = this.secret;
-        this.secretStorage = 'plain';
       }
     }
     if (this.seToken) {
       if (this.store && typeof this.store.available === 'function' && this.store.available()) {
         try {
           out.se_token_enc = this.store.encrypt(this.seToken);
-          this.seSecretStorage = 'os';
         } catch {
           out.se_token = this.seToken;
-          this.seSecretStorage = 'plain';
         }
       } else {
         out.se_token = this.seToken;
-        this.seSecretStorage = 'plain';
       }
     }
     if (this.donofaKey) {
       if (this.store && typeof this.store.available === 'function' && this.store.available()) {
         try {
           out.donofa_key_enc = this.store.encrypt(this.donofaKey);
-          this.donofaSecretStorage = 'os';
         } catch {
           out.donofa_key = this.donofaKey;
-          this.donofaSecretStorage = 'plain';
         }
       } else {
         out.donofa_key = this.donofaKey;
-        this.donofaSecretStorage = 'plain';
       }
     }
     return out;
@@ -204,8 +198,10 @@ class ConfigStore {
     ++this.saveGeneration;
     try {
       const tmp = this.cfgPath + '.sync.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(this.serializedConfig(), null, 2));
+      const out = this.serializedConfig();
+      fs.writeFileSync(tmp, JSON.stringify(out, null, 2));
       fs.renameSync(tmp, this.cfgPath);
+      this.updateStorageStatus(out);
     } catch (e) {
       this.log('error', 'ذخیره‌ی config.json ناموفق بود', e.message);
     }
@@ -215,17 +211,26 @@ class ConfigStore {
     const generation = ++this.saveGeneration;
     const tmp = this.cfgPath + '.' + generation + '.tmp';
     try {
-      await fs.promises.writeFile(tmp, JSON.stringify(this.serializedConfig(), null, 2), 'utf8');
+      const out = this.serializedConfig();
+      await fs.promises.writeFile(tmp, JSON.stringify(out, null, 2), 'utf8');
       // The generation check and synchronous rename run in one JS turn. A later
       // synchronous save cannot be overtaken by this older async write.
-      if (generation === this.saveGeneration) fs.renameSync(tmp, this.cfgPath);
-      else await fs.promises.unlink(tmp);
+      if (generation === this.saveGeneration) {
+        fs.renameSync(tmp, this.cfgPath);
+        this.updateStorageStatus(out);
+      } else await fs.promises.unlink(tmp);
     } catch (e) {
       this.log('error', 'ذخیره‌ی async config.json ناموفق بود', e.message);
       try {
         await fs.promises.unlink(tmp);
       } catch {}
     }
+  }
+
+  updateStorageStatus(out) {
+    this.secretStorage = out.secret_id_enc ? 'os' : out.secret_id ? 'plain' : 'none';
+    this.seSecretStorage = out.se_token_enc ? 'os' : out.se_token ? 'plain' : 'none';
+    this.donofaSecretStorage = out.donofa_key_enc ? 'os' : out.donofa_key ? 'plain' : 'none';
   }
 
   debouncedSave(delayMs = 250) {

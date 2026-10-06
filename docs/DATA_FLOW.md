@@ -1,6 +1,6 @@
 # Sahne ProMax — Data-flow overview
 
-Version: unreleased working tree after Sahne ProMax 2.5.1. This is a code-based inventory; network behavior can also depend on Windows, Electron, proxies and the providers.
+Version: source on main after Sahne ProMax 2.6.0, including upstream Sahne+ 1.4.1 behavior. This is a code-based inventory; network behavior can also depend on Windows, Electron, proxies and the providers.
 
 ## 1. Process model
 
@@ -49,8 +49,9 @@ Selected endpoints (all under `http://127.0.0.1:<configured port>`):
 | `/api/control/*` (also `/api/skip`, `/api/replay`, `/api/pause`, `/api/resume`, `/api/mute`, `/api/volume`, `/api/clear`) | POST           | controller / Stream Deck              | playback control                                                                                                                   |
 | `/api/refresh-rate`, `/api/open`                                                                                          | POST           | controller                            | refresh exchange rate / open a local folder                                                                                        |
 | `/api/done`                                                                                                               | POST           | Browser Source                        | `{id}` — tells the queue the alert finished                                                                                        |
+| `/api/extend`                                                                                                             | POST           | Browser Source                        | `{id,seconds}` — extends only the active alert's queue timeout, capped at one hour                                                 |
 
-The Browser Source therefore has access to: the overlay page, static assets, media files, the overlay SSE feed and `/api/done`. It can also technically reach the controller endpoints (same origin), which is inherent to a loopback web UI; the controller endpoints are protected against _other_ origins, not against the overlay page itself. No secret is retrievable from any endpoint.
+The Browser Source therefore has access to: the overlay page, static assets, media files, the overlay SSE feed, `/api/done` and `/api/extend`. It can also technically reach the controller endpoints (same origin), which is inherent to a loopback web UI; the controller endpoints are protected against _other_ origins, not against the overlay page itself. No secret is retrievable from any endpoint.
 
 ## 3. Outbound network connections (complete list)
 
@@ -72,7 +73,7 @@ The Browser Source therefore has access to: the overlay page, static assets, med
 | 3.15 | `https://api.donofa.ir` or `https://api.donofa.com`; `wss://ws.donofa.com`; Donofa HTTPS audio hosts | HTTPS GET, WebSocket, audio GET | key verification, while connected, and when TTS accompanies a donation | API key in the verification header and realtime channel name | paid donation and optional TTS events/audio | `server/integrations/donofa.js`, `public/overlay.js` |
 | —    | optional HTTP CONNECT proxy (`rate.proxy`, user-configured)                                                                    | HTTP                          | for configured Kick and rate-source requests                                                                                                 | destinations pass through the selected proxy route                                                                                             | —                                                                                                                                                        | `httpsRequest()`                                                                                  |
 
-The analytics dashboard computes summaries from the local `history.json` ledger via `/api/analytics`; it sends no analytics data off the computer. No telemetry, crash reporting, advertising or cloud backend is present. Update checks contact this fork's GitHub Releases when enabled; they do not contact upstream. Google Fonts are not used; fonts are bundled locally.
+The analytics dashboard computes summaries from the local `history.json` ledger via `/api/analytics`; new history recording can be disabled in Settings. It sends no analytics data off the computer. No telemetry, crash reporting, advertising or cloud backend is present. Update checks contact this fork's GitHub Releases when enabled; they do not contact upstream. Google Fonts are not used; fonts are bundled locally.
 
 Electron/Chromium platform traffic: the app does not set Google API keys, does not enable the Chromium component updater and does not load remote content in the controller window. Chromium-level background requests (such as certificate checks) have not been exhaustively traced.
 
@@ -85,13 +86,14 @@ Electron/Chromium platform traffic: the app does not set Google API keys, does n
 | `Documents\Sahne Plus\media\*`                                                    | R/W                                            | imported alert media (copied; the source file is never touched)                                            | user content                                                                                               |
 | `Documents\Sahne Plus\played.json`                                                | R/W                                            | last 1000 played tip ids                                                                                   | low                                                                                                        |
 | `Documents\Sahne Plus\history.json`                                               | R/W                                            | up to 20,000 displayed-alert records plus persistent daily and per-donor aggregates                        | viewer names, event details and amounts; included in backups and deleted by Clear application data         |
+| `Documents\Sahne Plus\waiting-alerts.json`                                        | R/W                                            | up to 500 paid alerts awaiting playback across restart; deleted when the queue empties                     | donor names, messages, amounts and optional asset URLs; deleted by Clear application data                   |
 | `Documents\Sahne Plus\.backup-export-*.zip`, `.backup-upload-*.zip`, `.restore-*` | temporary R/W during backup/restore            | streamed ZIP export, uploaded archive and staged restore data; removed after completion                    | settings, media and alert history; exported credentials are omitted                                        |
 | `Documents\Sahne Plus\sahne-plus.log` (+ `.1`)                                    | W, rotates at 5 MB                             | log lines: connection state, tip name / amount / message / media, errors. Secrets are redacted by `safe()` | donor names and messages (personal data of third parties, local only)                                      |
 | `%APPDATA%\SahnePlus\`                                                            | R/W by Chromium                                | Electron userData: cache, local storage, GPU cache, single-instance lock                                   | low                                                                                                        |
 | `Documents\KickAlerts\config.json`, `media\`                                      | **R only, once**                               | legacy import on first run (copy)                                                                          | —                                                                                                          |
 | `%TEMP%\SahneProMax-update\`                                                      | R/W                                            | downloaded installer pending a user-started verified update                                                | installer executable                                                                                       |
 
-Uninstalling preserves the data folder, including `Documents\Sahne Plus`, so reinstall keeps the user's settings and media (`deleteAppDataOnUninstall:false`). "Clear application data" or manual deletion removes local data.
+Uninstalling preserves both `Documents\Sahne Plus` and the Electron profile `%APPDATA%\SahnePlus` (`deleteAppDataOnUninstall:false`). "Clear application data" removes the application data folder contents; to remove the retained Electron profile too, delete it manually after uninstall.
 
 Backup ZIPs omit KickBot, StreamElements and Donofa credentials and proxy passwords for portability. The restore response tells the controller which accounts need reconnection. Played alert IDs are not exported. Restoring keeps the port the app is already listening on and keeps media files that are not present in the backup. Current backup limits are 512 MB per entry, 1 GB total uncompressed content and 1 GB for the ZIP.
 
@@ -112,8 +114,8 @@ Backup ZIPs omit KickBot, StreamElements and Donofa credentials and proxy passwo
 
 - **LOCAL-ONLY**: appearance settings, file tiers/keywords, alert routing rules, imported media, played ids, logs, window state and alert history.
 - **NETWORK-PROCESSED**: KickBot secret and tip identifiers (KickBot), StreamElements JWT and event data (StreamElements), Donofa API key and donation events (Donofa), Kick channel slug and subscription events (Kick/Pusher), currency quote requests (Nobitex, Baha24), and update checks (GitHub). The Browser Source can fetch remote KickBot TTS/GIF and Donofa TTS URLs carried by events.
-- **PERSISTENT**: config.json, media, played.json, history.json, log, Electron userData.
-- **TEMPORARY**: in-memory queues (`pending`, `approved`, capped at 500), last-30 recent list, in-memory log (300 lines), 15-second duplicate keys for Kick events.
+- **PERSISTENT**: config.json, media, played.json, history.json, waiting-alerts.json while eligible alerts wait, log, Electron userData.
+- **TEMPORARY**: in-memory queues (`pending`, `approved`), last-30 recent list, in-memory log (300 lines), short-lived duplicate keys for Kick events.
 - **CREDENTIAL/SENSITIVE**: KickBot secret, StreamElements JWT, Donofa API key (encrypted when `safeStorage` is available), optional proxy URL.
 - **THIRD-PARTY DATA**: donor names/amounts/messages and TTS/GIF URLs from KickBot, StreamElements and Donofa; subscriber/gifter usernames from Kick chat; exchange rates from Nobitex and Baha24.
 
