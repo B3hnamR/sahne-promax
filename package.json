@@ -1,7 +1,7 @@
 {
   "name": "sahne-promax",
   "productName": "Sahne ProMax",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "Sahne ProMax — modular KickBot, StreamElements and Donofa tip alerts, Kick sub alerts, local analytics and widgets",
   "author": "Behnam & Contributors",
   "license": "Apache-2.0",

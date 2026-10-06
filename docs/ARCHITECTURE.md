@@ -1,6 +1,6 @@
-# Sahne ProMax 2.0.0 — Modernized High-Performance Architecture & Feature Guide
+# Sahne ProMax — Architecture guide
 
-**Sahne ProMax** is a modernized, modular, high-performance fork of Sahne Plus built upon the stable v1.3.0 foundation. It retains the strict **zero-runtime-dependency philosophy** and loopback security model while eliminating event-loop blocking, reducing CPU/RAM/GPU spikes, refactoring monolithic code into clean domain modules, and delivering advanced streamer tools.
+**Sahne ProMax 2.7.0** is a modular fork of Sahne Plus with upstream behavior through 1.4.1. The local server uses Node.js built-ins and keeps the loopback security model. This guide describes the original 2.0.0 modularization and its current extension points; see [README.md](../README.md) for user-facing features and [DATA_FLOW.md](DATA_FLOW.md) for the current network and privacy inventory.
 
 ---
 
@@ -20,7 +20,8 @@ server/
 │   └── http-client.js        # Native HTTPS request client with HTTP CONNECT proxy support
 ├── config/
 │   ├── store.js              # Atomic JSON config persistence, secretStore DPAPI bridge
-│   └── played.js             # Played tip IDs memory cache and debounced flush
+│   ├── played.js             # Played tip IDs memory cache and debounced flush
+│   └── history.js            # Saved history and session-only live aggregates
 ├── logger.js                 # Redacted in-memory ring buffer & file logging
 ├── sse.js                    # SSE subscriber registry (overlay, admin, goal) & heartbeat
 ├── rates/
@@ -30,6 +31,8 @@ server/
 ├── integrations/
 │   ├── kickbot.js            # KickBot WebSocket client, pulse keep-alives, capture loop
 │   ├── kick-chat.js          # Kick Pusher chat client, channel slug resolver, gift debouncer
+│   ├── streamelements.js     # StreamElements tip feed
+│   ├── donofa.js             # Donofa paid donations and TTS
 │   └── meld.js               # Meld Studio loopback WebSocket monitor
 ├── media/
 │   ├── manager.js            # Async file scanner, safe file imports, disk removals
@@ -37,9 +40,12 @@ server/
 ├── playback/
 │   ├── queue.js              # Priority queue scheduling, queue pause/resume, skip, replay
 │   ├── picker.js             # Amount, keyword, and sub milestone media matching
+│   ├── waiting-store.js      # Waiting alerts preserved across restarts
+│   ├── rules.js              # Ordered alert media routing rules
 │   └── capture.js            # Stripe/KickBot payment capture loop with exponential backoff
 ├── features/
 │   ├── goal.js               # Donation & sub goal engine with auto-increment & SSE sync
+│   ├── analytics.js          # Local dashboard aggregation from saved history
 │   └── backup.js             # Zero-dependency .zip creation & restore via Node zlib
 └── http/
     ├── router.js             # HTTP request dispatching, Host/Origin loopback security
@@ -76,7 +82,7 @@ server/
 
 3. **Targeted SSE Push Pipeline (Eliminated 8s Polling):**
    - Replaced periodic `setInterval` HTTP polling with real-time SSE broadcasts (`state`, `config`, `goal_update`, `rate`, `backup_restored`).
-   - UI updates instantly upon state mutations with zero idle network traffic.
+   - UI updates on state mutations; SSE heartbeats keep connections alive without the former periodic page polling.
 
 4. **HTTP ETag & 304 Not Modified Caching:**
    - Static assets (`InterVariable.woff2`, `Vazirmatn-wght.woff2`, `Lalezar-Regular.ttf`, styles) return `ETag` headers derived from file size and modification timestamps.
@@ -99,7 +105,7 @@ server/
 
 ### 3.3 Hardware & Stream Deck REST API
 
-Sub-5ms loopback endpoints for hardware deck buttons and macro keypads:
+Loopback endpoints for hardware deck buttons and macro keypads:
 
 | Endpoint                    | Method | Description                                                               |
 | --------------------------- | ------ | ------------------------------------------------------------------------- |

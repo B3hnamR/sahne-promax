@@ -2,6 +2,26 @@
 
 All notable changes to the public builds. Versions follow semantic versioning.
 
+## 2.7.0 — 2026-10-06 (Sahne+ 1.4.1 port and playback recovery)
+
+- Port upstream Sahne+ changes through 1.4.1 into ProMax's modular server and overlay, recording upstream ancestry while preserving existing ProMax features.
+- Keep waiting KickBot, StreamElements, Donofa, and Kick subscription alerts across restarts; retain a captured KickBot tip when OBS disconnects and persist delayed Donofa TTS with its alert.
+- Play long video and audio to their actual end and honor file-specific duration for images, with a one-hour safety limit.
+- Apply KickBot queue settings, preserve subscription priority on capture retry, and limit KickBot disconnect cleanup to its own dashboard test tips.
+- Add a local history recording switch. With recording off, new events do not enter saved history or analytics, while live totals and the top-donors widget continue for the current session.
+- Mask and clear widget-link fields after connection; reject inverted media amount ranges; time out stalled updater downloads and disk writes.
+- Configure Windows and Ubuntu pull request checks, and accept a custom local port in the screenshot script.
+
+### How to update
+
+From 2.6.0, click **آپدیت** in the desktop app or download the installer from this repository's 2.7.0 release. The updater verifies the installer against `SHA256SUMS.txt`. Existing settings, rules, media, and saved history remain in the local data folder.
+
+### Files in this release
+
+- `Sahne-ProMax-Setup-2.7.0.exe` — Windows installer (per-user)
+- `SHA256SUMS.txt` — SHA-256 checksum manifest
+- `README-FA.md` — راهنمای فارسی
+
 ## 2.6.0 — 2026-09-26 (Donofa and analytics)
 
 - Remove the Bonbast FX fallback. Nobitex remains the primary USD source and Baha24 supplies fallback USD and supported non-USD quotes. When Baha24 cannot supply FX, retain the previous quotes and report that clearly.

@@ -1,23 +1,31 @@
 <div align="center">
 
-# ⚡ Sahne ProMax
+<img src="build/icon.png" alt="Sahne ProMax icon" width="88" />
 
-**High-Performance, Modular, Zero-Dependency Stream Alerts & Widgets for Kick on Windows**
+# Sahne ProMax
+
+**Stream alerts, live widgets, and local insights for Kick creators.**
+
+KickBot · StreamElements · **Donofa** · Kick subscriptions
+
+<p>
+  <a href="https://github.com/B3hnamR/sahne-promax/releases/latest"><img src="https://img.shields.io/badge/Download-Windows%20installer-D2B4A3?style=for-the-badge&logo=windows&logoColor=18191F" alt="Download the latest Windows installer" /></a>
+  <a href="docs/README-FA.md"><img src="https://img.shields.io/badge/راهنما-فارسی-404A70?style=for-the-badge" alt="Read the Persian guide" /></a>
+</p>
 
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22.0.0-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/Electron-43.7.3-47848F?style=flat-square&logo=electron&logoColor=white)](https://electronjs.org)
 [![Zero Dependencies](https://img.shields.io/badge/Runtime%20Dependencies-0-brightgreen?style=flat-square)](#architecture)
-[![Tests](https://img.shields.io/badge/Tests-Node.js%20suite-success?style=flat-square)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-local%20Node.js%20suite-informational?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.6.0-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
+[![Version](https://img.shields.io/badge/Version-2.7.0-D2B4A3?style=flat-square)](https://github.com/B3hnamR/sahne-promax/releases/latest)
 
 <p align="center">
-  <a href="#key-features">Features</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#stream-deck--hardware-rest-api">Stream Deck API</a> •
-  <a href="#architecture">Architecture</a> •
-  <a href="#performance--optimization">Performance</a> •
-  <a href="docs/README-FA.md">راهنمای فارسی</a>
+  <a href="#new-in-270">New in 2.7.0</a> ·
+  <a href="#quick-start">Get started</a> ·
+  <a href="#key-features">Features</a> ·
+  <a href="#stream-deck-api">Stream Deck API</a> ·
+  <a href="#architecture">Architecture</a>
 </p>
 
 </div>
@@ -28,18 +36,25 @@
 
 **Sahne ProMax** is a modernized, modular fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus) designed for Kick streamers. It plays transparent WebM animations, GIFs, images, and audio alerts for **KickBot donations**, **StreamElements tips**, **Donofa donations**, **Kick subscriptions**, and **Kick gifted subscriptions**. The controller and alert server run locally, with no cloud backend and no runtime npm packages.
 
-The source on `main` includes the changes from upstream Sahne+ through [**1.4.1**](https://github.com/AmirEyZed/sahne-plus/releases/tag/v1.4.1), adapted to ProMax's modular backend and its extra providers. The latest packaged **2.6.0** release added **Donofa donations** and a **local analytics dashboard** and removed the Bonbast fallback. ProMax also includes OBS goal and top-donors widgets, Stream Deck controls, paired media, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, and alert history.
+**2.7.0** incorporates the changes from upstream Sahne+ through [**1.4.1**](https://github.com/AmirEyZed/sahne-plus/releases/tag/v1.4.1), adapted to ProMax's modular backend and extra providers. ProMax also includes Donofa donations, a local analytics dashboard, OBS goal and top-donors widgets, Stream Deck controls, paired media, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, and alert history.
 
 > **Note:** Sahne ProMax is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Kick, KickBot, StreamElements, Donofa, Nobitex, or Baha24.
 
-### Changes on `main` since 2.6.0
+### Your first stream in three steps
 
-- Paid KickBot tips wait if the Browser Source disconnects during capture, and waiting KickBot, StreamElements, Donofa, and Kick subscription alerts survive an app restart.
-- Videos, audio, and images with a file-specific duration can run past the global alert maximum, with a one-hour safety limit. The queue waits for the actual end.
-- KickBot queue settings now apply, including delay and pause/play; disconnect removes its dashboard test tips while retaining ProMax test alerts and other providers.
-- Widget-link fields are masked and cleared after connecting. The updater times out stalled downloads and reports disk failures separately. The media editor rejects inverted amount ranges.
-- Local history recording can be turned off in Settings → App. New alerts then stay out of the disk history and analytics, while live counters and the top-donors widget continue updating in memory for the current session. The analytics dashboard uses the retained history ledger; older detailed entries remain subject to its 20,000-entry limit.
-- Pull request CI checks both Ubuntu and Windows, and the screenshot script accepts a custom local port.
+| 01 · Install | 02 · Connect | 03 · Add to OBS |
+| :--- | :--- | :--- |
+| Get the [latest Windows installer](https://github.com/B3hnamR/sahne-promax/releases/latest). | Add a KickBot widget link, StreamElements token, or Donofa API key in the app. | Add `http://localhost:7788/overlay` as a Browser Source; optional widgets are at `/goal` and `/top`. |
+
+<a id="new-in-270"></a>
+
+### What's new in 2.7.0
+
+| 🛟 Alerts survive interruptions | 🎬 Media plays to its end | 📊 History is your choice |
+| :--- | :--- | :--- |
+| Waiting alerts from KickBot, StreamElements, Donofa, and Kick survive restarts. Captured KickBot tips wait when the Browser Source disconnects; delayed Donofa TTS stays with its alert. | Long video and audio play to their actual end, and images can use a file-specific duration. A one-hour limit protects the queue from stuck media. | Turn off recording in **Settings → App**. New events stay out of saved history and analytics, while live totals and top donors update in memory until restart. Logs and waiting-alert storage are separate. |
+
+KickBot queue delay and pause/play settings now apply; its disconnect cleanup leaves ProMax test alerts and other providers alone. Widget-link fields are masked and cleared after connection, the updater times out stalled downloads and reports disk errors, and the media editor rejects inverted amount ranges. Pull request CI is configured for Ubuntu and Windows.
 
 ### What's new in 2.6.0
 
@@ -56,7 +71,7 @@ The card shows connection status without displaying the key. The key is stored l
 
 ---
 
-See the [2.6.0 release notes](docs/releases/RELEASE_NOTES_2.6.0.md) for the full list.
+See the [2.7.0 release notes](docs/releases/RELEASE_NOTES_2.7.0.md) for the full list.
 
 ---
 
@@ -71,11 +86,11 @@ These tools are ProMax additions built on its modular server and overlay archite
 | **🎊 Milestone Confetti**       | Overlay confetti on goal completion (once per goal), on donations above a configurable toman threshold, and on the first sub of the day.                                                                              |
 | **⏳ Timed Goal Countdown**     | Optional deadline on the goal widget with a live Persian countdown, expiry state, and server-clock skew correction.                                                                                                   |
 | **🔢 Sub & Gift Counters**      | The goal widget counts subscription events, gifted subscriptions, and today's subs — reset with the goal or hidden entirely.                                                                                          |
-| **📜 Alert History**            | Displayed alerts are persisted when local recording is enabled (20k detailed entries), with per-day totals and per-donor sums that survive restarts; included in backups. |
+| **📜 Alert History**            | When recording is enabled, displayed alerts are saved locally (20k detailed entries), with per-day and donor totals that survive restarts and are included in backups. When disabled, new alerts update live totals in memory only. |
 | **🥇 Top-Donors Widget**        | A second OBS Browser Source (`/top`) with a live leaderboard for today / last 7 days / all-time, medals included.                                                                                                     |
 | **🎯 Live Goal Widget**         | A standalone OBS Browser Source (`/goal`) with an animated progress bar, Persian Toman figures, and confetti at 100%. Eligible live alerts update the amount when auto-increment is on.                               |
 | **🎨 Multi-Profile Overlays**   | Independent appearance profiles per OBS scene via URL (`/overlay?profile=gameplay`, `?profile=chatting`) — no duplicate server, no re-editing.                                                                        |
-| **🎵 Paired Media**             | Attach an audio track (`.mp3`/`.wav`/`.ogg`) to a static image alert; the overlay shows the image for exactly the audio's length.                                                                                     |
+| **🎵 Paired Media**             | Attach an audio track (`.mp3`/`.wav`/`.ogg`) to a static image alert; the overlay follows the audio length, subject to the alert's duration and safety limits.                                                                                     |
 | **🎖️ Milestone & Tier Alerts**  | Per-file thresholds for sub-renewal months (`minMonths`/`maxMonths`) and gift-sub counts (`minCount`/`maxCount`).                                                                                                     |
 | **🎛️ Stream Deck REST API**     | Local endpoints (`/api/control/skip`, `/replay`, `/pause`, `/resume`, `/mute`, `/volume`, `/clear`) for hardware keypads and macros.                                                                                  |
 | **💾 1-Click Backup & Restore** | Export/import settings, media and alert history (see Backup & Restore below) as a standard `.zip` using Node's native `zlib` — no external tools.                                                                     |
@@ -88,6 +103,8 @@ These tools are ProMax additions built on its modular server and overlay archite
 | **🪟 Modern Glassmorphic UI**   | Dark glass design system with custom dropdowns, modal dialogs, slim scrollbars, and a bento-grid layout.                                                                                                              |
 
 ---
+
+<a id="key-features"></a>
 
 ## ✨ Key Features
 
@@ -111,16 +128,16 @@ These tools are ProMax additions built on its modular server and overlay archite
 - **🎊 Milestone Confetti:** Bursts of confetti on the overlay when the goal completes (once per goal), when a single donation passes a configurable threshold, or on the first sub of the day — all toggleable on the Goal page.
 - **⏳ Timed Goal (Countdown):** Optional deadline for the goal widget with a live `DD روز HH:MM:SS` countdown, "زمان تمام شد" state, and server-clock correction against client clock skew.
 - **🔢 Live Sub & Gift Counters:** The goal widget shows running totals — `⭐ ۱۲ ساب · 🎁 ۳۴ سابگیفت · امروز ۵ ساب` — updating on live sub and gift-sub events, persisting across restarts, and zeroing with the goal reset. Test and replay alerts do not increase them.
-- **📜 Alert History & Daily Totals:** A dedicated page (and API) with alerts shown on stream, today's/7-day/all-time sums, per-day breakdown, and top donors. The ledger keeps the newest 20,000 entries; aggregate totals survive pruning until history is cleared. History is included in backups.
+- **📜 Alert History & Daily Totals:** A dedicated page (and API) with recorded alerts, today's/7-day/all-time sums, per-day breakdown, and top donors. With recording enabled, the ledger keeps the newest 20,000 detailed entries; aggregate totals survive pruning until history is cleared, and saved history is included in backups. With recording disabled, new alerts contribute to live totals and top donors only until the app restarts.
 - **🥇 Top-Donors OBS Widget:** `/top` Browser Source rendering a live leaderboard (`?range=daily|weekly|all&limit=1..20&title=…`) with medals for the top 3 and Persian Toman figures, refreshed by SSE on every alert.
-- **🎵 Paired Media (Sound for Images):** Attach custom audio files (`.mp3`, `.wav`, `.ogg`) to static PNG/GIF/WebP images. The overlay displays the graphic and locks alert duration to the audio track.
+- **🎵 Paired Media (Sound for Images):** Attach custom audio files (`.mp3`, `.wav`, `.ogg`) to static PNG/GIF/WebP images. The overlay follows the audio track's duration, subject to the file's configured cut and the one-hour safety limit.
 - **🎨 Multi-Profile Scene Overlays:** Tailor appearance, positioning, and card scale for different OBS scenes via URL query parameters (e.g. `/overlay?profile=gameplay`, `/overlay?profile=chatting`) without running duplicate server instances.
 - **🎯 Live Donation & Sub Goal Widget:** Dedicated OBS Browser Source (`/goal` & `/goal.html`) rendering real-time animated progress bars and Persian Toman figures, complete with celebratory confetti at 100%.
 - **🎖️ Milestone & Tier Alerts:** Configure tier thresholds for subscription renewals (`minMonths` / `maxMonths`) and bulk gifted subscriptions (`minCount` / `maxCount`).
 - **⏱️ Card Delay:** Show the name/amount card (and KickBot TTS) a few seconds after the alert media starts — globally on the Look page, or per file in the file editor.
 - **💾 Backup & Restore:** Export and import settings, media and alert history as standard `.zip` archives. The limit is 512 MB per entry, 1 GB per archive, and 1,000 entries. Backups omit provider and proxy credentials, so reconnect KickBot, StreamElements and Donofa after restoring. Restore validates before replacing live files, keeps media absent from the archive and the current port, and leaves previously played alert IDs local to each installation.
 
-### 🔄 Updates & Connectivity (upstream parity through Sahne+ 1.3.5)
+### 🔄 Updates & Connectivity
 
 - **In-App Updater:** The desktop app checks this fork's GitHub Releases 30 s after start and every 6 hours (can be turned off in Settings). Clicking **آپدیت** downloads the ProMax installer, checks it against the release's `SHA256SUMS.txt`, and starts installation after the download; it never downloads or installs an update on its own.
 - **Kick Behind a Filter:** If kick.com is filtered on your network, Sahne ProMax automatically uses your VPN app's Windows system proxy (manual proxy still wins; SOCKS-only setups need TUN mode or a manual HTTP proxy).
@@ -130,6 +147,8 @@ These tools are ProMax additions built on its modular server and overlay archite
 - **Other Tip Currencies:** Supported StreamElements currencies are converted using the available rate and matched against the same toman-based alert tiers. The alert card retains the original amount and currency; an unsupported currency stays labeled without an invented toman conversion. In card templates, `{original}` shows the source amount and `{usd}` is populated only for USD tips.
 
 ---
+
+<a id="stream-deck-api"></a>
 
 ## 🎛️ Stream Deck & Hardware REST API
 
@@ -146,6 +165,8 @@ Sahne ProMax provides loopback endpoints for Elgato Stream Deck, Loupedeck, Touc
 | `/api/control/clear`  | `POST` | None         | Clears all pending alerts in queue                   |
 
 ---
+
+<a id="quick-start"></a>
 
 ## 🚀 Quick Start
 
@@ -185,6 +206,8 @@ npm start
 
 ---
 
+<a id="architecture"></a>
+
 ## 🏗️ Architecture
 
 Sahne ProMax follows a strict **zero-runtime-dependency** philosophy. All core server functionality relies exclusively on standard Node.js native modules (`http`, `https`, `crypto`, `fs`, `path`, `zlib`).
@@ -200,7 +223,7 @@ sahne-promax/
 │   ├── config/               # Atomic config persistence, played-tip & history ledgers
 │   ├── features/             # Goal widget engine & 1-click zip backup/restore
 │   ├── http/                 # Hardened loopback router, static server, range streaming
-│   ├── integrations/         # KickBot/StreamElements WebSockets, Kick chat feed, Meld monitor
+│   ├── integrations/         # KickBot/StreamElements/Donofa feeds, Kick chat, Meld monitor
 │   ├── media/                # Async media manager & streaming upload sniffer
 │   ├── playback/             # Priority queue scheduler & payment capture engine
 │   ├── rates/                # Nobitex USD and Baha24 FX/fallback
@@ -218,15 +241,24 @@ sahne-promax/
 │   ├── legal/                # Privacy, terms, and third-party notices
 │   └── releases/             # Historical release notes
 └── test/                     # Automated test suites
-    ├── server.test.js        # Hardening, loopback security, SSE caps, media gating
-    ├── update.test.js        # Update version/redirect/checksum helpers
-    ├── features.test.js      # Queue priority, chat commands, confetti, timed goal
-    ├── stats.test.js         # History ledger, top donors, live counters, backup round-trip
-    ├── overlay-xss.test.js   # XSS & CSS injection prevention, card delay, confetti DOM
+    ├── analytics.test.js     # Local dashboard aggregation
     ├── backend-audit.test.js # Restore, connection, rate and persistence regressions
+    ├── donofa.test.js        # Donofa connection and alert handling
+    ├── features.test.js      # Queue priority, chat commands, confetti, timed goal
     ├── frontend-audit.test.js # Controller and overlay behavior regressions
+    ├── frontend-dropdown.test.js # Dropdown behavior
+    ├── frontend-history.test.js # History UI behavior
+    ├── overlay-long-media.test.js # Long media playback behavior
+    ├── overlay-xss.test.js   # XSS & CSS injection prevention, card delay, confetti DOM
+    ├── port.test.js          # Provider storage, backup and API port regressions
+    ├── promax.test.js        # ProMax features & Nobitex rate tests
+    ├── rules.test.js         # Media routing rules
+    ├── server.test.js        # Hardening, loopback security, SSE caps, media gating
+    ├── stats.test.js         # History ledger, top donors, live counters, backup round-trip
+    ├── update.test.js        # Update version/redirect/checksum helpers
     ├── updater-audit.test.js # Download streaming and error handling
-    └── promax.test.js        # ProMax features & Nobitex rate tests
+    ├── upstream-sync.test.js # Sahne+ 1.4.1 port regressions
+    └── verify-checksums.ps1.test.js # Release checksum verifier
 ```
 
 ---
@@ -245,6 +277,8 @@ sahne-promax/
 For detailed privacy information and network flow mapping, see [`docs/DATA_FLOW.md`](docs/DATA_FLOW.md) and [`docs/legal/PRIVACY.md`](docs/legal/PRIVACY.md).
 
 ---
+
+<a id="testing"></a>
 
 ## 🧪 Testing
 
