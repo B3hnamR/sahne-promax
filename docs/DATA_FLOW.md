@@ -1,6 +1,6 @@
 # Sahne ProMax — Data-flow overview
 
-Version: Sahne ProMax 2.7.0, including upstream Sahne+ 1.4.1 behavior. This is a code-based inventory; network behavior can also depend on Windows, Electron, proxies and the providers.
+Version: Sahne ProMax 2.7.0 plus unreleased upstream Sahne+ 1.6.1 integration. This is a code-based inventory; network behavior can also depend on Windows, Electron, proxies and the providers.
 
 ## 1. Process model
 
@@ -132,3 +132,11 @@ The sentence "no information leaves the computer" is **false** for this applicat
 ### Donofa connection (unreleased)
 
 The controller sends the API key to `https://api.donofa.ir/api/v2/donates?limit=1` or `https://api.donofa.com/api/v2/donates?limit=1` for verification. The server subscribes to `user.<API_KEY>` on `wss://ws.donofa.com/app/AF5Ed2JK` and receives `donate.created` and `tts.created` messages. This channel name includes the key because Donofa's realtime protocol uses it. Paid IRT/Toman donations enter the same local queue without capture; IRR amounts are divided by ten. Donofa HTTPS audio URLs can be fetched by the Browser Source. The key is stored in `config.json` as `donofa_key_enc` when `safeStorage` is available, otherwise as `donofa_key`; it is never returned by `/api/config` or included in portable backups. A live credential and genuine donation are required to validate Donofa's production protocol end to end.
+
+### Upstream 1.6.1 network additions (unreleased)
+
+- Kick chat uses the current built-in Pusher key `34bf7a0ff419a2a775b9` or a validated cached/discovered key and cluster, with the previous key as fallback. If all known keys are rejected, `POST https://web.kick.com/api/v1/realtime/connection` sends a random client ID and accepted-provider capability. Lookups are throttled to five minutes; a settings reconnect permits an immediate retry. Public subscriptions also receive chat commands and KICK gifts.
+- The optional Donofa bridge defaults off. When explicitly enabled, it reads `/api/v2/goals/default` and `/api/v2/timer` on the selected Donofa API host using `Authorization: Api <key>`. Confirmed external supports can cause `POST /api/v2/timer/extend`, `POST /api/v2/goals/<id>`, and `POST /api/v2/goals/<id>/reset`. Amounts are derived from the support and configured exchange/subscription values. The existing realtime connection protocol also supplies live goal/timer updates and donation quiet-window timing.
+- Bridge state is returned separately as `state.donofaBridge`; `POST /api/donofa/refresh` refreshes it. `donofa.json` stores queued support IDs, names, amounts, delivery markers, and recent results. It is account-bound, omitted from backups, cleared on account replacement/restore/clear-data, and preserved on ordinary restart. Turning history recording off does not disable this operational journal.
+- Donofa's own donations, free commands, tests, and replays are excluded. GET requests can try alternate configured routes; ambiguous POST failures are not automatically retried on another route. Ambiguous timer acknowledgements can undercount, and concurrent donations during a goal reset retain a race; the bridge is not an exactly-once service.
+- Waiting alerts retain a SHA-256 association with the originally configured bridge key, not the key itself, so delayed playback cannot forward an old support to a replacement account. Account changes fail rather than discarding an unrepairable goal or an unwritable bridge journal; portable restore uses the same reset transaction.

@@ -1,6 +1,6 @@
 # Sahne ProMax — Privacy Policy
 
-_Last updated: 2026-10-06 · Covers Sahne ProMax 2.7.0_
+_Last updated: 2026-11-01 · Covers Sahne ProMax 2.7.0 and unreleased 1.6.1 integration_
 
 **خلاصه‌ی فارسی:** Sahne ProMax سرور ابری ندارد. تنظیمات، فایل‌های رسانه، گزارش‌ها و سابقه‌ی الرت‌ها روی رایانه‌ی شما می‌مانند و داشبورد آمار از همین سابقهٔ محلی ساخته می‌شود. برای دریافت الرت، برنامه به KickBot و در صورت اتصال به StreamElements و Donofa وصل می‌شود؛ رویداد ساب‌های کیک را از فید عمومی کیک دریافت می‌کند و نرخ ارز را از نوبیتکس و بهاء۲۴ می‌گیرد. برای بررسی نسخه‌ی جدید نیز به گیت‌هاب این مخزن وصل می‌شود. هیچ دادهٔ آماری، تبلیغ یا گزارش خطای خودکاری به سازنده ارسال نمی‌شود و نصب به‌روزرسانی فقط پس از کلیک شما انجام می‌شود.
 
@@ -25,7 +25,8 @@ Application files and settings live in `Documents\\Sahne Plus` for compatibility
 | Imported alert media | `media\\` | Files are copied into the app's data folder; originals are not modified. |
 | Recently played alert IDs | `played.json` | Keeps the most recent 1,000 IDs to avoid replaying events after restart. |
 | Alert history | `history.json` | Stores up to 20,000 displayed alert records, including donor display name, event type, amount/currency and time, plus daily and per-donor aggregates that persist when old records are pruned. Included in backup exports. |
-| Waiting alerts | `waiting-alerts.json` | Stores up to 500 paid alerts that may not be sent again after restart, including captured KickBot tips and waiting StreamElements, Donofa, and Kick subscription alerts. Removed when the queue empties or application data is cleared. |
+| Waiting alerts | `waiting-alerts.json` | Stores up to 500 paid alerts that may not be sent again after restart, including captured KickBot tips and waiting StreamElements, Donofa, and Kick subscription alerts. A SHA-256 bridge-account association prevents forwarding delayed support to another account; it is not the API key. Removed when the queue empties or application data is cleared. |
+| Optional Donofa bridge journal | `donofa.json` | Pending external support IDs, names, amounts and delivery/recovery markers. Separate from history recording, omitted from backups, reset when changing accounts/restoring, and removed by Clear application data. |
 | Diagnostic log | `sahne-plus.log` | Local connection status and errors, and alert details such as donor name, amount, message and selected media. The log rotates at 5 MB. Provider credentials are redacted. |
 
 The app's **Clear application data** action removes settings, played IDs, waiting alerts, alert history, media and logs after confirmation. Uninstalling preserves both the data folder and the Electron profile. To remove them after uninstall, delete `Documents\\Sahne Plus` and `%APPDATA%\\SahnePlus` manually.
@@ -46,6 +47,8 @@ Backup exports contain settings, alert history and media, but omit KickBot, Stre
 | **GitHub** (`github.com/B3hnamR/sahne-promax`) | Check whether a newer ProMax release is available; fetch the installer and checksum only after you click update. | The check sends the app version in a request to this repository's releases endpoint. A user-initiated update fetches the installer and `SHA256SUMS.txt` from the same repository. |
 
 When configured, manual or Windows system HTTP proxies may be used for Kick, exchange-rate and Donofa API-key verification requests. StreamElements and KickBot connections, and the Donofa WebSocket, do not use the configured proxy. Update requests use Electron's Chromium network stack and follow the Windows system proxy.
+
+When explicitly enabled, the separate Donofa bridge uses your API key to read and change Donofa's external goal and timer using API v2, based on confirmed KickBot/StreamElements tips, Kick subs/gift subs and KICKs. It does not forward Donofa's own donations, free commands, tests, or replays. Bridge traffic follows the selected Donofa endpoint and available HTTP proxy routes. Kick chat may also ask `web.kick.com/api/v1/realtime/connection` for the current public Pusher key, sending a random client ID and provider capabilities, without a Kick login.
 
 The Browser Source may load KickBot-provided HTTPS GIFs/TTS audio and Donofa TTS audio for events that include them. Fonts are bundled locally; the app does not load fonts from Google or a CDN.
 

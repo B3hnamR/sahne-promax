@@ -32,6 +32,8 @@ function normalizeWaiting(t) {
     kind,
     is_local: !captured,
     captured,
+    bridge_account: /^[a-f0-9]{64}$/.test(t.bridge_account || '') ? t.bridge_account : undefined,
+    bridge_forwarded: t.bridge_forwarded === true || undefined,
     count: kick ? finite(t.count, 1, 1e6, 1) : null,
     months: kick && t.months != null ? finite(t.months, 1, 240, 1) : null,
     tags: kick ? (kind === 'gift' ? ['giftsub', 'gift', 'sub'] : ['sub', 'newsub']) : [],

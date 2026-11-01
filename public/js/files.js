@@ -20,7 +20,7 @@ export function visibleFiles() {
   }
   $$('#fSeg button').forEach(b => {
     const el = b.querySelector('.n');
-    if (el) el.textContent = counts[b.dataset.f] ?? 0;
+    if (el) el.textContent = faNum(counts[b.dataset.f] ?? 0);
   });
 
   if (fFilter === 'off') list = list.filter(f => f.enabled === false);
@@ -47,7 +47,7 @@ export function visibleFiles() {
 
 export function renderFiles() {
   const navFiles = $('#navFiles');
-  if (navFiles) navFiles.textContent = (state.cfg.files || []).length;
+  if (navFiles) navFiles.textContent = faNum((state.cfg.files || []).length);
   const box = $('#files');
   if (!box) return;
   box.innerHTML = '';

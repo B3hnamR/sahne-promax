@@ -1,6 +1,8 @@
 # Sahne ProMax — Privacy Policy
 
-_Last updated: 2026-09-23 · Applies to Sahne ProMax 2.5.1_
+_Last updated: 2026-11-01 · See the current [bundled privacy policy](../../public/legal/PRIVACY.md) for Sahne ProMax 2.7.0 and unreleased upstream 1.6.1 integration._
+
+The current integration adds an explicitly enabled Donofa goal/timer bridge, separate from inbound Donofa alerts. It sends authenticated API v2 goal/timer updates based on confirmed external support amounts and retains an account-bound `donofa.json` journal, independently of alert-history recording. This journal is omitted from portable backups and reset on account changes/restore/clear-data. Kick chat can discover the current public Pusher key through `web.kick.com/api/v1/realtime/connection`. Bonbast is no longer used. The older detailed inventory below is superseded where it differs from the bundled policy and `docs/DATA_FLOW.md`.
 
 **خلاصه‌ی فارسی:** Sahne ProMax سرور ابری ندارد. تنظیمات، فایل‌های رسانه، گزارش‌ها و سابقه‌ی الرت‌ها روی رایانه‌ی شما می‌مانند. برای دریافت الرت، برنامه به KickBot و در صورت اتصال StreamElements وصل می‌شود؛ رویداد ساب‌های کیک را از فید عمومی کیک دریافت می‌کند، نرخ دلار را از نوبیتکس (با پشتیبانی بهاء۲۴) و نرخ ارزهای دیگر را از بهاء۲۴ و در صورت نیاز بن‌بست می‌گیرد. برای بررسی نسخه‌ی جدید نیز به گیت‌هاب این مخزن وصل می‌شود. این ارتباط‌ها برای قابلیت‌های برنامه لازم‌اند؛ هیچ تحلیل‌گر، تبلیغ یا گزارش خطای خودکاری وجود ندارد و نصب به‌روزرسانی فقط پس از کلیک شما انجام می‌شود.
 

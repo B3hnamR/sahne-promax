@@ -1,7 +1,7 @@
 // Sahne ProMax — Alert Appearance & Live Canvas
 'use strict';
 
-import { $, $$, post, toast } from './api.js';
+import { $, $$, post, toast, saveSettings } from './api.js';
 import { state } from './state.js';
 
 const lbl = {
@@ -58,17 +58,20 @@ export function fillLook() {
 
 export function setA(k, v) {
   state.cfg.appearance[k] = v;
-  const el = document.querySelector(`[data-a="${k}"]`);
+  const el = document.querySelector(`input[data-a="${k}"], select[data-a="${k}"]`);
   if (el) {
     if (el.type === 'checkbox') el.checked = !!v;
     else el.value = v;
+    el._spSync?.();
   }
   if (lbl[k] && $('#' + lbl[k])) $('#' + lbl[k]).textContent = v;
 }
 
-export function saveLook() {
+export function saveLook(onSaved) {
   clearTimeout(saveT);
-  saveT = setTimeout(() => post('/api/config', { appearance: state.cfg.appearance }), 250);
+  saveT = setTimeout(async () => {
+    if ((await saveSettings({ appearance: state.cfg.appearance })) && onSaved) onSaved();
+  }, 250);
 }
 
 export function fitPreview() {
@@ -202,8 +205,7 @@ export function initLook() {
       (b.onclick = () => {
         const p = PRESETS[b.dataset.preset];
         for (const k in p) setA(k, p[k]);
-        saveLook();
-        toast('پریست اعمال شد', 'ok');
+        saveLook(() => toast('پریست اعمال شد', 'ok'));
       })
   );
 

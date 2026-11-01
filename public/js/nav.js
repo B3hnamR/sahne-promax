@@ -41,7 +41,14 @@ export function initNav({ onPageChange }) {
   }
 
   window.goPage = function (name) {
-    $$('.nav button').forEach(b => b.classList.toggle('active', b.dataset.page === name));
+    const buttons = $$('.nav button');
+    if (!buttons.some(b => b.dataset.page === name)) name = 'home';
+    $$('.nav button').forEach(b => {
+      const active = b.dataset.page === name;
+      b.classList.toggle('active', active);
+      if (active) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
     $$('.page').forEach(p => p.classList.toggle('active', p.dataset.page === name));
     moveCapsule($(`.nav button[data-page="${name}"]`));
     try {

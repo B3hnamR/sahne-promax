@@ -396,7 +396,11 @@ async function extractEntryToFile(archivePath, entry, outputPath) {
   if (bytes !== entry.rawSize || crc !== entry.crc) throw new Error('Corrupted archive: entry checksum mismatch');
 }
 
-async function importBackupFromFile(dataDir, archivePath, { configStore, logger, sse, historyStore = null }) {
+async function importBackupFromFile(
+  dataDir,
+  archivePath,
+  { configStore, logger, sse, historyStore = null, donofaBridge = null }
+) {
   const entries = await archiveEntries(archivePath);
   if (!entries.some(entry => entry.name === 'config.json')) throw new Error('فایل config.json در پشتیبان یافت نشد');
   const stage = await fs.promises.mkdtemp(path.join(dataDir, '.restore-'));
@@ -474,61 +478,74 @@ async function importBackupFromFile(dataDir, archivePath, { configStore, logger,
         stage: path.join(stage, 'history.json'),
         live: path.join(dataDir, 'history.json')
       });
-    configStore.invalidatePendingSaves();
-    const movedOld = [];
-    const movedNew = [];
-    try {
-      for (const target of targets) {
-        if (fs.existsSync(target.live)) {
-          fs.renameSync(target.live, path.join(rollback, target.name));
-          movedOld.push(target);
-        }
-      }
-      for (const target of targets) {
-        fs.renameSync(target.stage, target.live);
-        movedNew.push(target);
-      }
-    } catch (error) {
+    // Keep bridge repair, file installation and in-memory adoption in one transaction.
+    let installError;
+    const install = () => {
       try {
-        for (const target of movedNew.reverse()) fs.renameSync(target.live, target.stage);
-        for (const target of movedOld.reverse()) fs.renameSync(path.join(rollback, target.name), target.live);
-      } catch (rollbackError) {
-        // The previous files are only in the staging directory now: never delete
-        // them. Leave .restore-* in place for manual recovery.
-        keepStage = true;
-        logger.error('بازگردانی فایل‌های قبلی پس از شکست بازیابی ناموفق بود', {
-          error: rollbackError.message,
-          stage
-        });
-      }
-      throw error;
-    }
-    // A restore must not delete media that only exists on this machine: move
-    // previously-live files the backup did not contain back into media/.
-    const previousMedia = path.join(rollback, 'media');
-    if (fs.existsSync(previousMedia)) {
-      const failed = [];
-      for (const name of fs.readdirSync(previousMedia)) {
+        configStore.invalidatePendingSaves();
+        const movedOld = [];
+        const movedNew = [];
         try {
-          const from = path.join(previousMedia, name);
-          const to = path.join(dataDir, 'media', name);
-          if (!fs.existsSync(to)) fs.renameSync(from, to);
-        } catch {
-          failed.push(name);
+          for (const target of targets) {
+            if (fs.existsSync(target.live)) {
+              fs.renameSync(target.live, path.join(rollback, target.name));
+              movedOld.push(target);
+            }
+          }
+          for (const target of targets) {
+            fs.renameSync(target.stage, target.live);
+            movedNew.push(target);
+          }
+        } catch (error) {
+          try {
+            for (const target of movedNew.reverse()) fs.renameSync(target.live, target.stage);
+            for (const target of movedOld.reverse()) fs.renameSync(path.join(rollback, target.name), target.live);
+          } catch (rollbackError) {
+            // The previous files are only in the staging directory now: never delete
+            // them. Leave .restore-* in place for manual recovery.
+            keepStage = true;
+            logger.error('بازگردانی فایل‌های قبلی پس از شکست بازیابی ناموفق بود', {
+              error: rollbackError.message,
+              stage
+            });
+          }
+          throw error;
         }
+        // A restore must not delete media that only exists on this machine: move
+        // previously-live files the backup did not contain back into media/.
+        const previousMedia = path.join(rollback, 'media');
+        if (fs.existsSync(previousMedia)) {
+          const failed = [];
+          for (const name of fs.readdirSync(previousMedia)) {
+            try {
+              const from = path.join(previousMedia, name);
+              const to = path.join(dataDir, 'media', name);
+              if (!fs.existsSync(to)) fs.renameSync(from, to);
+            } catch {
+              failed.push(name);
+            }
+          }
+          if (failed.length) {
+            // The only copy of these files is still in the staging directory: never
+            // delete it, and point the operator at the recovery location.
+            keepStage = true;
+            logger.warn('بازگرداندن فایل‌های رسانه‌ی محلی ناموفق بود؛ پوشه‌ی موقت نگه داشته شد', {
+              stage,
+              names: failed
+            });
+          }
+        }
+        configStore.config = configStore.loadConfig();
+        if (historyStore && hasHistory) historyStore.reload();
+        return true;
+      } catch (error) {
+        installError = error;
+        throw error;
       }
-      if (failed.length) {
-        // The only copy of these files is still in the staging directory: never
-        // delete it, and point the operator at the recovery location.
-        keepStage = true;
-        logger.warn('بازگرداندن فایل‌های رسانه‌ی محلی ناموفق بود؛ پوشه‌ی موقت نگه داشته شد', {
-          stage,
-          names: failed
-        });
-      }
-    }
-    configStore.config = configStore.loadConfig();
-    if (historyStore && hasHistory) historyStore.reload();
+    };
+    if (donofaBridge) {
+      if (!(await donofaBridge.reset(install))) throw installError || new Error('Donofa bridge reset failed');
+    } else install();
     logger.info('اطلاعات با موفقیت بازیابی شد', { mediaFiles: mediaCount, reconnectRequired });
     sse.broadcast('admin', { type: 'backup_restored' });
     sse.sendState();

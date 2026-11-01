@@ -40,6 +40,51 @@ function firstEntryData(zip) {
 const logger = { info() {}, warn() {}, error() {} };
 const sse = { sendState() {}, broadcast() {} };
 
+test('portable restore completes bridge network repair before replacing live configuration', async t => {
+  const source = tempDir(t);
+  const target = tempDir(t);
+  const sourceStore = new ConfigStore({ dataDir: source });
+  const targetStore = new ConfigStore({ dataDir: target });
+  t.after(() => {
+    sourceStore.stop();
+    targetStore.stop();
+  });
+  sourceStore.config.appearance.textSize = 73;
+  sourceStore.saveConfig();
+  targetStore.config.appearance.textSize = 29;
+  targetStore.saveConfig();
+  const archive = path.join(source, 'backup.zip');
+  fs.writeFileSync(archive, await exportBackup(source, sourceStore));
+  let release;
+  let entered;
+  const ready = new Promise(resolve => {
+    entered = resolve;
+  });
+  const blocked = new Promise(resolve => {
+    release = resolve;
+  });
+  const restoring = importBackupFromFile(target, archive, {
+    configStore: targetStore,
+    logger,
+    sse,
+    donofaBridge: {
+      async reset(commit) {
+        entered();
+        await blocked;
+        return commit();
+      }
+    }
+  });
+  await ready;
+  assert.equal(JSON.parse(fs.readFileSync(targetStore.cfgPath)).appearance.textSize, 29);
+  targetStore.config.appearance.textSize = 31;
+  targetStore.saveConfig();
+  release();
+  await restoring;
+  assert.equal(targetStore.config.appearance.textSize, 73);
+  assert.equal(JSON.parse(fs.readFileSync(targetStore.cfgPath)).appearance.textSize, 73);
+});
+
 test('Nobitex USD rate is visible before optional foreign FX completes', async () => {
   let releaseQuote;
   const quote = new Promise(resolve => {
@@ -63,6 +108,49 @@ test('Nobitex USD rate is visible before optional foreign FX completes', async (
   releaseQuote({ usd: 92000, fx: { EUR: 100000 } });
   await pending;
   assert.equal(rate.rateFor('EUR'), 100000);
+});
+
+test('failed portable restore rolls back the bridge queue with the original account files', async t => {
+  const dir = tempDir(t);
+  const store = new ConfigStore({ dataDir: dir });
+  const { createDonofaBridge } = require('../server/donofa');
+  const bridge = createDonofaBridge({
+    dataDir: dir,
+    getKey: () => 'account-key',
+    getSettings: () => ({ goal: true, timer: false }),
+    getRate: () => 100000,
+    request: async () => {
+      throw new Error('No provider requests expected');
+    },
+    WebSocket: null
+  });
+  t.after(() => {
+    bridge.stop();
+    store.stop();
+  });
+  store.saveConfig();
+  const original = fs.readFileSync(store.cfgPath, 'utf8');
+  bridge.add({ id: 'old-support', toman: 10000 });
+  const archive = path.join(dir, 'backup.zip');
+  fs.writeFileSync(archive, await exportBackup(dir, store));
+  const rename = fs.renameSync;
+  const mocked = t.mock.method(fs, 'renameSync', (from, to) => {
+    if (from === store.cfgPath) throw new Error('Simulated locked config');
+    return rename(from, to);
+  });
+  await assert.rejects(
+    importBackupFromFile(dir, archive, {
+      configStore: store,
+      logger,
+      sse,
+      donofaBridge: bridge
+    }),
+    /Simulated locked config/
+  );
+  mocked.mock.restore();
+  assert.equal(fs.readFileSync(store.cfgPath, 'utf8'), original);
+  assert.equal(bridge._state().queue[0].id, 'old-support');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'donofa.json'))).queue[0].id, 'old-support');
 });
 
 test('stale StreamElements close cannot clear the replacement subscription', () => {
@@ -373,7 +461,9 @@ test('disconnecting KickBot removes only its queued tips', () => {
       config: { streamer_id: 1 },
       getSecret: () => savedSecret,
       setSecret: value => (savedSecret = value),
-      saveConfig() {}
+      saveConfig() {
+        return true;
+      }
     },
     playedStore: { isPlayed: () => false },
     queue,

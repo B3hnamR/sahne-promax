@@ -2,7 +2,13 @@
 
 const KB_WS = 'wss://kickbot.live/ws';
 const KB_API = 'https://widgets.kickbot.com';
-const PUSHER_WS = 'wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0&flash=false';
+const KICK_REALTIME_API = 'https://web.kick.com/api/v1/realtime/connection';
+const KICK_PUSHER_KEYS = [
+  { key: '34bf7a0ff419a2a775b9', cluster: 'us2' }, // since 2026-10-13
+  { key: '32cbd69e4b950bf97679', cluster: 'us2' }
+];
+const KICK_REALTIME_RETRY = 5 * 60 * 1000;
+const PUSHER_WS = `wss://ws-us2.pusher.com/app/${KICK_PUSHER_KEYS[0].key}?protocol=7&client=js&version=8.4.0&flash=false`;
 const KICK_CHANNEL_API = 'https://kick.com/api/v2/channels/';
 const NOBITEX = 'https://apiv2.nobitex.ir/v3/orderbook/USDTIRT';
 const BAHA24 = 'https://baha24.com/api/v1/price';
@@ -158,6 +164,8 @@ const DEFAULT_CONFIG = {
     chatroomId: null,
     channelId: null,
     resolvedFor: null,
+    pusherKey: null,
+    pusherCluster: null,
     giftValueToman: 0,
     subValueToman: 0,
     showNewSubs: true
@@ -222,6 +230,9 @@ module.exports = {
   KB_WS,
   KB_API,
   PUSHER_WS,
+  KICK_REALTIME_API,
+  KICK_PUSHER_KEYS,
+  KICK_REALTIME_RETRY,
   KICK_CHANNEL_API,
   BAHA24,
   NOBITEX,

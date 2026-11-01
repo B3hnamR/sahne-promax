@@ -129,7 +129,7 @@ function createWindow() {
     minWidth: 980,
     minHeight: 640,
     frame: false,
-    backgroundColor: '#141416',
+    backgroundColor: '#d8f1d6',
     show: false,
     title: APP_NAME,
     icon: fs.existsSync(ICON_PNG) ? ICON_PNG : undefined,
@@ -286,11 +286,15 @@ ipcMain.handle('app:openPath', (e, which) => {
 ipcMain.handle('app:autostart', (e, on) => {
   if (!fromMain(e)) return false;
   if (typeof on === 'boolean') {
+    const previous = autostartGet();
     const r = autostartSet(on);
-    try {
-      server.config.app.autostart = on;
-      server.saveConfig();
-    } catch {}
+    const saved = server.config.app.autostart;
+    server.config.app.autostart = r;
+    if (!server.saveConfig()) {
+      server.config.app.autostart = saved;
+      autostartSet(previous);
+      throw new Error('تنظیمات اجرای خودکار ذخیره نشد');
+    }
     return r;
   }
   return autostartGet();

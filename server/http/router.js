@@ -8,7 +8,13 @@ const { LIMITS, ENUMS, FONTS, CSP_APP, CSP_OVERLAY, CSP_GOAL, CSP_TOP, DEFAULT_C
 const { cleanText, finite, intOrNull } = require('../utils/validation');
 const { localDayKey } = require('../utils/time');
 const { computeAnalytics } = require('../features/analytics');
-const { sanitizeFile, sanitizeAppearance, sanitizeChatCommands, validateRules } = require('../utils/sanitizers');
+const {
+  sanitizeFile,
+  sanitizeAppearance,
+  sanitizeGoal,
+  sanitizeChatCommands,
+  validateRules
+} = require('../utils/sanitizers');
 const { serveFile, servePublic } = require('./streaming');
 const { handleStreamUpload } = require('../media/upload');
 const { exportBackupToFile, importBackupFromFile, MAX_ARCHIVE_BYTES } = require('../features/backup');
@@ -18,6 +24,14 @@ const { tipToman, factsFromTip, resolveMedia, evaluateRules, availabilityFor } =
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(obj));
+}
+
+function settingsSaveError(res) {
+  return json(res, 500, {
+    ok: false,
+    code: 'settings_save_failed',
+    error: 'تنظیمات ذخیره نشد؛ فضای دیسک و دسترسی به پوشه‌ی برنامه را بررسی کنید و دوباره تلاش کنید'
+  });
 }
 
 function fileRangeError(file, update) {
@@ -91,11 +105,13 @@ function createHttpRouter(context) {
     sse,
     rateManager,
     mediaManager,
+    meldManager,
     playbackQueue,
     kickBotClient,
     kickChatClient,
     streamElementsClient,
     donofaClient,
+    donofaBridge,
     goalManager,
     historyStore,
     appVersion,
@@ -326,13 +342,33 @@ function createHttpRouter(context) {
 
       if (p === '/api/goal' && req.method === 'POST') {
         const body = await readJson(req);
-        const updated = goalManager.setGoal(body);
+        const updated = sanitizeGoal(body, configStore.config.goal);
+        if ((updated.currentToman || 0) < Math.max(1, Number(updated.targetToman) || 1))
+          updated.completedCelebrated = false;
+        if (!configStore.commitSettings({ ...configStore.config, goal: updated })) return settingsSaveError(res);
+        logger.info('تنظیمات هدف حمایت ذخیره شد', updated);
+        sse.broadcast('goal', { type: 'goal_update', goal: goalManager.getPublicGoal() });
+        sse.broadcast('admin', { type: 'goal_update', goal: goalManager.getPublicGoal() });
         return json(res, 200, { ok: true, goal: updated });
       }
 
       if (p === '/api/goal/reset' && req.method === 'POST') {
         const body = await readJson(req);
-        goalManager.resetGoal(body.targetToman);
+        const goal = {
+          ...configStore.config.goal,
+          currentToman: 0,
+          completedCelebrated: false,
+          subCount: 0,
+          giftSubCount: 0,
+          giftCount: 0,
+          subsToday: 0,
+          subsDay: null
+        };
+        if (body.targetToman && Number(body.targetToman) > 0) goal.targetToman = Math.round(Number(body.targetToman));
+        if (!configStore.commitSettings({ ...configStore.config, goal })) return settingsSaveError(res);
+        logger.info('هدف حمایت بازنشانی شد', { current: 0, target: goal.targetToman });
+        sse.broadcast('goal', { type: 'goal_update', goal: goalManager.getPublicGoal() });
+        sse.broadcast('admin', { type: 'goal_update', goal: goalManager.getPublicGoal() });
         return json(res, 200, { ok: true, goal: goalManager.getPublicGoal() });
       }
 
@@ -427,7 +463,13 @@ function createHttpRouter(context) {
         let archivePath;
         try {
           archivePath = await readBodyToFile(req, dataDir, MAX_ARCHIVE_BYTES);
-          const result = await importBackupFromFile(dataDir, archivePath, { configStore, logger, sse, historyStore });
+          const result = await importBackupFromFile(dataDir, archivePath, {
+            configStore,
+            logger,
+            sse,
+            historyStore,
+            donofaBridge
+          });
           playbackQueue.clearQueue();
           // The archive is already committed. A connection failure must not
           // turn a successful restore into a misleading HTTP 400 response.
@@ -491,8 +533,8 @@ function createHttpRouter(context) {
         if (errors.length) {
           return json(res, 400, { error: errors[0].message, errors });
         }
-        configStore.config.alertRules = { v: 1, enabled, items };
-        configStore.saveConfig();
+        const next = { ...configStore.config, alertRules: { v: 1, enabled, items } };
+        if (!configStore.commitSettings(next)) return settingsSaveError(res);
         logger.info('قواعد رسانه ذخیره شد', { count: items.length, enabled });
         sse.sendState();
         return json(res, 200, {
@@ -545,7 +587,8 @@ function createHttpRouter(context) {
 
       if (p === '/api/config' && req.method === 'POST') {
         const body = await readJson(req);
-        const config = configStore.config;
+        const config = structuredClone(configStore.config);
+        const prevEnabled = configStore.config.kick.enabled;
 
         const fileUpdates = new Map();
         if (Array.isArray(body.files)) {
@@ -565,7 +608,9 @@ function createHttpRouter(context) {
           config.profiles = { ...config.profiles, ...body.profiles };
         }
         if (body.goal && typeof body.goal === 'object') {
-          goalManager.setGoal(body.goal);
+          config.goal = sanitizeGoal(body.goal, config.goal);
+          if ((config.goal.currentToman || 0) < Math.max(1, Number(config.goal.targetToman) || 1))
+            config.goal.completedCelebrated = false;
         }
 
         for (const { cur, merged } of fileUpdates.values()) Object.assign(cur, merged);
@@ -585,7 +630,6 @@ function createHttpRouter(context) {
         if (body.kick && typeof body.kick === 'object') {
           const k = body.kick;
           const prevSlug = config.kick.channel;
-          const prevEnabled = config.kick.enabled;
           const next = { ...config.kick };
           if ('enabled' in k) next.enabled = !!k.enabled;
           if ('showNewSubs' in k) next.showNewSubs = !!k.showNewSubs;
@@ -606,20 +650,18 @@ function createHttpRouter(context) {
             config.kick.channelId = null;
             config.kick.resolvedFor = null;
           }
-          configStore.saveConfig();
-          kickChatClient.resetConnection();
-          if (config.kick.enabled) {
-            kickChatClient.startKeepAlive();
-            kickChatClient.resolveKickChannel().then(ok => {
-              if (ok) kickChatClient.connect();
-            });
-          } else if (prevEnabled) {
-            kickChatClient.kickState.connected = false;
-          }
         }
 
         if (body.chatCommands && typeof body.chatCommands === 'object') {
           config.chatCommands = sanitizeChatCommands(body.chatCommands, config.chatCommands, config.files);
+        }
+
+        if (body.donofa && typeof body.donofa === 'object') {
+          config.donofa = {
+            ...config.donofa,
+            timer: 'timer' in body.donofa ? !!body.donofa.timer : config.donofa.timer,
+            goal: 'goal' in body.donofa ? !!body.donofa.goal : config.donofa.goal
+          };
         }
 
         if (body.rate && typeof body.rate === 'object') {
@@ -633,11 +675,30 @@ function createHttpRouter(context) {
               ? String(r.proxy ?? '').trim()
               : config.rate.proxy
           };
+        }
+
+        if (!configStore.commitSettings(config)) return settingsSaveError(res);
+        if (body.goal && typeof body.goal === 'object') {
+          logger.info('تنظیمات هدف حمایت ذخیره شد', config.goal);
+          sse.broadcast('goal', { type: 'goal_update', goal: goalManager.getPublicGoal() });
+          sse.broadcast('admin', { type: 'goal_update', goal: goalManager.getPublicGoal() });
+        }
+        if (body.kick && typeof body.kick === 'object') {
+          kickChatClient.resetConnection();
+          if (config.kick.enabled) {
+            kickChatClient.startKeepAlive();
+            kickChatClient.resolveKickChannel().then(ok => {
+              if (ok) kickChatClient.connect();
+            });
+          } else if (prevEnabled) {
+            kickChatClient.kickState.connected = false;
+          }
+        }
+        if (body.rate && typeof body.rate === 'object') {
           rateManager.scheduleRate();
           if (config.rate.auto) rateManager.refreshRate(false);
         }
-
-        configStore.saveConfig();
+        if (body.donofa && donofaBridge) donofaBridge.start();
         sse.broadcastAppearance(profileName => configStore.getEffectiveAppearance(profileName));
         sse.sendState();
         return json(res, 200, { ok: true, config: configStore.publicConfig() });
@@ -651,10 +712,14 @@ function createHttpRouter(context) {
         if (!merged) return json(res, 400, { error: 'invalid' });
         const rangeError = fileRangeError(merged, body);
         if (rangeError) return json(res, 400, { error: rangeError, code: 'invalid_amount_range' });
-        Object.assign(f, merged);
-        configStore.saveConfig();
+        const next = {
+          ...configStore.config,
+          files: configStore.config.files.map(file => (file === f ? merged : file))
+        };
+        if (!configStore.commitSettings(next)) return settingsSaveError(res);
+        sse.broadcast('admin', { type: 'files_updated', count: configStore.config.files.length });
         sse.sendState();
-        return json(res, 200, { ok: true, file: f });
+        return json(res, 200, { ok: true, file: merged });
       }
 
       if (p === '/api/upload' && (req.method === 'PUT' || req.method === 'POST')) {
@@ -692,7 +757,13 @@ function createHttpRouter(context) {
       if (p === '/api/preview' && req.method === 'POST') {
         const body = await readJson(req);
         const t = simulationTip(body);
-        const media = body.fileId ? configStore.config.files.find(f => f.id === body.fileId) : null;
+        const media = body.fileId
+          ? configStore.config.files.find(f => f.id === body.fileId)
+          : resolveMedia(t, factsFromTip(t, tipToman(t, rateManager)), {
+              config: configStore.config,
+              mediaDir,
+              currentRate: () => rateManager.currentRate()
+            }).media;
         const payload = buildPayload(t, media, {
           mediaDir,
           currentRate: () => rateManager.currentRate(),
@@ -770,14 +841,22 @@ function createHttpRouter(context) {
             error: 'اتصال به StreamElements ناموفق بود: ' + String(verified.error || 'unknown').slice(0, 160)
           });
         }
-        streamElementsClient.disconnect({ clearAccount: false });
+        const previousToken = configStore.seToken;
+        const previousConfig = configStore.config.se;
+        const previousStorage = configStore.seSecretStorage;
         configStore.setSeToken(token);
         configStore.config.se = {
           channelId: verified.channelId,
           username: verified.username,
           provider: verified.provider
         };
-        configStore.saveConfig();
+        if (!configStore.saveConfig()) {
+          configStore.setSeToken(previousToken);
+          configStore.config.se = previousConfig;
+          configStore.seSecretStorage = previousStorage;
+          return settingsSaveError(res);
+        }
+        streamElementsClient.resetConnection();
         logger.info('حساب StreamElements وصل شد', {
           username: verified.username,
           provider: verified.provider,
@@ -794,12 +873,28 @@ function createHttpRouter(context) {
       }
 
       if (p === '/api/se/disconnect' && req.method === 'POST') {
-        streamElementsClient.disconnect();
+        const previousToken = configStore.seToken;
+        const previousConfig = configStore.config.se;
+        const previousStorage = configStore.seSecretStorage;
+        configStore.setSeToken('');
+        configStore.config.se = { ...DEFAULT_CONFIG.se };
+        if (!configStore.saveConfig()) {
+          configStore.setSeToken(previousToken);
+          configStore.config.se = previousConfig;
+          configStore.seSecretStorage = previousStorage;
+          return settingsSaveError(res);
+        }
+        streamElementsClient.resetConnection();
         playbackQueue.approved = playbackQueue.approved.filter(t => t.source !== 'streamelements');
-        configStore.saveConfig();
         logger.info('اتصال StreamElements حذف شد');
         sse.sendState();
         return json(res, 200, { ok: true });
+      }
+
+      if (p === '/api/donofa/refresh' && req.method === 'POST') {
+        if (!donofaBridge) return json(res, 503, { ok: false, error: 'Donofa bridge unavailable' });
+        await donofaBridge.refresh();
+        return json(res, 200, { ok: true, donofaBridge: donofaBridge.publicState() });
       }
 
       if (p === '/api/donofa/setup' && req.method === 'POST') {
@@ -812,23 +907,46 @@ function createHttpRouter(context) {
           return json(res, verified.rejected ? 400 : 502, {
             error: verified.rejected ? 'دونوفا کلید API را قبول نکرد.' : 'ارتباط با دونوفا برای بررسی کلید برقرار نشد.'
           });
+        const previousKey = configStore.getDonofaKey();
+        const previousConfig = configStore.config.donofa;
+        const previousStorage = configStore.donofaSecretStorage;
+        const commit = () => {
+          configStore.setDonofaKey(key);
+          configStore.config.donofa = { ...previousConfig, endpoint };
+          if (configStore.saveConfig()) return true;
+          configStore.setDonofaKey(previousKey);
+          configStore.config.donofa = previousConfig;
+          configStore.donofaSecretStorage = previousStorage;
+          return false;
+        };
+        if (!(donofaBridge ? await donofaBridge.reset(commit) : commit())) return settingsSaveError(res);
         donofaClient.resetConnection();
         playbackQueue.pending = playbackQueue.pending.filter(t => t.source !== 'donofa');
         playbackQueue.approved = playbackQueue.approved.filter(t => t.source !== 'donofa');
-        configStore.setDonofaKey(key);
-        configStore.config.donofa = { endpoint };
-        configStore.saveConfig();
         logger.info('حساب دونوفا وصل شد', { endpoint, secretStorage: configStore.donofaSecretStorage });
         donofaClient.connect();
+        if (donofaBridge) donofaBridge.start();
         sse.sendState();
         return json(res, 200, { ok: true, endpoint, secretStorage: configStore.donofaSecretStorage });
       }
 
       if (p === '/api/donofa/disconnect' && req.method === 'POST') {
-        donofaClient.disconnect();
+        const previousKey = configStore.getDonofaKey();
+        const previousConfig = configStore.config.donofa;
+        const previousStorage = configStore.donofaSecretStorage;
+        const commit = () => {
+          configStore.setDonofaKey('');
+          configStore.config.donofa = { endpoint: 'ir', timer: false, goal: false };
+          if (configStore.saveConfig()) return true;
+          configStore.setDonofaKey(previousKey);
+          configStore.config.donofa = previousConfig;
+          configStore.donofaSecretStorage = previousStorage;
+          return false;
+        };
+        if (!(donofaBridge ? await donofaBridge.reset(commit) : commit())) return settingsSaveError(res);
+        donofaClient.resetConnection();
         playbackQueue.pending = playbackQueue.pending.filter(t => t.source !== 'donofa');
         playbackQueue.approved = playbackQueue.approved.filter(t => t.source !== 'donofa');
-        configStore.saveConfig();
         logger.info('اتصال دونوفا حذف شد');
         sse.sendState();
         return json(res, 200, { ok: true });
@@ -854,6 +972,7 @@ function createHttpRouter(context) {
           const r = await fetch(`https://widgets.kickbot.com/external/tipping/${encodeURIComponent(sec)}/__data.json`, {
             signal: AbortSignal.timeout(15000)
           });
+          if (r.ok === false || r.status >= 400) throw new Error('KickBot HTTP ' + r.status);
           const j = await r.json();
           for (const node of j.nodes || []) {
             const d = node && node.data;
@@ -869,13 +988,21 @@ function createHttpRouter(context) {
           });
         }
 
-        if (!Number.isFinite(Number(streamer))) {
+        if (streamer == null || !Number.isSafeInteger(Number(streamer)) || Number(streamer) <= 0) {
           return json(res, 400, { error: 'کیک‌بات این لینک را نشناخت (Streamer ID پیدا نشد)' });
         }
 
+        const previousSecret = configStore.getSecret();
+        const previousStreamer = configStore.config.streamer_id;
+        const previousStorage = configStore.secretStorage;
         configStore.setSecret(sec);
         configStore.config.streamer_id = Number(streamer);
-        configStore.saveConfig();
+        if (!configStore.saveConfig()) {
+          configStore.setSecret(previousSecret);
+          configStore.config.streamer_id = previousStreamer;
+          configStore.secretStorage = previousStorage;
+          return settingsSaveError(res);
+        }
         logger.info('لینک ویجت کیک‌بات تنظیم شد', {
           streamer_id: configStore.config.streamer_id,
           secretStorage: configStore.secretStorage
@@ -891,16 +1018,22 @@ function createHttpRouter(context) {
       }
 
       if (p === '/api/disconnect-kickbot' && req.method === 'POST') {
-        kickBotClient.disconnect();
+        if (!kickBotClient.disconnect()) return settingsSaveError(res);
         return json(res, 200, { ok: true });
       }
 
       if (p === '/api/reset-settings' && req.method === 'POST') {
-        configStore.config.appearance = { ...DEFAULT_CONFIG.appearance };
-        configStore.config.kick = { ...DEFAULT_CONFIG.kick };
-        configStore.config.rate = { ...DEFAULT_CONFIG.rate };
-        configStore.config.mode = 'standalone';
-        configStore.saveConfig();
+        const next = {
+          ...configStore.config,
+          appearance: { ...DEFAULT_CONFIG.appearance },
+          kick: { ...DEFAULT_CONFIG.kick },
+          rate: { ...DEFAULT_CONFIG.rate },
+          mode: 'standalone'
+        };
+        if (!configStore.commitSettings(next)) return settingsSaveError(res);
+        kickChatClient.resetConnection();
+        rateManager.scheduleRate();
+        if (configStore.config.rate.auto) rateManager.refreshRate(false);
         logger.info('تنظیمات به حالت اولیه برگشت');
         sse.broadcastAppearance(profileName => configStore.getEffectiveAppearance(profileName));
         sse.sendState();
@@ -909,7 +1042,17 @@ function createHttpRouter(context) {
 
       if (p === '/api/refresh-rate' && req.method === 'POST') {
         const val = await rateManager.refreshRate(true);
-        return json(res, 200, { ok: true, toman: val, rate: configStore.config.rate });
+        return json(res, 200, {
+          ok: val != null,
+          toman: val,
+          rate: configStore.config.rate,
+          ...(val == null ? { error: configStore.config.rate.error || 'Rate refresh failed' } : {})
+        });
+      }
+
+      if (p === '/api/meld-reload' && req.method === 'POST') {
+        const ok = meldManager ? await meldManager.reloadLayers('manual') : false;
+        return json(res, 200, { ok });
       }
 
       if (p === '/api/done' && req.method === 'POST') {

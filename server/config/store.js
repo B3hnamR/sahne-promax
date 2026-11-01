@@ -62,7 +62,11 @@ class ConfigStore {
       goal: sanitizeGoal(c.goal || {}, DEFAULT_CONFIG.goal),
       rate: { ...DEFAULT_CONFIG.rate, ...(c.rate || {}), fx: sanitizeFx(c.rate && c.rate.fx) },
       kick: { ...DEFAULT_CONFIG.kick, ...(c.kick || {}) },
-      donofa: { endpoint: c.donofa && c.donofa.endpoint === 'com' ? 'com' : 'ir' },
+      donofa: {
+        endpoint: c.donofa && c.donofa.endpoint === 'com' ? 'com' : 'ir',
+        timer: !!(c.donofa && c.donofa.timer === true),
+        goal: !!(c.donofa && c.donofa.goal === true)
+      },
       chatCommands: { ...DEFAULT_CONFIG.chatCommands, ...(c.chatCommands || {}) },
       app: { ...DEFAULT_CONFIG.app, ...(c.app || {}) }
     };
@@ -115,6 +119,7 @@ class ConfigStore {
     if (c.donofa_key_enc && isStoreAvailable) {
       try {
         this.donofaKey = String(this.store.decrypt(c.donofa_key_enc) || '');
+        this.donofaSecretStorage = 'os';
       } catch {
         this.donofaKey = '';
       }
@@ -154,8 +159,8 @@ class ConfigStore {
     return merged;
   }
 
-  serializedConfig() {
-    const out = { ...this.config };
+  serializedConfig(candidate = this.config) {
+    const out = { ...candidate };
     if (this.secret) {
       if (this.store && typeof this.store.available === 'function' && this.store.available()) {
         try {
@@ -193,18 +198,27 @@ class ConfigStore {
   }
 
   // Sync and async saves must not share a tmp filename, or a concurrent save can clobber the other's temp file
-  saveConfig() {
+  saveConfig(candidate = this.config) {
     // Invalidates any asynchronous snapshot that has not been committed yet.
     ++this.saveGeneration;
     try {
       const tmp = this.cfgPath + '.sync.tmp';
-      const out = this.serializedConfig();
+      const out = this.serializedConfig(candidate);
       fs.writeFileSync(tmp, JSON.stringify(out, null, 2));
       fs.renameSync(tmp, this.cfgPath);
       this.updateStorageStatus(out);
+      return true;
     } catch (e) {
       this.log('error', 'ذخیره‌ی config.json ناموفق بود', e.message);
+      return false;
     }
+  }
+
+  commitSettings(candidate) {
+    // Consumers keep the same live config object; nothing changes before the atomic save succeeds.
+    if (!this.saveConfig(candidate)) return false;
+    Object.assign(this.config, candidate);
+    return true;
   }
 
   async saveConfigAsync() {
@@ -256,6 +270,7 @@ class ConfigStore {
         secretStorage: this.seSecretStorage
       },
       donofa: {
+        ...this.config.donofa,
         configured: !!this.donofaKey,
         endpoint: this.config.donofa.endpoint,
         secretStorage: this.donofaSecretStorage
@@ -279,6 +294,10 @@ class ConfigStore {
   setDonofaKey(key) {
     this.donofaKey = key ? String(key).trim() : '';
     this.donofaSecretStorage = this.donofaKey ? 'plain' : 'none';
+  }
+
+  getDonofaKey() {
+    return this.donofaKey;
   }
 
   isValidDonofaKey(key) {

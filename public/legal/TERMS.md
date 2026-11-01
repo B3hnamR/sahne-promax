@@ -1,6 +1,6 @@
 # Sahne ProMax — Terms of Use
 
-_Last updated: 2026-09-23 · Applies to Sahne ProMax 2.5.1_
+_Last updated: 2026-11-01 · Applies to Sahne ProMax 2.7.0 and unreleased upstream 1.6.1 integration_
 
 **خلاصه‌ی فارسی (غیررسمی):** Sahne ProMax فورکی مستقل از Sahne+ و تحت مجوز Apache-2.0 است. مسئولیت فایل‌هایی که وارد برنامه می‌کنید و داده‌هایی که در استریم نمایش می‌دهید با شماست. سرویس‌های شخص ثالث متعلق به سازندگانشان هستند و ممکن است تغییر کنند یا از دسترس خارج شوند. برنامه «همان‌طور که هست» و بدون ضمانت ارائه می‌شود. این خلاصه جایگزین متن انگلیسی نیست.
 
@@ -13,6 +13,7 @@ Sahne ProMax is an independent fork of [Sahne Plus](https://github.com/AmirEyZed
 - You are responsible for having rights to use imported videos, images, sounds and other media on your streams.
 - You are responsible for the viewer, donation and subscription information you display, and for complying with your streaming platform's rules.
 - Keep provider credentials, including KickBot widget secrets, StreamElements JWTs and Donofa API keys, private. Anyone who obtains a credential may be able to access the associated provider account or event feed.
+- Enabling the optional Donofa bridge authorizes the application to change your external Donofa goal progress and timer based on confirmed external supports. Check the goal, timer rates and duplicate Kick-sub settings before enabling it; delivery can be delayed, undercounted after ambiguous acknowledgements, or affected by concurrent goal updates.
 
 ## 3. Third-party services
 
@@ -30,7 +31,7 @@ The application checks the ProMax repository's Releases page when update checks 
 
 ## 6. No warranty and limitation of liability
 
-The software is provided **“AS IS”**, without warranties or conditions of any kind, as stated in Apache License §7. To the extent permitted by applicable law, contributors are not liable for damages arising from use or inability to use the software, as stated in Apache License §8. Donation amounts, currency conversions and alert timing are informational and may be inaccurate or delayed; the application does not process payments.
+The software is provided **“AS IS”**, without warranties or conditions of any kind, as stated in Apache License §7. To the extent permitted by applicable law, contributors are not liable for damages arising from use or inability to use the software, as stated in Apache License §8. Donation amounts, currency conversions and alert timing are informational and may be inaccurate or delayed. The application does not charge viewers or hold funds; in widget-replacement mode it sends provider capture acknowledgements for accepted KickBot alerts, and the optional Donofa bridge changes external goal/timer accounting.
 
 ## 7. Contact
 

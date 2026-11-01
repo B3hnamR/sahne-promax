@@ -12,6 +12,7 @@ const drafts = new Map();
 const typeLabel = { video: 'ویدیو', image: 'تصویر', audio: 'صدا' };
 
 export function selectFile(id, { onUpdate, onDelete }) {
+  if (state.selectedId !== id) $('#insSaved')?.classList.remove('show');
   setSelectedId(id);
   const cfg = state.cfg;
   const f = (cfg.files || []).find(x => x.id === id);
@@ -154,7 +155,11 @@ function validateInspectorRange() {
 export function initInspector({ onUpdate, onDelete, onPreview }) {
   $('#insClose').onclick = closeInspector;
 
-  const saveInspector = body => {
+  const saveInspector = (body, generation = editGenerations.get(body.id)) => {
+    const isCurrentDraft = () =>
+      state.selectedId === body.id &&
+      editGenerations.get(body.id) === generation &&
+      JSON.stringify(collectInspector()) === JSON.stringify(body);
     // Serialize requests for the same file so an older response cannot
     // finish after a newer save and restore stale values.
     const previous = (pendingSaves.get(body.id) || Promise.resolve()).catch(() => {});
@@ -162,21 +167,24 @@ export function initInspector({ onUpdate, onDelete, onPreview }) {
       try {
         const r = await patch('/api/file', body);
         if (r.ok) {
-          if (drafts.get(body.id) && JSON.stringify(drafts.get(body.id)) === JSON.stringify(body))
+          if (
+            editGenerations.get(body.id) === generation &&
+            JSON.stringify(drafts.get(body.id)) === JSON.stringify(body)
+          )
             drafts.delete(body.id);
           const f = (state.cfg.files || []).find(x => x.id === body.id);
           if (f) Object.assign(f, r.file);
           if (typeof onUpdate === 'function') onUpdate();
           const s = $('#insSaved');
-          if (s && state.selectedId === body.id) {
+          if (s && isCurrentDraft()) {
             s.classList.add('show');
             setTimeout(() => s.classList.remove('show'), 1200);
           }
-        } else {
+        } else if (isCurrentDraft()) {
           toast(r.error || 'ذخیره نشد', 'err');
         }
       } catch {
-        toast('ذخیره نشد؛ اتصال را بررسی کنید', 'err');
+        if (isCurrentDraft()) toast('ذخیره نشد؛ اتصال را بررسی کنید', 'err');
       }
     });
     pendingSaves.set(body.id, pending);
@@ -213,6 +221,8 @@ export function initInspector({ onUpdate, onDelete, onPreview }) {
       // Keep one debounce timer per file so editing another card cannot cancel it.
       const body = collectInspector();
       drafts.set(body.id, body);
+      const generation = (editGenerations.get(body.id) || 0) + 1;
+      editGenerations.set(body.id, generation);
       clearTimeout(insT.get(body.id));
       insT.delete(body.id);
       $('#insSaved').classList.remove('show');
@@ -220,8 +230,7 @@ export function initInspector({ onUpdate, onDelete, onPreview }) {
         scheduledBodies.delete(body.id);
         return;
       }
-      const scheduled = { body, generation: (editGenerations.get(body.id) || 0) + 1 };
-      editGenerations.set(body.id, scheduled.generation);
+      const scheduled = { body, generation };
       scheduledBodies.set(body.id, scheduled);
       insT.set(
         body.id,
@@ -229,7 +238,7 @@ export function initInspector({ onUpdate, onDelete, onPreview }) {
           insT.delete(body.id);
           if (scheduledBodies.get(body.id) !== scheduled) return;
           scheduledBodies.delete(body.id);
-          saveInspector(body);
+          saveInspector(body, scheduled.generation);
         }, 350)
       );
     });

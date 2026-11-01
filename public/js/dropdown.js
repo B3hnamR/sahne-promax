@@ -90,6 +90,7 @@ export function setupCustomSelect(select) {
   // Insert wrapper before select in DOM
   select.parentNode.insertBefore(wrap, select);
   select.classList.add('has-sp-select');
+  select.tabIndex = -1;
   select.__spWrapper = wrap;
 
   function rebuildOptions() {
@@ -221,6 +222,9 @@ export function setupCustomSelect(select) {
 
   wrap.sync = syncFromSelect;
   wrap.rebuild = rebuildOptions;
+  select._spSync = syncFromSelect;
+  select.addEventListener('input', select._spSync);
+  select.addEventListener('change', select._spSync);
 
   return wrap;
 }

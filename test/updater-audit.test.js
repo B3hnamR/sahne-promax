@@ -49,6 +49,33 @@ test('update download rejects disk failure while writing', async () => {
   );
 });
 
+test('a progressing download can exceed the stall window and finish on a slow Windows disk', async () => {
+  let chunk = 0;
+  const stream = new ReadableStream({
+    async pull(controller) {
+      if (chunk === 8) return controller.close();
+      await new Promise(resolve => setTimeout(resolve, 100));
+      controller.enqueue(Buffer.from('chunk ' + ++chunk));
+    }
+  });
+  const written = [];
+  const output = new Writable({
+    write(data, _encoding, callback) {
+      written.push(data);
+      callback();
+    },
+    final(callback) {
+      setTimeout(callback, 200);
+    }
+  });
+  const started = Date.now();
+  const result = await streamDownload(stream, output, { maxBytes: 1000, stallMs: 600 });
+  assert.ok(Date.now() - started > 600);
+  const expected = 'chunk 1chunk 2chunk 3chunk 4chunk 5chunk 6chunk 7chunk 8';
+  assert.equal(Buffer.concat(written).toString(), expected);
+  assert.equal(result.sha256, crypto.createHash('sha256').update(expected).digest('hex'));
+});
+
 test('update download rejects oversized stream without trusting content-length', async () => {
   const output = new Writable({
     write(_chunk, _encoding, callback) {

@@ -253,9 +253,17 @@ class KickBotClient {
   }
 
   disconnect() {
+    const previousSecret = this.configStore.getSecret();
+    const previousStreamer = this.configStore.config.streamer_id;
+    const previousStorage = this.configStore.secretStorage;
     this.configStore.setSecret('');
     this.configStore.config.streamer_id = null;
-    this.configStore.saveConfig();
+    if (!this.configStore.saveConfig()) {
+      this.configStore.setSecret(previousSecret);
+      this.configStore.config.streamer_id = previousStreamer;
+      this.configStore.secretStorage = previousStorage;
+      return false;
+    }
     this.resetConnection();
     // The queue is shared with Kick subscriptions and other tip providers.
     const belongsToKickBot = tip => (tip.source || (tip.is_local ? 'kick' : 'kickbot')) === 'kickbot' && !tip.is_replay;
@@ -263,6 +271,7 @@ class KickBotClient {
     this.queue.approved = this.queue.approved.filter(tip => !belongsToKickBot(tip));
     this.sse.sendState();
     this.logger.info('اتصال کیک‌بات حذف شد');
+    return true;
   }
 
   resetConnection() {

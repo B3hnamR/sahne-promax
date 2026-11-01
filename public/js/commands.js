@@ -1,7 +1,7 @@
 // Sahne ProMax — Kick chat command settings (viewers type !command in chat → mapped alert file plays).
 'use strict';
 
-import { $, $$, esc, post, toast } from './api.js';
+import { $, $$, esc, settingsRequest, toast } from './api.js';
 import { state } from './state.js';
 import { initCustomSelects } from './dropdown.js';
 
@@ -84,7 +84,7 @@ export function initCommands() {
         entries.push({ command, fileId, enabled: true });
       }
 
-      const r = await post('/api/config', {
+      const r = await settingsRequest('/api/config', {
         chatCommands: {
           enabled: $('#cmdEnabled').checked,
           prefix: $('#cmdPrefix').value.trim() || '!',

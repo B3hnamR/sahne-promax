@@ -1,7 +1,22 @@
 // Sahne ProMax — Main Frontend Coordinator (ES Module)
 'use strict';
 
-import { $, $$, DESK, api, post, toast, esc, fmtToman, faNum, copyText, spConfirm } from './api.js';
+import {
+  $,
+  $$,
+  DESK,
+  api,
+  post,
+  toast,
+  esc,
+  fmtToman,
+  faNum,
+  copyText,
+  spConfirm,
+  saveSettings,
+  settingsRequest,
+  SETTINGS_SAVE_ERROR
+} from './api.js';
 import { state, setConfig, setRuntimeState, setInfo, setVersion } from './state.js';
 import { initNav } from './nav.js';
 import { initInspector, closeInspector } from './inspector.js';
@@ -15,6 +30,7 @@ import { initRules, fillRules } from './rules.js';
 import { initControls } from './controls.js';
 import { initBackup } from './backup.js';
 import { initCustomSelects } from './dropdown.js';
+import { initUpdates } from './updates.js';
 
 const KB_TEXT = {
   connected: ['متصل', 'chip on'],
@@ -272,6 +288,91 @@ function renderDonofa() {
   if ($('#donofaConnected')) $('#donofaConnected').hidden = !configured;
   if ($('#donofaKeyLabel')) $('#donofaKeyLabel').textContent = configured ? 'کلید API جدید' : 'کلید API';
   if ($('#btnDonofaSetup')) $('#btnDonofaSetup').textContent = configured ? 'تغییر اتصال' : 'اتصال به Donofa';
+  renderDonofaBridge();
+}
+
+function renderDonofaBridge() {
+  const cfg = (state.cfg && state.cfg.donofa) || {};
+  const st = (state.runtimeState && state.runtimeState.donofaBridge) || {};
+  const enabled = cfg.timer === true || cfg.goal === true;
+  const status = !cfg.configured ? 'unconfigured' : !enabled ? 'off' : st.status || 'connecting';
+  const [text, cls] = status === 'off' ? ['خاموش', 'chip'] : SE_TEXT[status] || SE_TEXT.unconfigured;
+  $('#dfBridgeChip').textContent = text;
+  $('#dfBridgeChip').className = cls;
+  for (const [id, key] of [
+    ['#dfTimerOn', 'timer'],
+    ['#dfGoalOn', 'goal']
+  ]) {
+    // State pushes must not undo a checkbox while its save is in flight.
+    if (!$(id).dataset.saving) $(id).checked = cfg[key] === true;
+    $(id).disabled = !cfg.configured || !!$(id).dataset.saving;
+  }
+  $('#btnDfRefresh').disabled = !cfg.configured || !enabled;
+  const g = st.goal,
+    tm = st.timer;
+  const unit = g && (g.unit === 'USD' ? ' دلار' : g.unit === 'PIECE' ? ' عدد' : ' تومان');
+  $('#dfGoal').textContent =
+    !enabled || !cfg.configured
+      ? '—'
+      : g
+        ? g.title +
+          ': ' +
+          faNum(g.progress) +
+          ' از ' +
+          faNum(g.total) +
+          unit +
+          (g.total ? ' (' + faNum(Math.floor((g.progress / g.total) * 100)) + '٪)' : '')
+        : 'هدفی در دونوفا ساخته نشده';
+  const duration = sec => {
+    sec = Math.max(0, Math.floor(Number(sec) || 0));
+    const h = Math.floor(sec / 3600),
+      m = Math.floor((sec % 3600) / 60);
+    return h ? faNum(h) + ' ساعت و ' + faNum(m) + ' دقیقه' : faNum(m) + ' دقیقه و ' + faNum(sec % 60) + ' ثانیه';
+  };
+  const timerStatus = { running: 'در حال اجرا', paused: 'متوقف', finished: 'تمام شده' };
+  $('#dfTimer').textContent =
+    !enabled || !cfg.configured
+      ? '—'
+      : tm
+        ? (timerStatus[tm.status] || tm.status) +
+          (['running', 'paused'].includes(tm.status) ? ' · ' + duration(tm.remaining) + ' مانده' : '') +
+          (tm.rate ? ' · هر ' + faNum(tm.rate.amount) + ' تومان = ' + faNum(tm.rate.seconds) + ' ثانیه' : '')
+        : 'تایمری در دونوفا ساخته نشده';
+  $('#dfQueue').textContent = faNum(st.queue || 0);
+  const notes = [];
+  if (enabled && st.error) notes.push(st.error);
+  if (cfg.timer === true && tm && !['running', 'paused'].includes(tm.status))
+    notes.push('تایمر دونوفا فعال نیست؛ ابتدا در پنل دونوفا شروعش کن.');
+  if (enabled && ((g && g.subKick) || (tm && tm.subKick)))
+    notes.push(
+      'کلید «ساب کیک» هدف یا تایمر دونوفا روشن است؛ برای جلوگیری از دوباره‌شماری آن را در پنل دونوفا خاموش کن.'
+    );
+  $('#dfNote').textContent = notes.join(' ');
+  $('#dfNote').hidden = !notes.length;
+  const kinds = { tip: 'دونیت', sub: 'ساب', gift: 'ساب‌گیفت', kicks: 'KICKs' };
+  const reasons = {
+    'no-timer': 'تایمر فعال نیست',
+    'no-rate': 'نرخ تایمر خاموش',
+    'no-goal': 'هدف فعال نیست',
+    'not-counted': 'در هدف تعدادی شمرده نمی‌شود',
+    completed: 'هدف تکمیل شده',
+    off: 'خاموش'
+  };
+  const recent = $('#dfRecent');
+  recent.textContent = '';
+  for (const r of (cfg.configured && st.recent) || []) {
+    const line = document.createElement('div'),
+      name = document.createElement('b'),
+      value = document.createElement('span');
+    line.className = 'kv';
+    name.textContent = (kinds[r.kind] || r.kind) + ' · ' + (r.name || 'ناشناس');
+    value.textContent =
+      (r.timerNote ? 'تایمر: ' + (reasons[r.timerNote] || r.timerNote) : '+' + faNum(r.seconds) + ' ثانیه') +
+      ' · ' +
+      (r.goalNote ? 'هدف: ' + (reasons[r.goalNote] || r.goalNote) : '+' + faNum(Math.round(r.goal)) + ' به هدف');
+    line.append(name, value);
+    recent.append(line);
+  }
 }
 
 function fillApp() {
@@ -329,8 +430,8 @@ function renderState() {
   }
 
   if ($('#stOv')) $('#stOv').className = 'status-pill' + (s.overlays > 0 ? ' on' : ' warn');
-  if ($('#stOvN')) $('#stOvN').textContent = s.overlays;
-  if ($('#hOv')) $('#hOv').textContent = s.overlays;
+  if ($('#stOvN')) $('#stOvN').textContent = faNum(s.overlays);
+  if ($('#hOv')) $('#hOv').textContent = faNum(s.overlays);
   if ($('#hMode')) $('#hMode').textContent = s.mode === 'standalone' ? 'جایگزین ویجت' : 'کنار ویجت';
 
   if ($('#sPlaying')) {
@@ -338,8 +439,8 @@ function renderState() {
       ? `<span class="chip on">${esc(s.playing.name)} · ${esc(displayedAmount(s.playing))}</span>`
       : '—';
   }
-  if ($('#sApproved')) $('#sApproved').textContent = s.approved;
-  if ($('#sPending')) $('#sPending').textContent = s.pending;
+  if ($('#sApproved')) $('#sApproved').textContent = faNum(s.approved);
+  if ($('#sPending')) $('#sPending').textContent = faNum(s.pending);
   if ($('#sQueue')) $('#sQueue').textContent = s.queueStatus === 'play' ? 'در حال پخش' : 'متوقف';
 
   const pauseBtn = $('#btnPauseQueue');
@@ -350,7 +451,7 @@ function renderState() {
   }
 
   if ($('#sDelay')) $('#sDelay').textContent = faNum(s.queueDelay) + ' ثانیه';
-  if ($('#hRate')) $('#hRate').textContent = s.rate ? Number(s.rate).toLocaleString('en-US') : '—';
+  if ($('#hRate')) $('#hRate').textContent = s.rate ? faNum(s.rate) : '—';
   renderProxy();
 
   if ($('#hRateMeta')) {
@@ -391,7 +492,7 @@ function renderState() {
 function renderRate() {
   const r = (state.cfg && state.cfg.rate) || {};
   const eff = Number(r.manual) > 0 ? Number(r.manual) : r.value || 0;
-  if ($('#rateVal')) $('#rateVal').textContent = eff ? eff.toLocaleString('en-US') + ' T' : '—';
+  if ($('#rateVal')) $('#rateVal').textContent = eff ? faNum(eff) + ' تومان' : '—';
   if ($('#rateMeta')) {
     $('#rateMeta').textContent =
       Number(r.manual) > 0
@@ -467,9 +568,37 @@ async function showDoc(name) {
   }
 }
 
+let filesRefresh;
+let filesRefreshPending = false;
+
+function refreshFiles() {
+  filesRefreshPending = true;
+  if (filesRefresh) return filesRefresh;
+  filesRefresh = (async () => {
+    while (filesRefreshPending) {
+      filesRefreshPending = false;
+      try {
+        const r = await api('/api/config');
+        // Another event invalidates this snapshot; fetch again before applying it.
+        if (filesRefreshPending || !state.cfg || !Array.isArray(r?.config?.files)) continue;
+        state.cfg.files = r.config.files;
+        if (state.selectedId && !state.cfg.files.some(f => f.id === state.selectedId)) closeInspector();
+        renderFiles();
+      } catch {}
+    }
+  })().finally(() => {
+    filesRefresh = null;
+    if (filesRefreshPending) return refreshFiles();
+  });
+  return filesRefresh;
+}
+
 // Targeted Server-Sent Events listener (Zero Redundant Polling)
-function connectEvents() {
+function connectEvents(reconnecting = false) {
   const es = new EventSource('/events?role=admin');
+  es.onopen = () => {
+    if (reconnecting) refreshFiles();
+  };
   es.onmessage = ev => {
     try {
       const d = JSON.parse(ev.data);
@@ -482,6 +611,8 @@ function connectEvents() {
           state.cfg.appearance = d.appearance;
           fillLook();
         }
+      } else if (d.type === 'files_updated') {
+        refreshFiles();
       } else if (d.type === 'goal_update') {
         if (state.cfg) state.cfg.goal = d.goal;
         fillGoal(d.goal);
@@ -497,12 +628,13 @@ function connectEvents() {
   };
   es.onerror = () => {
     es.close();
-    setTimeout(connectEvents, 3000);
+    setTimeout(() => connectEvents(true), 3000);
   };
 }
 
 // Global App Initialization
 document.addEventListener('DOMContentLoaded', async () => {
+  document.body.classList.toggle('web', !DESK);
   initNav({
     onPageChange: name => {
       if (name === 'look') setTimeout(fitPreview, 40);
@@ -519,7 +651,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     onUpdate: renderFiles,
     onDelete: () => {
       renderFiles();
-      load();
+      refreshFiles();
     },
     onPreview: id => {
       window.goPage('look');
@@ -532,7 +664,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  initFiles({ onLoadNeeded: load });
+  initFiles({ onLoadNeeded: refreshFiles });
   initLook();
   initGoal();
   initHistory();
@@ -540,6 +672,45 @@ document.addEventListener('DOMContentLoaded', async () => {
   initRules();
   initControls({ onStateChange: renderState });
   initBackup({ onRestoreComplete: load });
+  initUpdates();
+
+  for (const [id, key] of [
+    ['#dfTimerOn', 'timer'],
+    ['#dfGoalOn', 'goal']
+  ]) {
+    $(id).onchange = async e => {
+      const el = e.target,
+        on = el.checked;
+      el.dataset.saving = '1';
+      el.disabled = true;
+      try {
+        if (await saveSettings({ donofa: { [key]: on } })) {
+          state.cfg.donofa = { ...state.cfg.donofa, [key]: on };
+          toast('ذخیره شد', 'ok');
+        }
+      } finally {
+        delete el.dataset.saving;
+        renderDonofaBridge();
+      }
+    };
+  }
+  $('#btnDfRefresh').onclick = async () => {
+    const btn = $('#btnDfRefresh');
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    try {
+      const r = await post('/api/donofa/refresh');
+      if (!r || r.ok === false) throw new Error(r && r.error);
+      if (r.donofaBridge) state.runtimeState.donofaBridge = r.donofaBridge;
+      renderDonofaBridge();
+      toast('هدف و تایمر دونوفا به‌روز شد', 'ok');
+    } catch (error) {
+      toast(error.message || 'دریافت هدف و تایمر ناموفق بود', 'err');
+    } finally {
+      btn.setAttribute('aria-busy', 'false');
+      renderDonofaBridge();
+    }
+  };
 
   // Home Test Buttons
   if ($('#btnTest')) {
@@ -678,15 +849,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ($('#btnSaveKick')) {
     $('#btnSaveKick').onclick = async () => {
-      await post('/api/config', {
-        kick: {
-          enabled: $('#kEnabled').checked,
-          channel: $('#kChannel').value.trim(),
-          giftValueToman: Number($('#kGift').value) || 0,
-          subValueToman: Number($('#kSub').value) || 0,
-          showNewSubs: $('#kShowSubs').checked
-        }
-      });
+      if (
+        !(await saveSettings({
+          kick: {
+            enabled: $('#kEnabled').checked,
+            channel: $('#kChannel').value.trim(),
+            giftValueToman: Number($('#kGift').value) || 0,
+            subValueToman: Number($('#kSub').value) || 0,
+            showNewSubs: $('#kShowSubs').checked
+          }
+        }))
+      )
+        return;
       toast('ذخیره شد', 'ok');
       setTimeout(load, 1200);
     };
@@ -694,14 +868,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ($('#btnSaveRate')) {
     $('#btnSaveRate').onclick = async () => {
-      await post('/api/config', {
-        rate: {
-          auto: $('#rateAuto').checked,
-          manual: $('#rateManual').value,
-          intervalMin: $('#rateInt').value,
-          proxy: $('#rateProxy').value
-        }
-      });
+      if (
+        !(await saveSettings({
+          rate: {
+            auto: $('#rateAuto').checked,
+            manual: $('#rateManual').value,
+            intervalMin: $('#rateInt').value,
+            proxy: $('#rateProxy').value
+          }
+        }))
+      )
+        return;
       toast('ذخیره شد', 'ok');
       load();
     };
@@ -722,6 +899,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       load();
     };
   }
+
+  const meldButtons = [$('#hMeld'), $('#btnMeld')].filter(Boolean);
+  let meldReloading = false;
+  const meldReload = async () => {
+    if (meldReloading) return;
+    meldReloading = true;
+    const disabled = meldButtons.map(button => button.disabled);
+    meldButtons.forEach(button => (button.disabled = true));
+    const failure = 'ری‌لود Meld ناموفق بود؛ اتصال Meld و لایه‌های Browser را بررسی کنید و دوباره تلاش کنید';
+    try {
+      const result = await settingsRequest('/api/meld-reload');
+      if (result.ok === true) toast('لایه‌های Meld ری‌لود شدند', 'ok');
+      else toast(result.error && result.error !== SETTINGS_SAVE_ERROR ? result.error : failure, 'err');
+    } catch {
+      toast(failure, 'err');
+    } finally {
+      meldButtons.forEach((button, index) => (button.disabled = disabled[index]));
+      meldReloading = false;
+    }
+  };
+  meldButtons.forEach(button => (button.onclick = meldReload));
 
   if ($('#btnDisconnect')) {
     $('#btnDisconnect').onclick = async () => {
@@ -751,7 +949,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         danger: true
       });
       if (!ok) return;
-      await post('/api/reset-settings');
+      const result = await settingsRequest('/api/reset-settings');
+      if (!result.ok) return toast(result.error, 'err');
       toast('تنظیمات بازگردانی شد', 'ok');
       load();
     };
@@ -783,120 +982,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   if ($('#autostart')) {
     $('#autostart').onchange = async e => {
       if (!DESK) return;
-      const r = await window.sahne.app.autostart(e.target.checked);
-      e.target.checked = !!r;
-      await post('/api/config', { app: { autostart: !!r } });
-      toast(r ? 'اجرای خودکار فعال شد' : 'اجرای خودکار غیرفعال شد', 'ok');
+      const requested = e.target.checked;
+      e.target.disabled = true;
+      try {
+        const r = await window.sahne.app.autostart(requested);
+        e.target.checked = !!r;
+        if (state.info) state.info.autostart = !!r;
+        toast(r ? 'اجرای خودکار فعال شد' : 'اجرای خودکار غیرفعال شد', 'ok');
+      } catch {
+        e.target.checked = !requested;
+        try {
+          e.target.checked = !!(await window.sahne.app.autostart());
+        } catch {}
+        if (state.info) state.info.autostart = e.target.checked;
+        toast(SETTINGS_SAVE_ERROR, 'err');
+      } finally {
+        e.target.disabled = false;
+      }
     };
   }
 
   if ($('#updCheck')) {
     $('#updCheck').onchange = async e => {
-      await post('/api/config', { app: { updateCheck: e.target.checked } });
+      if (!(await saveSettings({ app: { updateCheck: e.target.checked } }))) {
+        e.target.checked = !e.target.checked;
+        return;
+      }
       toast(e.target.checked ? 'بررسی خودکار آپدیت روشن شد' : 'بررسی خودکار آپدیت خاموش شد', 'ok');
     };
   }
   if ($('#recordHistory')) {
     $('#recordHistory').onchange = async e => {
-      await post('/api/config', { app: { recordHistory: e.target.checked } });
+      if (!(await saveSettings({ app: { recordHistory: e.target.checked } }))) {
+        e.target.checked = !e.target.checked;
+        return;
+      }
       load();
     };
-  }
-
-  // ---------- updates (desktop app only; checking, downloading and verifying happen in the main process) ----------
-  let UPD = null,
-    updLater = false;
-  function renderUpdate(s) {
-    if (s) UPD = s;
-    const bar = $('#updBar'),
-      ab = $('#abUpd');
-    if (!bar) return;
-    if (!DESK || !UPD) {
-      bar.hidden = true;
-      if (ab) ab.textContent = DESK ? '—' : 'فقط در برنامه‌ی دسکتاپ';
-      return;
-    }
-    const v = UPD.latest || '';
-    let txt = '',
-      show = false,
-      busy = false;
-    if (UPD.status === 'available') {
-      txt = 'نسخه‌ی جدید صحنه پرومکس (' + v + ') آماده است.' + (UPD.error ? ' ' + UPD.error : '');
-      show = !updLater;
-    } else if (UPD.status === 'downloading') {
-      txt = 'در حال دانلود نسخه‌ی ' + v + '… ' + (UPD.progress || 0) + '٪';
-      show = busy = true;
-    } else if (UPD.status === 'ready') {
-      txt = 'نسخه‌ی ' + v + ' دانلود و با چک‌سام رسمی بررسی شد (حالت تست؛ نصب نمی‌شود).';
-      show = busy = true;
-    } else if (UPD.status === 'installing') {
-      txt = 'در حال نصب نسخه‌ی ' + v + '… برنامه چند ثانیه بسته و دوباره باز می‌شود.';
-      show = busy = true;
-    }
-    bar.hidden = !show;
-    $('#updText').textContent = txt;
-    $('#updGo').disabled = busy;
-    $('#updGo').textContent = UPD.canInstall ? 'آپدیت' : 'دانلود';
-    $('#updLater').style.display = busy ? 'none' : '';
-    if (ab) {
-      const labels = {
-        idle: 'هنوز بررسی نشده',
-        checking: 'در حال بررسی…',
-        uptodate: 'به‌روز است (' + UPD.current + ')',
-        available: 'نسخه‌ی ' + v + ' آمده',
-        downloading: 'در حال دانلود…',
-        ready: 'دانلود شد (تست)',
-        installing: 'در حال نصب…',
-        error: UPD.error || 'بررسی ناموفق بود'
-      };
-      ab.textContent = labels[UPD.status] || '—';
-    }
-  }
-  if (DESK && window.sahne.update) {
-    window.sahne.update.onStatus(renderUpdate);
-    window.sahne.update
-      .get()
-      .then(renderUpdate)
-      .catch(() => {});
-    if ($('#updGo'))
-      $('#updGo').onclick = async () => {
-        if (!UPD) return;
-        if (!UPD.canInstall) {
-          if (UPD.page) window.sahne.app.openExternal(UPD.page);
-          return;
-        }
-        const ok = await spConfirm({
-          title: 'آپدیت صحنه پرومکس',
-          body:
-            'نسخه‌ی ' +
-            UPD.latest +
-            ' دانلود و نصب شود؟ برنامه چند ثانیه بسته و دوباره باز می‌شود؛ تنظیمات و فایل‌ها سر جایشان می‌مانند.',
-          confirmText: 'آپدیت',
-          cancelText: 'انصراف',
-          icon: '#i-refresh'
-        });
-        if (!ok) return;
-        renderUpdate(await window.sahne.update.install());
-      };
-    if ($('#updNotes')) $('#updNotes').onclick = () => UPD && UPD.page && window.sahne.app.openExternal(UPD.page);
-    if ($('#updLater'))
-      $('#updLater').onclick = () => {
-        updLater = true;
-        renderUpdate();
-      };
-    if ($('#abCheckUpd'))
-      $('#abCheckUpd').onclick = async () => {
-        updLater = false;
-        const s = await window.sahne.update.check();
-        renderUpdate(s);
-        if (!s) return;
-        if (s.status === 'uptodate') toast('صحنه پرومکس به‌روز است', 'ok');
-        else if (s.status === 'available') toast('نسخه‌ی ' + s.latest + ' آمده است', 'ok');
-        else toast(s.error || 'بررسی آپدیت ناموفق بود', 'err');
-      };
-  } else {
-    if ($('#abCheckUpd')) $('#abCheckUpd').disabled = true;
-    renderUpdate(null);
   }
 
   if ($('#btnCopy')) {
@@ -929,10 +1051,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if ($('#btnSaveSettings')) {
     $('#btnSaveSettings').onclick = async () => {
-      await post('/api/config', {
-        mode: $('#mode').value,
-        showAlertWithoutMedia: $('#showNoMedia').checked
-      });
+      if (
+        !(await saveSettings({
+          mode: $('#mode').value,
+          showAlertWithoutMedia: $('#showNoMedia').checked
+        }))
+      )
+        return;
       toast('ذخیره شد', 'ok');
       load();
     };

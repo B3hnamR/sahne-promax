@@ -126,6 +126,18 @@ test('Donofa key is hidden from public config and excluded from portable backups
   assert.equal(portable.donofa.reconnectRequired, true);
 });
 
+test('encrypted Donofa credentials report operating-system storage after restart', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-donofa-encrypted-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const secureStore = { available: () => true, encrypt: key => 'encrypted-' + key, decrypt: key => key.slice(10) };
+  const first = new ConfigStore({ dataDir: dir, secretStore: secureStore });
+  first.setDonofaKey('donofatestkey');
+  assert.equal(first.saveConfig(), true);
+  const restarted = new ConfigStore({ dataDir: dir, secretStore: secureStore });
+  assert.equal(restarted.getDonofaKey(), 'donofatestkey');
+  assert.equal(restarted.publicConfig().donofa.secretStorage, 'os');
+});
+
 test('Donofa setup, simulation and disconnect preserve other providers', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sahne-donofa-http-'));
   const port = await freePort();

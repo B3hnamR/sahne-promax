@@ -17,6 +17,34 @@ const { HistoryStore } = require('../server/config/history');
 
 const logger = { info() {}, warn() {}, error() {} };
 
+test('skipping visual playback during capture still accounts for the confirmed support', async () => {
+  let finish;
+  const pending = new Promise(resolve => {
+    finish = resolve;
+  });
+  const counted = [];
+  const queue = new PlaybackQueue({
+    configStore: { config: { mode: 'standalone', appearance: {} } },
+    playedStore: { isPlayed: () => false, markPlayed() {} },
+    mediaDir: '',
+    logger,
+    sse: { clientCount: () => 1, sendState() {}, broadcast() {} },
+    rateManager: {},
+    captureFn: () => pending,
+    onSupport: tip => {
+      if (tip.captured) counted.push(tip.stripe_pi_id);
+    }
+  });
+  queue.enqueueApproved({ stripe_pi_id: 'pi_skipped', amount_total: 500 });
+  const advancing = queue.tryNext();
+  queue.skipCurrent();
+  finish('ok');
+  await advancing;
+  assert.deepEqual(counted, ['pi_skipped']);
+  assert.equal(queue.playing, null);
+  queue.stop();
+});
+
 test('captured donation waits after the last Browser Source closes and survives a restart', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'promax-waiting-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -27,6 +55,7 @@ test('captured donation waits after the last Browser Source closes and survives 
   let finishCapture;
   const capture = new Promise(resolve => (finishCapture = resolve));
   let queue;
+  const supports = [];
   const sse = {
     clientCount: () => overlays,
     sendState: () => queue.persistWaiting(),
@@ -41,6 +70,9 @@ test('captured donation waits after the last Browser Source closes and survives 
     sse,
     rateManager: { currentRate: () => 0, tomanOf: () => 0, tomanFor: () => 0 },
     captureFn: () => capture,
+    onSupport: tip => {
+      if (tip.captured) supports.push(tip.stripe_pi_id);
+    },
     publishFn() {}
   });
   queue.enqueueApproved({ stripe_pi_id: 'pi_paid', tipper_name: 'Ali', amount_total: 100, source: 'kickbot' });
@@ -56,6 +88,7 @@ test('captured donation waits after the last Browser Source closes and survives 
     ['sub_abcdef123456', 'pi_paid', 'pi_later']
   );
   assert.equal(queue.approved[1].captured, true);
+  assert.ok(supports.includes('pi_paid'));
   assert.deepEqual(
     JSON.parse(fs.readFileSync(store.file, 'utf8')).map(tip => tip.stripe_pi_id),
     ['sub_abcdef123456', 'pi_paid']

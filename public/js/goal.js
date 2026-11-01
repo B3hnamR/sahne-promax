@@ -1,7 +1,25 @@
 // Sahne ProMax — Live Donation & Sub Goal Management
 'use strict';
 
-import { $, post, toast, copyText, fmtToman, spConfirm } from './api.js';
+import { $, settingsRequest, toast, copyText, fmtToman, spConfirm } from './api.js';
+
+const goalFields = {
+  gTitle: 'value',
+  gTarget: 'value',
+  gCurrent: 'value',
+  gAutoReset: 'checked',
+  gTimed: 'checked',
+  gDeadline: 'value',
+  gConfettiDone: 'checked',
+  gConfettiSub: 'checked',
+  gMilestone: 'value',
+  gCounters: 'checked'
+};
+const goalBaseline = {};
+
+function snapshotGoal() {
+  return Object.fromEntries(Object.entries(goalFields).map(([id, property]) => [id, $('#' + id)?.[property]]));
+}
 
 function toLocalInput(ms) {
   const d = new Date(Number(ms));
@@ -17,19 +35,33 @@ function toggleDeadlineRow() {
   if ($('#gDeadlineRow')) $('#gDeadlineRow').hidden = !on;
 }
 
-export function fillGoal(goal) {
+export function fillGoal(goal, { snapshot } = {}) {
   if (!goal) return;
-  if ($('#gTitle')) $('#gTitle').value = goal.title || '';
-  if ($('#gTarget')) $('#gTarget').value = goal.targetToman || 5000000;
-  if ($('#gCurrent')) $('#gCurrent').value = goal.currentToman || 0;
-  if ($('#gAutoReset')) $('#gAutoReset').checked = goal.autoIncrement !== false;
-  if ($('#gTimed')) $('#gTimed').checked = goal.mode === 'timed';
-  if ($('#gDeadline')) $('#gDeadline').value = goal.deadline ? toLocalInput(goal.deadline) : '';
+  const values = {
+    gTitle: goal.title || '',
+    gTarget: String(goal.targetToman || 5000000),
+    gCurrent: String(goal.currentToman || 0),
+    gAutoReset: goal.autoIncrement !== false,
+    gTimed: goal.mode === 'timed',
+    gDeadline: goal.deadline ? toLocalInput(goal.deadline) : '',
+    gConfettiDone: goal.confettiOnComplete !== false,
+    gConfettiSub: goal.confettiOnFirstSub !== false,
+    gMilestone: String(goal.milestoneToman || 0),
+    gCounters: goal.showCounters !== false
+  };
+  for (const [id, value] of Object.entries(values)) {
+    const field = $('#' + id);
+    const property = goalFields[id];
+    // A response may acknowledge the submitted draft, but not edits made while it was pending.
+    if (
+      field &&
+      (snapshot ? field[property] === snapshot[id] : !(id in goalBaseline) || field[property] === goalBaseline[id])
+    ) {
+      field[property] = value;
+    }
+    goalBaseline[id] = value;
+  }
   toggleDeadlineRow();
-  if ($('#gConfettiDone')) $('#gConfettiDone').checked = goal.confettiOnComplete !== false;
-  if ($('#gConfettiSub')) $('#gConfettiSub').checked = goal.confettiOnFirstSub !== false;
-  if ($('#gMilestone')) $('#gMilestone').value = goal.milestoneToman || 0;
-  if ($('#gCounters')) $('#gCounters').checked = goal.showCounters !== false;
   if ($('#gCurrentLbl')) $('#gCurrentLbl').textContent = fmtToman(goal.currentToman || 0);
   if ($('#gTargetLbl')) $('#gTargetLbl').textContent = fmtToman(goal.targetToman || 5000000);
 }
@@ -63,7 +95,8 @@ export function initGoal() {
         if (!Number.isFinite(deadline) || deadline <= Date.now()) return toast('زمان پایان باید در آینده باشد', 'err');
       }
 
-      const r = await post('/api/goal', {
+      const snapshot = snapshotGoal();
+      const r = await settingsRequest('/api/goal', {
         title,
         targetToman,
         currentToman,
@@ -77,7 +110,7 @@ export function initGoal() {
       });
       if (r.ok) {
         toast('تنظیمات هدف دونیت ذخیره شد', 'ok');
-        fillGoal(r.goal);
+        fillGoal(r.goal, { snapshot });
         refreshGoalPreview();
       } else {
         toast(r.error || 'خطا در ذخیره هدف', 'err');
@@ -96,11 +129,14 @@ export function initGoal() {
         danger: true
       });
       if (!ok) return;
-      const r = await post('/api/goal/reset', { targetToman: Number($('#gTarget').value) || undefined });
+      const snapshot = snapshotGoal();
+      const r = await settingsRequest('/api/goal/reset', { targetToman: Number($('#gTarget').value) || undefined });
       if (r.ok) {
         toast('هدف دونیت صفر شد', 'ok');
-        fillGoal(r.goal);
+        fillGoal(r.goal, { snapshot });
         refreshGoalPreview();
+      } else {
+        toast(r.error, 'err');
       }
     };
   }

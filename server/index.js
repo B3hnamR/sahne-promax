@@ -19,6 +19,7 @@ const { KickBotClient } = require('./integrations/kickbot');
 const { KickChatClient } = require('./integrations/kick-chat');
 const { StreamElementsClient } = require('./integrations/streamelements');
 const { DonofaClient } = require('./integrations/donofa');
+const { createDonofaBridge, createDonofaFeed } = require('./integrations/donofa-bridge');
 const { MeldManager } = require('./integrations/meld');
 const { createHttpRouter } = require('./http/router');
 const {
@@ -59,6 +60,17 @@ function createServer(opts = {}) {
   const goalManager = new GoalManager({ configStore, logger, sse });
   const rateManager = new RateManager({ configStore, logger, sse, systemProxy: opts.systemProxy });
   const mediaManager = new MediaManager({ mediaDir, configStore, logger, sse });
+  const donofaBridge = createDonofaBridge({
+    dataDir,
+    configStore,
+    rateManager,
+    logger,
+    sse,
+    WebSocketCtor: opts.testHooks?.offline ? null : opts.testHooks?.DonofaBridgeWebSocketCtor,
+    request: opts.testHooks?.donofaRequest,
+    pollMs: opts.testHooks?.donofaPollMs
+  });
+  const feedDonofa = createDonofaFeed({ bridge: donofaBridge, rateManager });
 
   let kickBotClient = null;
   const captureFn = createCaptureTip({
@@ -78,6 +90,7 @@ function createServer(opts = {}) {
     captureFn,
     historyStore,
     waitingStore,
+    onSupport: feedDonofa,
     publishFn: (ev, pl) => {
       if (kickBotClient) kickBotClient.publish(ev, pl);
     },
@@ -99,7 +112,11 @@ function createServer(opts = {}) {
     queue: playbackQueue,
     rateManager,
     logger,
-    sse
+    sse,
+    onSupport: feedDonofa,
+    WebSocketCtor: opts.testHooks?.KickWebSocketCtor,
+    httpsRequestFn: opts.testHooks?.kickRequest,
+    kickPusherKeys: opts.testHooks?.kickPusherKeys
   });
 
   const streamElementsClient = new StreamElementsClient({
@@ -161,6 +178,7 @@ function createServer(opts = {}) {
       },
       se: streamElementsClient.publicState(),
       donofa: donofaClient.publicState(),
+      donofaBridge: donofaBridge.publicState(),
       rate: rateManager.currentRate(),
       rateUpdatedAt: config.rate.updatedAt,
       rateManual: Number(config.rate.manual) > 0,
@@ -186,6 +204,7 @@ function createServer(opts = {}) {
     sse,
     rateManager,
     mediaManager,
+    meldManager,
     playbackQueue,
     kickBotClient,
     kickChatClient,
@@ -193,6 +212,7 @@ function createServer(opts = {}) {
     historyStore,
     streamElementsClient,
     donofaClient,
+    donofaBridge,
     appVersion,
     openPathFn: opts.openPath
   });
@@ -224,6 +244,7 @@ function createServer(opts = {}) {
           kickBotClient.startKeepAlive();
           streamElementsClient.connect();
           donofaClient.connect();
+          donofaBridge.start();
           if (configStore.config.kick.enabled && configStore.config.kick.channel) {
             kickChatClient.resolveKickChannel().then(ok => {
               if (ok) kickChatClient.connect();
@@ -238,7 +259,10 @@ function createServer(opts = {}) {
   }
 
   async function stop() {
-    if (!started) return;
+    if (!started) {
+      donofaBridge.stop();
+      return;
+    }
     started = false;
     playbackQueue.stop();
     configStore.stop();
@@ -248,6 +272,7 @@ function createServer(opts = {}) {
     kickChatClient.stop();
     streamElementsClient.stop();
     donofaClient.stop();
+    donofaBridge.stop();
     meldManager.stop();
     sse.close();
 
@@ -262,6 +287,14 @@ function createServer(opts = {}) {
       kickChatClient.stop();
       streamElementsClient.disconnect();
       donofaClient.disconnect();
+      donofaBridge.stop();
+      for (const file of ['donofa.json', 'donofa.json.tmp']) {
+        try {
+          fs.unlinkSync(path.join(dataDir, file));
+        } catch (e) {
+          if (e.code !== 'ENOENT') throw e;
+        }
+      }
       playbackQueue.stop();
       waitingStore.clear();
       configStore.setSecret('');
@@ -323,6 +356,7 @@ function createServer(opts = {}) {
     goalManager,
     historyStore,
     donofaClient,
+    donofaBridge,
     streamElementsClient,
     // Legacy compat surface used by electron/main.js (added in the 2.0.1 review fixes)
     appUrl: () => `http://localhost:${configStore.config.port}/`,

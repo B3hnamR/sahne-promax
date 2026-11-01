@@ -1,7 +1,7 @@
 // Sahne ProMax — Alert media routing rules page.
 'use strict';
 
-import { $, $$, esc, post, put, toast } from './api.js';
+import { $, $$, esc, post, put, toast, SETTINGS_SAVE_ERROR } from './api.js';
 import { state } from './state.js';
 
 let availability = {};
@@ -277,7 +277,13 @@ export function initRules() {
         return;
       }
       invalidatePreview();
-      const r = await put('/api/rules', collectRules());
+      let r;
+      try {
+        r = await put('/api/rules', collectRules());
+      } catch {
+        toast(SETTINGS_SAVE_ERROR, 'err');
+        return;
+      }
       if (r && r.ok) {
         if (state.cfg) state.cfg.alertRules = { v: 1, enabled: r.rules.enabled, items: r.rules.items };
         await fillRules();

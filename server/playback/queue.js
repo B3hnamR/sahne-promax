@@ -17,6 +17,7 @@ class PlaybackQueue {
     publishFn,
     historyStore = null,
     waitingStore = null,
+    onSupport = () => {},
     captureRetryMs = 15000
   }) {
     this.configStore = configStore;
@@ -29,6 +30,7 @@ class PlaybackQueue {
     this.publish = publishFn || (() => {});
     this.historyStore = historyStore;
     this.waitingStore = waitingStore;
+    this.onSupport = onSupport;
     this.captureRetryMs = Number(captureRetryMs) || 15000;
 
     this.pending = [];
@@ -83,6 +85,7 @@ class PlaybackQueue {
   // path (approved.push + delayed tryNext) keeps its backoff untouched.
   enqueueApproved(t) {
     if (!t) return;
+    this.onSupport(t);
     const isPriority = !t.is_replay && (t.kind === 'sub' || t.kind === 'gift');
     if (!isPriority) {
       this.approved.push(t);
@@ -137,6 +140,10 @@ class PlaybackQueue {
 
       if (!t.is_test && !t.is_local && !t.captured) {
         const res = await this.capture(t);
+        if (res === 'ok') {
+          t.captured = true;
+          this.onSupport(t);
+        }
         if (!this.playing || this.playing.stripe_pi_id !== t.stripe_pi_id) return;
         if (res !== 'ok') {
           this.playing = null;
@@ -175,6 +182,9 @@ class PlaybackQueue {
         if (this.waitingStore) this.waitingStore.save([t, ...this.approved]);
       }
 
+      // A captured payment counts even if OBS disconnected while capture was in flight.
+      if (t.captured) this.onSupport(t);
+
       if (this.sse.clientCount('overlay') === 0) {
         this.playing = null;
         // A sub arriving during capture keeps ProMax's sub-first ordering.
@@ -203,6 +213,7 @@ class PlaybackQueue {
 
   showTip(t) {
     const config = this.configStore.config;
+    this.onSupport(t, { confirmed: config.mode === 'companion' });
     const toman = tipToman(t, this.rateManager);
     const resolved = resolveMedia(t, factsFromTip(t, toman), {
       config,

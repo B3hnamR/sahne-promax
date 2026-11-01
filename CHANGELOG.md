@@ -2,6 +2,20 @@
 
 All notable changes to the public builds. Versions follow semantic versioning.
 
+## Unreleased (Sahne+ 1.6.1 integration)
+
+- Integrate all 11 upstream commits after 1.4.1 through 1.6.1, adapting them to ProMax's modular architecture rather than restoring the upstream monolithic server/controller.
+- Recover from Kick chat Pusher key rotation with validated discovery, cached credentials, fallback keys, and throttled retries.
+- Adopt the Mint stage controller styling, accessibility and reduced-motion improvements, controller-wide Vazirmatn, and more discoverable update actions while retaining ProMax's release identity.
+- Persist manual settings before applying them; report failed saves without success feedback or losing active settings.
+- Add an opt-in outbound Donofa goal/timer bridge for confirmed KickBot and StreamElements tips, Kick subscriptions, gifted subscriptions, and KICKs. Keep ProMax's inbound Donofa donations/TTS and local goal widget independent.
+- Exclude Donofa's own donations, free chat commands, tests, and replays from outbound bridge accounting. Preserve pending bridge work across restarts, but reset account-bound state on key changes and portable restore.
+- Preserve ProMax's routing rules, paired media, counters/confetti, history, backup protections, provider choices, and checksum-verified updater.
+- Fix reviewed integration and inherited bugs: stale Kick channel lookups, reset connection/rate effects, provider credential save rollback, invalid KickBot verification responses, misleading rate-refresh success, missing Meld reload bindings/endpoint, and automatic media selection in Appearance Preview.
+- Preserve unsaved goal drafts during live updates and pending saves; serialize inspector saves and show saved feedback only for the acknowledged current draft. Report encrypted Donofa storage correctly after restart.
+- Keep external support accounting bound to the original Donofa account across delayed playback/restart, count successful captures even after visual Skip, and refuse account changes when bridge recovery or persistence fails. Run portable restore installation inside the same bridge reset transaction and do not start bridge polling before explicit startup.
+- Fix preset dropdown synchronization and event-driven file-list updates between controllers. Restore keyboard-safe confirmation dialogs and remove invisible duplicate native-select focus stops.
+
 ## 2.7.0 — 2026-10-06 (Sahne+ 1.4.1 port and playback recovery)
 
 - Port upstream Sahne+ changes through 1.4.1 into ProMax's modular server and overlay, recording upstream ancestry while preserving existing ProMax features.

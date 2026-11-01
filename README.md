@@ -38,6 +38,8 @@ KickBot · StreamElements · **Donofa** · Kick subscriptions
 
 **2.7.0** incorporates the changes from upstream Sahne+ through [**1.4.1**](https://github.com/AmirEyZed/sahne-plus/releases/tag/v1.4.1), adapted to ProMax's modular backend and extra providers. ProMax also includes Donofa donations, a local analytics dashboard, OBS goal and top-donors widgets, Stream Deck controls, paired media, Kick chat commands, sub-first queue priority, milestone confetti, timed goals, counters, and alert history.
 
+**Unreleased source integration:** this working source also incorporates Sahne+ through [1.6.1](https://github.com/AmirEyZed/sahne-plus/tree/v1.6.1): Kick chat key recovery, Mint stage controller/accessibility, reliable settings-save errors, an optional external Donofa goal/timer bridge, and persistent update actions. The published ProMax release remains 2.7.0 until a new release is prepared.
+
 > **Note:** Sahne ProMax is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Kick, KickBot, StreamElements, Donofa, Nobitex, or Baha24.
 
 ### Your first stream in three steps
@@ -69,15 +71,19 @@ KickBot queue delay and pause/play settings now apply; its disconnect cleanup le
 
 The card shows connection status without displaying the key. The key is stored locally, encrypted with Electron `safeStorage` when available, omitted from portable backups, and removed when you disconnect. Reconnect Donofa after restoring a backup. Live delivery still needs verification with a real Donofa account and donation.
 
+The unreleased **Donofa bridge** is separate from inbound donation alerts and ProMax's local `/goal` widget. Explicitly enable its goal and/or timer switches to send confirmed external supports into the goal and timer configured on Donofa. Both switches default to off, including for existing Donofa users. Disable Donofa's own Kick-sub counting to avoid counting subscriptions twice. Tests, replays, free commands, and Donofa's own donations are never forwarded.
+
+Bridge retries and its local journal reduce duplicate accounting, but cannot guarantee exactly-once delivery: an ambiguous timer response is treated as sent to avoid doubling it, and Donofa goal updates retain a small concurrent-donation race. The account-bound journal is not included in portable backups. Live goal/timer writes require verification with a real Donofa account.
+
 ---
 
 See the [2.7.0 release notes](docs/releases/RELEASE_NOTES_2.7.0.md) for the full list.
 
 ---
 
-## 🚀 ProMax additions compared with Sahne+ 1.4.1
+## ProMax additions compared with Sahne+ 1.6.1
 
-I checked these against the [upstream 1.4.1 source](https://github.com/AmirEyZed/sahne-plus/tree/v1.4.1). They are present in ProMax and do not have an equivalent feature in that upstream release. This comparison is version-specific; it does not imply upstream will never add them.
+Checked against the [upstream 1.6.1 source](https://github.com/AmirEyZed/sahne-plus/tree/v1.6.1). The additions below remain ProMax-specific. Both versions now include the external Donofa bridge, Kick realtime key recovery, failure-aware manual settings saves, and persistent update actions; these are upstream features, not ProMax-only additions.
 
 | ProMax addition | What it does |
 | --- | --- |
@@ -105,6 +111,21 @@ I checked these against the [upstream 1.4.1 source](https://github.com/AmirEyZed
 | **🎬 Queue recovery and long media** | Both now retain waiting alerts and let long media finish. ProMax adapts this behavior to Donofa, its sub-first queue, and its own overlay architecture. |
 
 ProMax also uses a modular server and targeted SSE, ETag caching, and lazy file previews. Those are implementation choices, so they are documented under [Architecture](#architecture) and [Performance](#performance) rather than claimed as exclusive streamer features.
+
+### Upstream parity and deliberate differences
+
+| Sahne+ 1.6.1 capability | ProMax integration |
+|---|---|
+| Kick public-chat Pusher key rotation | Validated cached credentials, new/legacy keys, routed discovery, rejection recovery and throttling; existing commands and stale-socket protection retained. |
+| Mint stage controller, accessibility and typography | Mint surfaces, Vazirmatn, Persian counters, current-page semantics, focus/reduced-motion handling and short-window layouts adapted to all ProMax tabs. Decorative pointer tilt and 3D page turns are intentionally not copied. |
+| Failed settings saves | Manual settings persist before live configuration and success feedback change; ProMax rules/local-goal saves use the same guarantees. Automatic operational saves are not a general transaction system. |
+| Donofa external goal/timer bridge | Added alongside, not instead of, inbound Donofa alerts/TTS and the local ProMax goal widget. Defaults off to avoid unexpected writes for existing connected accounts. |
+| Kick subs, gifts and KICKs in Donofa | Subs/gifts count independently of alert visibility; KICKs use the upstream $0.0105 store value without creating an overlay alert. |
+| Discoverable update controls | Persistent sidebar/About actions and immediate checking/progress feedback; ProMax release URLs, checksum verification, installer identity and custom confirmation retained. |
+| Currency and provider routing | Intentionally retains Nobitex-first USD/Baha24 fallback instead of replacing ProMax's rate architecture. No Bonbast requests. |
+| Packaging and release metadata | Keeps ProMax 2.7.0 until separately released. Upstream 1.6.1 is an incorporated source baseline, not the fork's application version. |
+
+Offline regression tests and responsive render checks do not establish live-provider correctness. Real Kick key rotation, Donofa writes, and update installation still require provider/account and Windows runtime verification. The Donofa bridge has explicit ambiguous-delivery and concurrent-goal-update limitations described above.
 
 ---
 
