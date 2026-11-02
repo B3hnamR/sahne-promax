@@ -1,6 +1,6 @@
 # Sahne ProMax — Privacy Policy
 
-_Last updated: 2026-11-01 · See the current [bundled privacy policy](../../public/legal/PRIVACY.md) for Sahne ProMax 2.7.0 and unreleased upstream 1.6.1 integration._
+_Last updated: 2026-11-02 · See the current [bundled privacy policy](../../public/legal/PRIVACY.md) for Sahne ProMax 2.8.0, incorporating Sahne+ 1.6.1._
 
 The current integration adds an explicitly enabled Donofa goal/timer bridge, separate from inbound Donofa alerts. It sends authenticated API v2 goal/timer updates based on confirmed external support amounts and retains an account-bound `donofa.json` journal, independently of alert-history recording. This journal is omitted from portable backups and reset on account changes/restore/clear-data. Kick chat can discover the current public Pusher key through `web.kick.com/api/v1/realtime/connection`. Bonbast is no longer used. The older detailed inventory below is superseded where it differs from the bundled policy and `docs/DATA_FLOW.md`.
 

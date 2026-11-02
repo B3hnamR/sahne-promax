@@ -2,7 +2,9 @@
 
 All notable changes to the public builds. Versions follow semantic versioning.
 
-## Unreleased (Sahne+ 1.6.1 integration)
+## 2.8.0 — 2026-11-02 (Sahne+ 1.6.1 integration)
+
+- Bump the application and lockfile to 2.8.0. Refresh the README with a current controller screenshot, provider matrix, setup guidance, and an explicit upstream UI/motion comparison; update the attached Persian guide.
 
 - Integrate all 11 upstream commits after 1.4.1 through 1.6.1, adapting them to ProMax's modular architecture rather than restoring the upstream monolithic server/controller.
 - Recover from Kick chat Pusher key rotation with validated discovery, cached credentials, fallback keys, and throttled retries.
@@ -15,6 +17,18 @@ All notable changes to the public builds. Versions follow semantic versioning.
 - Preserve unsaved goal drafts during live updates and pending saves; serialize inspector saves and show saved feedback only for the acknowledged current draft. Report encrypted Donofa storage correctly after restart.
 - Keep external support accounting bound to the original Donofa account across delayed playback/restart, count successful captures even after visual Skip, and refuse account changes when bridge recovery or persistence fails. Run portable restore installation inside the same bridge reset transaction and do not start bridge polling before explicit startup.
 - Fix preset dropdown synchronization and event-driven file-list updates between controllers. Restore keyboard-safe confirmation dialogs and remove invisible duplicate native-select focus stops.
+
+### Updating
+
+From 2.7.0, click **آپدیت** in the desktop app or use this repository's 2.8.0 release. The updater verifies the installer against `SHA256SUMS.txt`. Local settings, media, rules and saved history remain in place. The external Donofa bridge defaults off and must be enabled explicitly. Portable backups omit provider/proxy credentials; reconnect providers after restoring one.
+
+### Assets
+
+- `Sahne-ProMax-Setup-2.8.0.exe` — Windows x64 installer (per-user)
+- `SHA256SUMS.txt` — SHA-256 checksums
+- `README-FA.md` — updated Persian guide
+
+See [the full 2.8.0 release notes](docs/releases/RELEASE_NOTES_2.8.0.md) for bridge limitations, validation and update details.
 
 ## 2.7.0 — 2026-10-06 (Sahne+ 1.4.1 port and playback recovery)
 

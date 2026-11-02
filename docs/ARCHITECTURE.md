@@ -1,6 +1,6 @@
 # Sahne ProMax — Architecture guide
 
-**Sahne ProMax 2.7.0** is a modular fork of Sahne Plus with upstream behavior through 1.4.1. The local server uses Node.js built-ins and keeps the loopback security model. This guide describes the original 2.0.0 modularization and its current extension points; see [README.md](../README.md) for user-facing features and [DATA_FLOW.md](DATA_FLOW.md) for the current network and privacy inventory.
+**Sahne ProMax 2.8.0** is a modular fork of Sahne Plus incorporating upstream changes through 1.6.1, with its own controller workflows and simpler navigation motion. The local server uses Node.js built-ins and keeps the loopback security model. This guide describes the original 2.0.0 modularization and its extension points; see [README.md](../README.md) for the current feature comparison and [DATA_FLOW.md](DATA_FLOW.md) for network and privacy details.
 
 ---
 

@@ -1,6 +1,6 @@
 # Sahne ProMax — Terms of Use
 
-_Last updated: 2026-11-01 · Applies to Sahne ProMax 2.7.0 and unreleased upstream 1.6.1 integration_
+_Last updated: 2026-11-02 · Applies to Sahne ProMax 2.8.0, incorporating Sahne+ 1.6.1_
 
 **خلاصه‌ی فارسی (غیررسمی):** Sahne ProMax فورکی مستقل از Sahne+ و تحت مجوز Apache-2.0 است. مسئولیت فایل‌هایی که وارد برنامه می‌کنید و داده‌هایی که در استریم نمایش می‌دهید با شماست. سرویس‌های شخص ثالث متعلق به سازندگانشان هستند و ممکن است تغییر کنند یا از دسترس خارج شوند. برنامه «همان‌طور که هست» و بدون ضمانت ارائه می‌شود. این خلاصه جایگزین متن انگلیسی نیست.
 
