@@ -31,7 +31,7 @@ This release brings Sahne+ 1.6.1 into ProMax's modular architecture, adds the op
 
 ## Validation and limitations
 
-Local validation passed **235 Node tests**, overlay injection and long-media checks, formatting, and Windows unpacked packaging. All ten pages were also checked at desktop, short-window and mobile widths during integration. The tagged release workflow reruns tests and formatting before building and publishing the installer.
+Local validation passed **235 Node tests**, overlay injection and long-media checks, formatting, and Windows packaging. All ten pages were also checked at desktop, short-window and mobile widths during integration. The tagged release workflow is configured to rerun tests and formatting, but GitHub did not start a run for this tag. This installer was built locally from tagged commit `fe723d8` after the local checks; the uploaded installer was downloaded again and verified against its checksum manifest.
 
 Offline tests do not prove live-provider correctness. Real Kick key rotation, Donofa donation/TTS delivery and goal/timer writes, live Meld reloads, and update installation still require runtime/account testing. See the [README](https://github.com/B3hnamR/sahne-promax#promax-vs-sahne-plus) and [data-flow inventory](https://github.com/B3hnamR/sahne-promax/blob/main/docs/DATA_FLOW.md) for the comparison and limitations.
 
@@ -47,4 +47,4 @@ The Donofa bridge remains off until you explicitly enable it. This release does 
 - `SHA256SUMS.txt` — SHA-256 checksum manifest
 - `README-FA.md` — updated Persian guide
 
-The installer is not Authenticode-signed, so Windows SmartScreen may warn. Check the release page for build-provenance attestation. Sahne ProMax is an independent fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus) and is not affiliated with its external providers.
+The installer is not Authenticode-signed, so Windows SmartScreen may warn. No GitHub build-provenance attestation is attached to this locally built release. Sahne ProMax is an independent fork of [Sahne Plus](https://github.com/AmirEyZed/sahne-plus) and is not affiliated with its external providers.
